@@ -1,0 +1,60 @@
+# AXIOMANTIC — конфигурация Apache
+# Нужен mod_rewrite и AllowOverride All. Для nginx — nginx.conf.example.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Сайт в подпапке? Раскомментируйте и укажите её
+    # RewriteBase /
+
+    # Существующие файлы и папки отдаём как есть
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Всё остальное — на роутер
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# ---------- Служебные папки наружу не отдаём ----------
+# Дублирует .htaccess внутри самих папок — на случай, если сайт в подпапке
+<IfModule mod_alias.c>
+    RedirectMatch 404 (^|/)(data|inc)/
+</IfModule>
+
+# ---------- Точечные файлы ----------
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ---------- Заголовки безопасности ----------
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    # Включите после проверки HTTPS:
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+# ---------- Кэш статики ----------
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 30 days"
+    ExpiresByType image/png "access plus 30 days"
+    ExpiresByType image/webp "access plus 30 days"
+    ExpiresByType image/svg+xml "access plus 30 days"
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+</IfModule>

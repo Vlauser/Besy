@@ -1,0 +1,82 @@
+# AXIOMANTIC — пример конфига nginx для axiomantic.ru
+# /etc/nginx/sites-available/axiomantic.ru
+# ln -s /etc/nginx/sites-available/axiomantic.ru /etc/nginx/sites-enabled/
+# nginx -t && systemctl reload nginx
+#
+# ВАЖНО: порядок location с регулярными выражениями имеет значение —
+# nginx берёт первое совпадение. Запреты идут ДО обработки PHP.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name axiomantic.ru www.axiomantic.ru;
+
+    # Certbot сам добавит редирект на HTTPS после выпуска сертификата
+    root /var/www/axiomantic;
+    index index.php;
+
+    client_max_body_size 12M;   # запас под картинки (лимит в config.php — 8 МБ)
+
+    # ---------- 1. Запреты. Строго перед блоком PHP ----------
+    location ~ ^/(data|inc)/ {
+        deny all;
+        return 404;
+    }
+
+    location ~ /\. {
+        deny all;
+        return 404;
+    }
+
+    # В загрузках ничего не исполняется
+    location ^~ /uploads/ {
+        location ~ \.(php|phps|phtml|phar|php[0-9])$ {
+            deny all;
+            return 404;
+        }
+        autoindex off;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    # ---------- 2. Роутинг ----------
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # ---------- 3. PHP ----------
+    location ~ \.php$ {
+        # try_files здесь НЕ нужен — он уже есть внутри fastcgi-php.conf.
+        # Если добавить, nginx упадёт с ошибкой "try_files directive is duplicate".
+        include snippets/fastcgi-php.conf;
+        # Путь к сокету зависит от версии PHP — проверьте: ls /run/php/
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param HTTPS $https if_not_empty;
+    }
+
+    # ---------- 4. Статика ----------
+    location ~* \.(css|js|jpg|jpeg|png|gif|webp|svg|ico)$ {
+        expires 7d;
+        add_header Cache-Control "public";
+        access_log off;
+    }
+
+    location ~* \.woff2$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # ---------- Заголовки безопасности ----------
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml application/xml;
+    gzip_min_length 1024;
+
+    access_log /var/log/nginx/axiomantic.access.log;
+    error_log  /var/log/nginx/axiomantic.error.log;
+}

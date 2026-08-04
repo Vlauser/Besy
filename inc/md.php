@@ -1,0 +1,116 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Маленький конвертер Markdown → HTML.
+ * Нужен только для юридических текстов из админки: заголовки, списки,
+ * жирный, курсив, ссылки, разделители. Ничего лишнего.
+ *
+ * Важно: весь текст экранируется ДО разбора, поэтому вставить
+ * произвольный HTML через админку нельзя.
+ */
+
+function md_inline(string $s): string
+{
+    // Жирный и курсив
+    $s = preg_replace('/\*\*(.+?)\*\*/u', '<strong>$1</strong>', $s) ?? $s;
+    $s = preg_replace('/(?<![\*\w])\*([^\*\n]+)\*(?!\*)/u', '<em>$1</em>', $s) ?? $s;
+
+    // Ссылки вида [текст](адрес)
+    $s = preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/u', function ($m) {
+        return '<a href="' . $m[2] . '" target="_blank" rel="noopener">' . $m[1] . '</a>';
+    }, $s) ?? $s;
+
+    // Голые ссылки (без завершающей точки или запятой)
+    $s = preg_replace('~(?<![">=])(https?://[^\s<)]*[^\s<).,;:!?])~u', '<a href="$1" target="_blank" rel="noopener">$1</a>', $s) ?? $s;
+
+    // Почта
+    $s = preg_replace('/(?<![\w.@-])([\w.\-]+@[\w.\-]+\.\w{2,})/u', '<a href="mailto:$1">$1</a>', $s) ?? $s;
+
+    return $s;
+}
+
+function md_to_html(string $md): string
+{
+    $md = str_replace(["\r\n", "\r"], "\n", $md);
+    $md = htmlspecialchars($md, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    $out    = [];
+    $inList = false;
+    $para   = [];
+
+    $flushPara = function () use (&$para, &$out) {
+        if ($para) {
+            $out[] = '<p>' . md_inline(implode(' ', $para)) . '</p>';
+            $para = [];
+        }
+    };
+    $closeList = function () use (&$inList, &$out) {
+        if ($inList) {
+            $out[] = '</ul>';
+            $inList = false;
+        }
+    };
+
+    foreach (explode("\n", $md) as $line) {
+        $t = trim($line);
+
+        // Пустая строка — конец абзаца
+        if ($t === '') {
+            $flushPara();
+            $closeList();
+            continue;
+        }
+
+        // Разделитель
+        if (preg_match('/^(-{3,}|\*{3,}|_{3,})$/', $t)) {
+            $flushPara();
+            $closeList();
+            $out[] = '<hr>';
+            continue;
+        }
+
+        // Заголовки
+        if (preg_match('/^(#{1,4})\s+(.+)$/u', $t, $m)) {
+            $flushPara();
+            $closeList();
+            $lvl = min(max(strlen($m[1]), 2), 5);   // h1 остаётся у страницы, # и ## → h2
+            $out[] = '<h' . $lvl . '>' . md_inline(trim($m[2])) . '</h' . $lvl . '>';
+            continue;
+        }
+
+        // Пункты списка
+        if (preg_match('/^[-*+]\s+(.+)$/u', $t, $m)) {
+            $flushPara();
+            if (!$inList) {
+                $out[] = '<ul>';
+                $inList = true;
+            }
+            $out[] = '<li>' . md_inline(trim($m[1])) . '</li>';
+            continue;
+        }
+
+        // Нумерованные пункты вида «7.1.» оставляем обычным абзацем —
+        // так они выглядят как в исходном документе
+        $closeList();
+        $para[] = $t;
+    }
+
+    $flushPara();
+    $closeList();
+
+    return implode("\n", $out);
+}
+
+/**
+ * Текст согласия у формы. Кусок в [[двойных скобках]] превращается
+ * в ссылку на политику — так редактор не может вставить чужой HTML.
+ */
+function agree_html(string $text, string $href): string
+{
+    $safe = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    return preg_replace_callback('/\[\[(.+?)\]\]/u', function ($m) use ($href) {
+        return '<a href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8')
+            . '" target="_blank" rel="noopener" onclick="event.stopPropagation()">' . $m[1] . '</a>';
+    }, $safe) ?? $safe;
+}
