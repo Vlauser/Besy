@@ -22,6 +22,9 @@
           <?php if (trim((string)c('site.nav_services')) !== ''): ?>
           <a href="<?= url('services') ?>"><?= e(c('site.nav_services')) ?></a>
           <?php endif; ?>
+          <?php if (trim((string)c('site.nav_price')) !== ''): ?>
+          <a href="<?= url('landing-price') ?>"><?= e(c('site.nav_price')) ?></a>
+          <?php endif; ?>
           <?php if (trim((string)c('site.nav_contacts')) !== ''): ?>
           <a href="<?= url('contacts') ?>"><?= e(c('site.nav_contacts')) ?></a>
           <?php endif; ?>

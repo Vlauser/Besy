@@ -209,6 +209,8 @@
   </section>
   <?php endif; ?>
 
+  <?php require ROOT . '/tpl/_reviews.php'; ?>
+
   <?php if (has_any('faq.kicker', 'faq.title', 'faq.lede', 'faq.items')): ?>
   <section class="section faq-section" id="faq-block">
     <div class="container faq-layout">

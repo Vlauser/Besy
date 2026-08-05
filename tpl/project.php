@@ -151,5 +151,7 @@ $near = work_neighbours((int)($p['_index'] ?? 0));
     </section>
   <?php endif; ?>
 
+  <?php require ROOT . '/tpl/_next.php'; ?>
+
   <?php require ROOT . '/tpl/_cta.php'; ?>
 </main>

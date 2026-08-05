@@ -12,6 +12,9 @@
       <?php if (trim((string)c('site.nav_services')) !== ''): ?>
       <a href="<?= url('services') ?>"<?= $NAV === 'services' ? ' class="active"' : '' ?>><?= e(c('site.nav_services')) ?></a>
       <?php endif; ?>
+      <?php if (trim((string)c('site.nav_price')) !== ''): ?>
+      <a href="<?= url('landing-price') ?>"<?= $NAV === 'price' ? ' class="active"' : '' ?>><?= e(c('site.nav_price')) ?></a>
+      <?php endif; ?>
       <?php if (trim((string)c('site.nav_contacts')) !== ''): ?>
       <a href="<?= url('contacts') ?>"<?= $NAV === 'contacts' ? ' class="active"' : '' ?>><?= e(c('site.nav_contacts')) ?></a>
       <?php endif; ?>

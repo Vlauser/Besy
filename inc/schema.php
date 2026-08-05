@@ -242,6 +242,113 @@ function schema(): array
             ]],
         ],
 
+        'price' => [
+            'group' => 'Страницы',
+            'title' => 'Сколько стоит',
+            'desc'  => 'Отдельная страница под запросы «сколько стоит лендинг», «цена разработки сайта». Это самый горячий коммерческий интент: человек уже выбирает, а не изучает.',
+            'note'  => 'Страница отвечает на вопрос о цене полнее, чем прайс на главной: из чего складывается сумма, что входит в пакет, что оплачивается отдельно, за какой срок. Не пишите цену, которой не готовы держаться — расхождение с реальностью бьёт по доверию сильнее, чем высокая цифра.',
+            'fieldsets' => [
+                [
+                    'title'  => 'Первый экран',
+                    'desc'   => 'Заголовок — это H1 страницы, по нему поисковик понимает, на какой вопрос она отвечает.',
+                    'fields' => ['price.kicker', 'price.title', 'price.lede', 'price.cta'],
+                ],
+                [
+                    'title'  => 'Из чего складывается цена',
+                    'desc'   => 'Объясните, почему сумма именно такая. Это снимает главное возражение «почему так дорого» ещё до разговора.',
+                    'fields' => ['price.factors_title', 'price.factors_lede'],
+                ],
+                [
+                    'title'  => 'Что оплачивается отдельно',
+                    'desc'   => 'Честный список того, что не входит в стоимость: домен, хостинг, фотосъёмка. Открытость здесь окупается.',
+                    'fields' => ['price.extras_title', 'price.extras_lede', 'price.extras_note'],
+                ],
+                [
+                    'title'  => 'Пакеты и вопросы',
+                    'desc'   => 'Заголовки блоков со списками ниже.',
+                    'fields' => ['price.packages_title', 'price.packages_lede', 'price.faq_title', 'price.faq_lede'],
+                ],
+            ],
+            'fields' => [
+                'price.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'price.title'  => ['label' => 'Заголовок страницы (H1)', 'type' => 'text', 'hides' => 'заголовок страницы'],
+                'price.lede'   => ['label' => 'Описание под заголовком', 'type' => 'textarea', 'rows' => 3, 'hides' => 'описание'],
+                'price.cta'    => ['label' => 'Кнопка на первом экране', 'type' => 'text', 'w' => 'm', 'hides' => 'кнопку'],
+
+                'price.factors_title' => ['label' => 'Заголовок блока', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'price.factors_lede'  => ['label' => 'Описание блока', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+
+                'price.extras_title' => ['label' => 'Заголовок блока', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'price.extras_lede'  => ['label' => 'Описание блока', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+                'price.extras_note'  => ['label' => 'Строка под списком', 'type' => 'text', 'hides' => 'строку под списком'],
+
+                'price.packages_title' => ['label' => 'Заголовок блока пакетов', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'price.packages_lede'  => ['label' => 'Описание блока пакетов', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+                'price.faq_title'      => ['label' => 'Заголовок блока вопросов', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'price.faq_lede'       => ['label' => 'Описание блока вопросов', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+            ],
+            'repeaters' => [
+                [
+                    'path' => 'price.factors', 'label' => 'Фактор цены', 'title_field' => 'title', 'max' => 8,
+                    'fields' => [
+                        'title' => ['label' => 'Что влияет на цену', 'type' => 'text'],
+                        'text'  => ['label' => 'Пояснение', 'type' => 'textarea', 'rows' => 2],
+                    ],
+                ],
+                [
+                    'path' => 'price.packages', 'label' => 'Пакет', 'title_field' => 'name', 'max' => 6,
+                    'fields' => [
+                        'name'     => ['label' => 'Название пакета', 'type' => 'text'],
+                        'price'    => ['label' => 'Цена', 'type' => 'text', 'w' => 'm', 'hint' => 'Например «от 30 000 ₽». Цифра из неё попадает в микроразметку — в выдаче Яндекс может показать её прямо в сниппете.'],
+                        'term'     => ['label' => 'Срок', 'type' => 'text', 'w' => 'm'],
+                        'text'     => ['label' => 'Кому подходит', 'type' => 'textarea', 'rows' => 2],
+                        'includes' => ['label' => 'Что входит', 'type' => 'lines', 'rows' => 6, 'hint' => 'Каждый пункт с новой строки.'],
+                        'case'     => ['label' => 'Пример работы', 'type' => 'text', 'w' => 'm', 'hint' => 'Ключ проекта из раздела «Портфолио», например raid-38. Под пакетом появится ссылка на этот кейс — по ТЗ каждый пакет должен быть подкреплён примером.'],
+                        'button'   => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm'],
+                        'featured' => ['label' => 'Выделить пакет', 'type' => 'check', 'w' => 'm'],
+                    ],
+                ],
+                [
+                    'path' => 'price.extras', 'label' => 'Отдельная оплата', 'title_field' => 'title', 'max' => 10,
+                    'fields' => [
+                        'title' => ['label' => 'Что оплачивается отдельно', 'type' => 'text'],
+                        'text'  => ['label' => 'Пояснение или примерная сумма', 'type' => 'text'],
+                    ],
+                ],
+                [
+                    'path' => 'price.faq', 'label' => 'Вопрос о цене', 'title_field' => 'q', 'max' => 12,
+                    'fields' => [
+                        'q' => ['label' => 'Вопрос', 'type' => 'text'],
+                        'a' => ['label' => 'Ответ', 'type' => 'textarea', 'rows' => 3],
+                    ],
+                ],
+            ],
+        ],
+
+        'reviews' => [
+            'group' => 'Страницы',
+            'title' => 'Отзывы',
+            'desc'  => 'Показываются на главной и на странице цены. Пока ни одного отзыва не добавлено — блок на сайте не появляется.',
+            'note'  => 'Добавляйте только настоящие отзывы от реальных клиентов. Выдуманные отзывы — это и риск фильтра от Яндекса, и прямой запрет в вашем же ТЗ. Оценка попадает в микроразметку: если она есть хотя бы у одного отзыва, Яндекс может показать звёзды в выдаче.',
+            'fields' => [
+                'reviews.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'reviews.title'  => ['label' => 'Заголовок блока', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'reviews.lede'   => ['label' => 'Описание блока', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+            ],
+            'repeaters' => [[
+                'path' => 'reviews.items', 'label' => 'Отзыв', 'title_field' => 'author', 'max' => 30,
+                'fields' => [
+                    'text'    => ['label' => 'Текст отзыва', 'type' => 'textarea', 'rows' => 4],
+                    'author'  => ['label' => 'Кто написал', 'type' => 'text', 'w' => 'm', 'hint' => 'Имя и фамилия либо имя и должность.'],
+                    'role'    => ['label' => 'Должность и компания', 'type' => 'text', 'w' => 'm'],
+                    'rating'  => ['label' => 'Оценка от 1 до 5', 'type' => 'number', 'min' => 1, 'max' => 5, 'w' => 's', 'hint' => 'Пусто — звёзды не показываются ни на сайте, ни в выдаче.'],
+                    'date'    => ['label' => 'Дата отзыва', 'type' => 'text', 'w' => 'm', 'hint' => 'В виде 2026-08-01. Нужна для микроразметки.'],
+                    'case'    => ['label' => 'Ключ проекта', 'type' => 'text', 'w' => 'm', 'hint' => 'Например raid-38 — под отзывом появится ссылка на кейс.'],
+                    'avatar'  => ['label' => 'Фото', 'type' => 'image'],
+                ],
+            ]],
+        ],
+
         'contacts' => [
             'group' => 'Страницы',
             'title' => 'Страница контактов',
@@ -289,6 +396,7 @@ function schema(): array
                 'site.nav_home'     => ['label' => 'Меню: главная', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
                 'site.nav_projects' => ['label' => 'Меню: проекты', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
                 'site.nav_services' => ['label' => 'Меню: услуги', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
+                'site.nav_price'    => ['label' => 'Меню: цены', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
                 'site.nav_contacts' => ['label' => 'Меню: контакты', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
 
                 'site.footer_note'          => ['label' => 'Подпись в подвале', 'type' => 'textarea', 'rows' => 2, 'hides' => 'подпись в подвале'],
@@ -426,6 +534,11 @@ function schema(): array
                 'meta.contacts_og'      => ['label' => 'Контакты — картинка для соцсетей', 'type' => 'image'],
                 'meta.contacts_noindex' => ['label' => 'Закрыть от индексации', 'type' => 'check'],
 
+                'meta.price_title'      => ['label' => 'Сколько стоит — title', 'type' => 'text', 'limit' => 60],
+                'meta.price_desc'       => ['label' => 'Сколько стоит — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
+                'meta.price_og'         => ['label' => 'Сколько стоит — картинка для соцсетей', 'type' => 'image'],
+                'meta.price_noindex'    => ['label' => 'Закрыть от индексации', 'type' => 'check'],
+
                 'meta.privacy_title'    => ['label' => 'Политика — title', 'type' => 'text', 'limit' => 60],
                 'meta.privacy_desc'     => ['label' => 'Политика — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
                 'meta.consent_title'    => ['label' => 'Согласие — title', 'type' => 'text', 'limit' => 60],
@@ -535,6 +648,8 @@ function schema_places(): array
 
         'work'          => ['page' => 'projects',  'anchor' => '',          'where' => 'Страница «Проекты» целиком', 'icon' => '▣'],
         'services'      => ['page' => 'services',  'anchor' => '',          'where' => 'Страница «Услуги» целиком', 'icon' => '▤'],
+        'price'         => ['page' => 'landing-price', 'anchor' => '',   'where' => 'Страница «Сколько стоит» — /landing-price', 'icon' => '₽'],
+        'reviews'       => ['page' => '',          'anchor' => 'reviews',   'where' => 'Главная и страница цены. Пусто — блока нет', 'icon' => '★'],
         'contacts'      => ['page' => 'contacts',  'anchor' => '',          'where' => 'Страница «Контакты» — только заголовки', 'icon' => '✆'],
         'error404'      => ['page' => 'stranica-kotoroy-net', 'anchor' => '', 'where' => 'Страница, которая открывается по несуществующему адресу', 'icon' => '⚠'],
 

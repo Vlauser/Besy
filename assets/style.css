@@ -111,8 +111,6 @@
   --font-geist-mono:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 
-@import "tailwindcss";
-
 :root {
   --bg: #f7f8fb;
   --paper: #ffffff;
@@ -3977,5 +3975,312 @@ picture {
 
   .project-nav-next {
     text-align: left;
+  }
+}
+
+/* ==========================================================
+   Страница «Сколько стоит» — /landing-price
+   ========================================================== */
+.price-hero-actions {
+  margin-top: 34px;
+}
+
+.price-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.price-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 34px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.price-card.featured {
+  border-color: var(--blue);
+  box-shadow: var(--shadow);
+}
+
+.price-card h3 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.price-card-text {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.price-amount {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.price-amount strong {
+  font-size: 34px;
+  font-weight: 640;
+  letter-spacing: -0.04em;
+}
+
+.price-amount span {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.price-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 11px;
+  flex: 1;
+}
+
+.price-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.price-list li svg {
+  flex: none;
+  margin-top: 4px;
+  color: var(--blue);
+}
+
+.price-card-foot {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
+.price-case,
+.review-case {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--blue);
+  text-decoration: none;
+  font-size: 15px;
+}
+
+.price-case:hover,
+.review-case:hover {
+  text-decoration: underline;
+}
+
+/* из чего складывается цена */
+.factor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.factor-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 28px 26px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.factor-card h3 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 580;
+  letter-spacing: -0.02em;
+}
+
+.factor-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+/* что оплачивается отдельно */
+.price-extras {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 44px 42px;
+}
+
+.extras-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px 34px;
+}
+
+.extras-list > div {
+  display: grid;
+  gap: 5px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.extras-list dt {
+  font-weight: 570;
+  font-size: 17px;
+}
+
+.extras-list dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.extras-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin: 28px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.extras-note svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--blue);
+}
+
+/* ==========================================================
+   Отзывы
+   ========================================================== */
+.reviews-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 18px;
+}
+
+.review-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 30px 28px;
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.review-stars {
+  display: flex;
+  gap: 3px;
+  font-size: 17px;
+  color: var(--line);
+}
+
+.review-stars .on {
+  color: #f5a623;
+}
+
+.review-card blockquote {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.review-author {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.review-avatar img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.review-author b {
+  display: block;
+  font-weight: 570;
+  font-size: 16px;
+}
+
+.review-author i {
+  display: block;
+  font-style: normal;
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+/* ==========================================================
+   «Что дальше» — перелинковка
+   ========================================================== */
+.next-section {
+  padding-top: 0;
+}
+
+.next-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.next-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: 26px 26px 24px;
+  display: grid;
+  gap: 7px;
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.next-card:hover {
+  border-color: var(--blue);
+  transform: translateY(-2px);
+}
+
+.next-card b {
+  font-size: 19px;
+  font-weight: 580;
+  letter-spacing: -0.02em;
+}
+
+.next-card span {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+  max-width: 30ch;
+}
+
+.next-card i {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  color: var(--blue);
+}
+
+@media (max-width: 700px) {
+  .price-extras {
+    padding: 30px 24px;
+  }
+
+  .price-card {
+    padding: 28px 24px;
   }
 }

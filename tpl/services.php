@@ -27,5 +27,7 @@
   </section>
   <?php endif; ?>
 
+  <?php require ROOT . '/tpl/_next.php'; ?>
+
   <?php require ROOT . '/tpl/_cta.php'; ?>
 </main>

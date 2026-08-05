@@ -36,6 +36,8 @@ $routes = [
     ''          => ['tpl' => 'home',     'meta' => 'home',     'nav' => 'home'],
     'projects'  => ['tpl' => 'projects', 'meta' => 'work',     'nav' => 'work'],
     'services'  => ['tpl' => 'services', 'meta' => 'services', 'nav' => 'services'],
+    // Коммерческая посадочная под запросы о стоимости
+    'landing-price' => ['tpl' => 'price', 'meta' => 'price', 'nav' => 'price'],
     'contacts'  => ['tpl' => 'contacts', 'meta' => 'contacts', 'nav' => 'contacts'],
     'privacy'   => ['tpl' => 'privacy',  'meta' => 'privacy',  'nav' => ''],
     'consent'   => ['tpl' => 'consent',  'meta' => 'consent',  'nav' => ''],

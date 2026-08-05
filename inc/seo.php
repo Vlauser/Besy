@@ -250,6 +250,7 @@ function seo_crumbs(string $slug, ?array $project = null): array
     $names = [
         'projects' => trim((string)c('site.nav_projects')) ?: 'Проекты',
         'services' => trim((string)c('site.nav_services')) ?: 'Услуги',
+        'landing-price' => trim((string)c('price.title')) ?: 'Сколько стоит',
         'contacts' => trim((string)c('site.nav_contacts')) ?: 'Контакты',
         'privacy'  => trim((string)c('legal.privacy_title')) ?: 'Политика обработки данных',
         'consent'  => trim((string)c('legal.consent_title')) ?: 'Согласие на обработку данных',
@@ -345,6 +346,22 @@ function seo_node_org(): array
     }
     if ($same) $node['sameAs'] = array_values(array_unique($same));
 
+    // Отзывы прикрепляем к компании: по ним Яндекс рисует звёзды в выдаче
+    $rv = seo_reviews();
+    if ($rv['reviews']) {
+        $node['review'] = $rv['reviews'];
+
+        if ($rv['rated'] > 0) {
+            $node['aggregateRating'] = [
+                '@type'       => 'AggregateRating',
+                'ratingValue' => round($rv['sum'] / $rv['rated'], 1),
+                'reviewCount' => $rv['rated'],
+                'bestRating'  => 5,
+                'worstRating' => 1,
+            ];
+        }
+    }
+
     return $node;
 }
 
@@ -418,10 +435,10 @@ function seo_node_breadcrumb(string $slug, array $crumbs): array
 }
 
 /** Вопросы и ответы: Яндекс разворачивает их прямо в выдаче. */
-function seo_node_faq(string $slug): ?array
+function seo_node_faq(string $slug, string $path = 'faq.items'): ?array
 {
     $list = [];
-    foreach ((array)c('faq.items', []) as $q) {
+    foreach ((array)c($path, []) as $q) {
         $question = trim((string)($q['q'] ?? ''));
         $answer   = trim((string)($q['a'] ?? ''));
         if ($question === '' || $answer === '') continue;
@@ -483,6 +500,106 @@ function seo_node_services(string $slug, string $path): ?array
         'name'            => trim((string)c('services.title')) ?: 'Услуги',
         'itemListElement' => $list,
     ];
+}
+
+/**
+ * Пакеты со страницы цены.
+ *
+ * Цена в разметке — единственный способ показать её прямо в сниппете:
+ * человек видит сумму ещё в выдаче и приходит уже подготовленным.
+ */
+function seo_node_packages(string $slug): ?array
+{
+    $base = seo_base();
+    $list = [];
+    $pos  = 0;
+
+    foreach ((array)c('price.packages', []) as $p) {
+        $name = trim((string)($p['name'] ?? ''));
+        if ($name === '') continue;
+        $pos++;
+
+        $service = [
+            '@type'    => 'Service',
+            'name'     => $name,
+            'provider' => ['@id' => $base . '/#organization'],
+        ];
+        if ($txt = trim((string)($p['text'] ?? ''))) $service['description'] = $txt;
+        if ($city = trim((string)c('seo.org_city'))) $service['areaServed'] = $city;
+
+        $price = seo_price_number((string)($p['price'] ?? ''));
+        if ($price !== '') {
+            $offer = [
+                '@type'         => 'Offer',
+                'price'         => $price,
+                'priceCurrency' => 'RUB',
+                'availability'  => 'https://schema.org/InStock',
+                'url'           => seo_url($slug),
+            ];
+            // «от 30 000 ₽» — это нижняя граница, а не точная сумма
+            if (mb_stripos((string)($p['price'] ?? ''), 'от') !== false) {
+                $offer['priceSpecification'] = [
+                    '@type'       => 'PriceSpecification',
+                    'minPrice'    => $price,
+                    'priceCurrency' => 'RUB',
+                ];
+            }
+            $service['offers'] = $offer;
+        }
+
+        $list[] = ['@type' => 'ListItem', 'position' => $pos, 'item' => $service];
+    }
+    if (!$list) return null;
+
+    return [
+        '@type'           => 'ItemList',
+        '@id'             => seo_url($slug) . '#packages',
+        'name'            => trim((string)c('price.packages_title')) ?: 'Пакеты',
+        'itemListElement' => $list,
+    ];
+}
+
+/**
+ * Отзывы клиентов.
+ *
+ * Размечаются только реальные заполненные отзывы. Средняя оценка
+ * считается по тем, где она проставлена: выдумывать рейтинг нельзя —
+ * это прямой путь под фильтр за накрутку.
+ */
+function seo_reviews(): array
+{
+    $out = [];
+    $sum = 0;
+    $rated = 0;
+
+    foreach ((array)c('reviews.items', []) as $r) {
+        $text   = trim((string)($r['text'] ?? ''));
+        $author = trim((string)($r['author'] ?? ''));
+        if ($text === '' || $author === '') continue;
+
+        $node = [
+            '@type'         => 'Review',
+            'reviewBody'    => $text,
+            'author'        => ['@type' => 'Person', 'name' => $author],
+        ];
+        if ($d = trim((string)($r['date'] ?? ''))) $node['datePublished'] = $d;
+
+        $rating = (int)($r['rating'] ?? 0);
+        if ($rating >= 1 && $rating <= 5) {
+            $node['reviewRating'] = [
+                '@type'       => 'Rating',
+                'ratingValue' => $rating,
+                'bestRating'  => 5,
+                'worstRating' => 1,
+            ];
+            $sum += $rating;
+            $rated++;
+        }
+
+        $out[] = $node;
+    }
+
+    return ['reviews' => $out, 'sum' => $sum, 'rated' => $rated];
 }
 
 /** Одна работа — для её собственной страницы. */
@@ -591,6 +708,11 @@ function seo_jsonld(string $slug = '', string $key = 'home', ?array $project = n
         if ($n = seo_node_faq($slug)) $graph[] = $n;
     }
 
+    if ($slug === 'landing-price') {
+        if ($n = seo_node_faq($slug, 'price.faq')) $graph[] = $n;
+        if ($n = seo_node_packages($slug))         $graph[] = $n;
+    }
+
     if ($slug === 'services') {
         if ($n = seo_node_services($slug, 'services.items')) $graph[] = $n;
     } elseif ($slug === '') {
@@ -616,6 +738,8 @@ function seo_pages(): array
         ''          => ['1.0', 'weekly',  'home'],
         'projects'  => ['0.9', 'weekly',  'work'],
         'services'  => ['0.9', 'monthly', 'services'],
+        // Запросы о цене — самый горячий коммерческий интент
+        'landing-price' => ['0.9', 'monthly', 'price'],
         'contacts'  => ['0.7', 'monthly', 'contacts'],
         'privacy'   => ['0.2', 'yearly',  'privacy'],
         'consent'   => ['0.2', 'yearly',  'consent'],
