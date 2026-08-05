@@ -17,6 +17,9 @@
 <link rel="preload" href="<?= url('assets/fonts/geist-875ccdd4.woff2') ?>" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="<?= url('assets/fonts/geist-mono-44e03052.woff2') ?>" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="<?= url('assets/style.css') ?>?v=<?= @filemtime(ROOT . '/assets/style.css') ?: 1 ?>">
+<?php /* Второй файл стилей от дизайнера. Несмотря на название, он правит
+         не только коммерческие посадочные: в нём переопределены шапка,
+         подвал, карточки и первый экран, поэтому нужен на всех страницах */ ?>
 <link rel="stylesheet" href="<?= url('assets/commercial.css') ?>?v=<?= @filemtime(ROOT . '/assets/commercial.css') ?: 1 ?>">
 
 <?php /* Картинка первого экрана — обычно самый крупный элемент, по которому

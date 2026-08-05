@@ -10,7 +10,7 @@ if (!has_any('reviews.items')) return;
 
 $items = array_values(array_filter(
     (array)c('reviews.items', []),
-    fn($r) => is_array($r) && trim((string)($r['text'] ?? '')) !== ''
+    fn($r) => is_array($r) && empty($r['draft']) && trim((string)($r['text'] ?? '')) !== ''
 ));
 if (!$items) return;
 ?>

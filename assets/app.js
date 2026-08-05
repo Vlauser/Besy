@@ -137,27 +137,31 @@
     });
   }
 
-  /* ---------- вопросы и ответы ---------- */
-  var faq = document.getElementById('faq');
-  if (faq) {
-    faq.addEventListener('click', function (e) {
-      var btn = e.target.closest('button');
-      if (!btn) return;
-      var item = btn.parentElement;
-      var wasOpen = item.classList.contains('open');
-      faq.querySelectorAll('.faq-item').forEach(function (x) {
-        x.classList.remove('open');
-        var b = x.querySelector('button');
-        if (b) b.setAttribute('aria-expanded', 'false');
-      });
-      if (!wasOpen) {
-        item.classList.add('open');
-        btn.setAttribute('aria-expanded', 'true');
-        var label = btn.querySelector('span');
-        goal('faq_open', { question: label ? label.textContent.trim().slice(0, 120) : '' });
-      }
+  /* ---------- вопросы и ответы ----------
+     Ловим клик на любом блоке .accordion, а не на одном элементе с id.
+     Раньше обработчик висел на #faq, и на страницах, где у аккордеона
+     не было такого id, вопросы просто не раскрывались. */
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.accordion .faq-item > button');
+    if (!btn) return;
+
+    var box = btn.closest('.accordion');
+    var item = btn.parentElement;
+    var wasOpen = item.classList.contains('open');
+
+    box.querySelectorAll('.faq-item').forEach(function (x) {
+      x.classList.remove('open');
+      var b = x.querySelector('button');
+      if (b) b.setAttribute('aria-expanded', 'false');
     });
-  }
+
+    if (!wasOpen) {
+      item.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+      var label = btn.querySelector('span');
+      goal('faq_open', { question: label ? label.textContent.trim().slice(0, 120) : '' });
+    }
+  });
 
   /* ---------- фильтр проектов ---------- */
   var filters = document.getElementById('filters');

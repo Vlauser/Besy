@@ -311,7 +311,6 @@ function seo_crumbs(string $slug, ?array $project = null, ?array $post = null): 
     $names = [
         'projects' => trim((string)c('site.nav_projects')) ?: 'Проекты',
         'services' => trim((string)c('site.nav_services')) ?: 'Услуги',
-        'landing-price' => trim((string)c('price.title')) ?: 'Сколько стоит',
         'about'    => trim((string)c('about.title')) ?: 'О студии',
         'blog'     => trim((string)c('site.nav_blog')) ?: 'Блог',
         'contacts' => trim((string)c('site.nav_contacts')) ?: 'Контакты',
@@ -583,63 +582,6 @@ function seo_node_services(string $slug, string $path): ?array
 }
 
 /**
- * Пакеты со страницы цены.
- *
- * Цена в разметке — единственный способ показать её прямо в сниппете:
- * человек видит сумму ещё в выдаче и приходит уже подготовленным.
- */
-function seo_node_packages(string $slug): ?array
-{
-    $base = seo_base();
-    $list = [];
-    $pos  = 0;
-
-    foreach ((array)c('price.packages', []) as $p) {
-        $name = trim((string)($p['name'] ?? ''));
-        if ($name === '') continue;
-        $pos++;
-
-        $service = [
-            '@type'    => 'Service',
-            'name'     => $name,
-            'provider' => ['@id' => $base . '/#organization'],
-        ];
-        if ($txt = trim((string)($p['text'] ?? ''))) $service['description'] = $txt;
-        if ($city = trim((string)c('seo.org_city'))) $service['areaServed'] = $city;
-
-        $price = seo_price_number((string)($p['price'] ?? ''));
-        if ($price !== '') {
-            $offer = [
-                '@type'         => 'Offer',
-                'price'         => $price,
-                'priceCurrency' => 'RUB',
-                'availability'  => 'https://schema.org/InStock',
-                'url'           => seo_url($slug),
-            ];
-            // «от 30 000 ₽» — это нижняя граница, а не точная сумма
-            if (mb_stripos((string)($p['price'] ?? ''), 'от') !== false) {
-                $offer['priceSpecification'] = [
-                    '@type'       => 'PriceSpecification',
-                    'minPrice'    => $price,
-                    'priceCurrency' => 'RUB',
-                ];
-            }
-            $service['offers'] = $offer;
-        }
-
-        $list[] = ['@type' => 'ListItem', 'position' => $pos, 'item' => $service];
-    }
-    if (!$list) return null;
-
-    return [
-        '@type'           => 'ItemList',
-        '@id'             => seo_url($slug) . '#packages',
-        'name'            => trim((string)c('price.packages_title')) ?: 'Пакеты',
-        'itemListElement' => $list,
-    ];
-}
-
-/**
  * Отзывы клиентов.
  *
  * Размечаются только реальные заполненные отзывы. Средняя оценка
@@ -653,6 +595,8 @@ function seo_reviews(): array
     $rated = 0;
 
     foreach ((array)c('reviews.items', []) as $r) {
+        if (!empty($r['draft'])) continue;
+
         $text   = trim((string)($r['text'] ?? ''));
         $author = trim((string)($r['author'] ?? ''));
         if ($text === '' || $author === '') continue;
@@ -782,6 +726,85 @@ function seo_node_blog(string $slug): ?array
     ];
 }
 
+/**
+ * Коммерческая посадочная: сама услуга с ценой.
+ *
+ * В данных страницы уже лежит schemaPrice — цифра для поисковика,
+ * отдельная от строки «от 30 000 ₽», которую видит человек.
+ * Без этого узла она никуда не попадала.
+ */
+function seo_node_commercial(string $slug, array $cfg): ?array
+{
+    $name = trim((string)($cfg['h1'] ?? ''));
+    if ($name === '') return null;
+
+    $base = seo_base();
+    $node = [
+        '@type'    => 'Service',
+        '@id'      => seo_url($slug) . '#service',
+        'name'     => $name,
+        'provider' => ['@id' => $base . '/#organization'],
+        'url'      => seo_url($slug),
+    ];
+
+    if ($lead = trim((string)($cfg['lead'] ?? ''))) $node['description'] = $lead;
+
+    // Регион у страницы для конкретного города, иначе город студии
+    $area = trim((string)($cfg['areaServed'] ?? '')) ?: trim((string)c('seo.org_city'));
+    if ($area !== '') $node['areaServed'] = $area;
+
+    $price = seo_price_number((string)($cfg['schemaPrice'] ?? ''));
+    if ($price !== '') {
+        $offer = [
+            '@type'         => 'Offer',
+            'price'         => $price,
+            'priceCurrency' => 'RUB',
+            'availability'  => 'https://schema.org/InStock',
+            'url'           => seo_url($slug),
+        ];
+        // «от 30 000 ₽» — нижняя граница, а не точная сумма
+        if (mb_stripos((string)($cfg['price'] ?? ''), 'от') !== false) {
+            $offer['priceSpecification'] = [
+                '@type'         => 'PriceSpecification',
+                'minPrice'      => $price,
+                'priceCurrency' => 'RUB',
+            ];
+        }
+        $node['offers'] = $offer;
+    }
+
+    return $node;
+}
+
+/**
+ * Вопросы коммерческой страницы.
+ *
+ * Ключи здесь question/answer, а не q/a, как в блоке вопросов на главной —
+ * поэтому общий сборщик их не понимал и разметка не появлялась.
+ */
+function seo_node_commercial_faq(string $slug, array $cfg): ?array
+{
+    $list = [];
+    foreach ((array)($cfg['faq'] ?? []) as $item) {
+        $q = trim((string)($item['question'] ?? ''));
+        $a = trim((string)($item['answer'] ?? ''));
+        if ($q === '' || $a === '') continue;
+
+        $list[] = [
+            '@type'          => 'Question',
+            'name'           => $q,
+            'acceptedAnswer' => ['@type' => 'Answer', 'text' => $a],
+        ];
+    }
+    if (!$list) return null;
+
+    return [
+        '@type'      => 'FAQPage',
+        '@id'        => seo_url($slug) . '#faq',
+        'mainEntity' => $list,
+    ];
+}
+
 /** Портфолио: список работ студии. */
 function seo_node_portfolio(string $slug): ?array
 {
@@ -869,14 +892,19 @@ function seo_jsonld(string $slug = '', string $key = 'home', ?array $project = n
         return $wrap($graph);
     }
 
+    /* Коммерческая посадочная описывает саму себя и выходит первой:
+       иначе на /landing-price поверх неё легла бы разметка старого
+       раздела «Сколько стоит», и поисковик получил бы описание
+       содержимого, которого на странице уже нет. */
+    if (function_exists('commercial_page') && ($cfg = commercial_page($slug))) {
+        if ($n = seo_node_commercial($slug, $cfg))     $graph[] = $n;
+        if ($n = seo_node_commercial_faq($slug, $cfg)) $graph[] = $n;
+        return $wrap($graph);
+    }
+
     // Вопросы выводятся на главной и в контактах — размечаем их там же
     if ($slug === '' || $slug === 'contacts') {
         if ($n = seo_node_faq($slug)) $graph[] = $n;
-    }
-
-    if ($slug === 'landing-price') {
-        if ($n = seo_node_faq($slug, 'price.faq')) $graph[] = $n;
-        if ($n = seo_node_packages($slug))         $graph[] = $n;
     }
 
     if ($slug === 'services') {
@@ -904,8 +932,6 @@ function seo_pages(): array
         ''          => ['1.0', 'weekly',  'home'],
         'projects'  => ['0.9', 'weekly',  'work'],
         'services'  => ['0.9', 'monthly', 'services'],
-        // Запросы о цене — самый горячий коммерческий интент
-        'landing-price' => ['0.9', 'monthly', 'price'],
         'about'     => ['0.6', 'yearly',  'about'],
         'blog'      => ['0.7', 'weekly',  'blog'],
         'contacts'  => ['0.7', 'monthly', 'contacts'],

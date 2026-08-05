@@ -246,87 +246,49 @@ function schema(): array
             ]],
         ],
 
-        'price' => [
+        'commercial' => [
             'group' => 'Страницы',
-            'title' => 'Сколько стоит',
-            'desc'  => 'Отдельная страница под запросы «сколько стоит лендинг», «цена разработки сайта». Это самый горячий коммерческий интент: человек уже выбирает, а не изучает.',
-            'note'  => 'Страница отвечает на вопрос о цене полнее, чем прайс на главной: из чего складывается сумма, что входит в пакет, что оплачивается отдельно, за какой срок. Не пишите цену, которой не готовы держаться — расхождение с реальностью бьёт по доверию сильнее, чем высокая цифра.',
-            'fieldsets' => [
-                [
-                    'title'  => 'Первый экран',
-                    'desc'   => 'Заголовок — это H1 страницы, по нему поисковик понимает, на какой вопрос она отвечает.',
-                    'fields' => ['price.kicker', 'price.title', 'price.lede', 'price.cta'],
-                ],
-                [
-                    'title'  => 'Из чего складывается цена',
-                    'desc'   => 'Объясните, почему сумма именно такая. Это снимает главное возражение «почему так дорого» ещё до разговора.',
-                    'fields' => ['price.factors_title', 'price.factors_lede'],
-                ],
-                [
-                    'title'  => 'Что оплачивается отдельно',
-                    'desc'   => 'Честный список того, что не входит в стоимость: домен, хостинг, фотосъёмка. Открытость здесь окупается.',
-                    'fields' => ['price.extras_title', 'price.extras_lede', 'price.extras_note'],
-                ],
-                [
-                    'title'  => 'Пакеты и вопросы',
-                    'desc'   => 'Заголовки блоков со списками ниже.',
-                    'fields' => ['price.packages_title', 'price.packages_lede', 'price.faq_title', 'price.faq_lede'],
-                ],
-            ],
-            'fields' => [
-                'price.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
-                'price.title'  => ['label' => 'Заголовок страницы (H1)', 'type' => 'text', 'hides' => 'заголовок страницы'],
-                'price.lede'   => ['label' => 'Описание под заголовком', 'type' => 'textarea', 'rows' => 3, 'hides' => 'описание'],
-                'price.cta'    => ['label' => 'Кнопка на первом экране', 'type' => 'text', 'w' => 'm', 'hides' => 'кнопку'],
+            'title' => 'Коммерческие страницы',
+            'desc'  => 'Посадочные под поисковые запросы: создание лендингов, стоимость, город, ниши. Каждая — отдельный адрес и отдельный запрос, под который её оптимизировали.',
+            'note'  => 'Один адрес = один запрос. Не делайте две страницы про одно и то же: они начнут конкурировать между собой в выдаче, и просядут обе. Адрес опубликованной страницы менять нельзя — она выпадет из поиска и потеряет позиции.',
+            'fields' => [],
+            'repeaters' => [[
+                'path' => 'commercial.items', 'label' => 'Страница', 'title_field' => 'h1', 'max' => 40,
+                'fields' => [
+                    'slug'   => ['label' => 'Адрес страницы', 'type' => 'text', 'w' => 'm', 'hint' => 'Латиницей через дефис, без слэшей: landing-price. Получится /landing-price.'],
+                    'h1'     => ['label' => 'Заголовок (H1)', 'type' => 'text', 'hint' => 'Главный заголовок страницы. Пустой — страницы не будет.'],
+                    'kicker' => ['label' => 'Надпись над заголовком', 'type' => 'text', 'w' => 'm'],
+                    'lead'   => ['label' => 'Абзац под заголовком', 'type' => 'textarea', 'rows' => 3],
 
-                'price.factors_title' => ['label' => 'Заголовок блока', 'type' => 'text', 'hides' => 'заголовок блока'],
-                'price.factors_lede'  => ['label' => 'Описание блока', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+                    'title'       => ['label' => 'Title в выдаче', 'type' => 'text', 'limit' => 60],
+                    'description' => ['label' => 'Description в выдаче', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
 
-                'price.extras_title' => ['label' => 'Заголовок блока', 'type' => 'text', 'hides' => 'заголовок блока'],
-                'price.extras_lede'  => ['label' => 'Описание блока', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
-                'price.extras_note'  => ['label' => 'Строка под списком', 'type' => 'text', 'hides' => 'строку под списком'],
+                    'price'        => ['label' => 'Цена как её видит человек', 'type' => 'text', 'w' => 'm', 'hint' => 'Например «от 30 000 ₽».'],
+                    'schemaPrice'  => ['label' => 'Цена для поисковика', 'type' => 'text', 'w' => 's', 'hint' => 'Только цифры: 30000. Попадает в микроразметку, Яндекс может показать сумму прямо в выдаче. Пусто — цена не размечается.'],
+                    'priceCaption' => ['label' => 'Подпись под ценой', 'type' => 'text'],
+                    'areaServed'   => ['label' => 'Город страницы', 'type' => 'text', 'w' => 'm', 'hint' => 'Только для региональных страниц. Пусто — берётся город студии из настроек.'],
 
-                'price.packages_title' => ['label' => 'Заголовок блока пакетов', 'type' => 'text', 'hides' => 'заголовок блока'],
-                'price.packages_lede'  => ['label' => 'Описание блока пакетов', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
-                'price.faq_title'      => ['label' => 'Заголовок блока вопросов', 'type' => 'text', 'hides' => 'заголовок блока'],
-                'price.faq_lede'       => ['label' => 'Описание блока вопросов', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
-            ],
-            'repeaters' => [
-                [
-                    'path' => 'price.factors', 'label' => 'Фактор цены', 'title_field' => 'title', 'max' => 8,
-                    'fields' => [
-                        'title' => ['label' => 'Что влияет на цену', 'type' => 'text'],
-                        'text'  => ['label' => 'Пояснение', 'type' => 'textarea', 'rows' => 2],
-                    ],
+                    'facts' => ['label' => 'Пункты в карточке цены', 'type' => 'lines', 'rows' => 4, 'hint' => 'По одному в строке.'],
+
+                    'summaryTitle' => ['label' => 'Блок «Главное»: заголовок', 'type' => 'text'],
+                    'summaryText'  => ['label' => 'Блок «Главное»: текст', 'type' => 'textarea', 'rows' => 3],
+
+                    'includedTitle' => ['label' => 'Блок «Состав работы»: заголовок', 'type' => 'text'],
+                    'included'      => ['label' => 'Состав работы', 'type' => 'lines', 'rows' => 6, 'hint' => 'По строке на пункт, в виде «Название | Пояснение». Например: Анализ | Изучаем нишу и конкурентов.'],
+
+                    'steps' => ['label' => 'Шаги процесса', 'type' => 'lines', 'rows' => 4, 'hint' => 'Так же: «Название | Пояснение». Нумерация проставляется сама.'],
+
+                    'fitTitle' => ['label' => 'Блок «Кому подходит»: заголовок', 'type' => 'text'],
+                    'fit'      => ['label' => 'Кому подходит', 'type' => 'lines', 'rows' => 5, 'hint' => 'По одному пункту в строке.'],
+
+                    'faq' => ['label' => 'Вопросы и ответы', 'type' => 'lines', 'rows' => 8, 'hint' => 'По строке на вопрос, в виде «Вопрос | Ответ». Попадают в микроразметку — Яндекс разворачивает их прямо в выдаче.'],
+
+                    'projectSlugs' => ['label' => 'Кейсы на странице', 'type' => 'lines', 'rows' => 3, 'hint' => 'Ключи проектов из «Портфолио», по одному в строке: raid-38.'],
+                    'related'      => ['label' => 'Ссылки «Продолжить знакомство»', 'type' => 'lines', 'rows' => 4, 'hint' => 'В виде «/адрес | Подпись ссылки». Например: /landing-price | Стоимость лендинга.'],
+
+                    'noindex' => ['label' => 'Закрыть от индексации', 'type' => 'check', 'hint' => 'Страница останется доступной по ссылке, но пропадёт из карты сайта и поиска.'],
                 ],
-                [
-                    'path' => 'price.packages', 'label' => 'Пакет', 'title_field' => 'name', 'max' => 6,
-                    'fields' => [
-                        'name'     => ['label' => 'Название пакета', 'type' => 'text'],
-                        'price'    => ['label' => 'Цена', 'type' => 'text', 'w' => 'm', 'hint' => 'Например «от 30 000 ₽». Цифра из неё попадает в микроразметку — в выдаче Яндекс может показать её прямо в сниппете.'],
-                        'term'     => ['label' => 'Срок', 'type' => 'text', 'w' => 'm'],
-                        'text'     => ['label' => 'Кому подходит', 'type' => 'textarea', 'rows' => 2],
-                        'includes' => ['label' => 'Что входит', 'type' => 'lines', 'rows' => 6, 'hint' => 'Каждый пункт с новой строки.'],
-                        'case'     => ['label' => 'Пример работы', 'type' => 'text', 'w' => 'm', 'hint' => 'Ключ проекта из раздела «Портфолио», например raid-38. Под пакетом появится ссылка на этот кейс — по ТЗ каждый пакет должен быть подкреплён примером.'],
-                        'button'   => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm'],
-                        'featured' => ['label' => 'Выделить пакет', 'type' => 'check', 'w' => 'm'],
-                    ],
-                ],
-                [
-                    'path' => 'price.extras', 'label' => 'Отдельная оплата', 'title_field' => 'title', 'max' => 10,
-                    'fields' => [
-                        'title' => ['label' => 'Что оплачивается отдельно', 'type' => 'text'],
-                        'text'  => ['label' => 'Пояснение или примерная сумма', 'type' => 'text'],
-                    ],
-                ],
-                [
-                    'path' => 'price.faq', 'label' => 'Вопрос о цене', 'title_field' => 'q', 'max' => 12,
-                    'fields' => [
-                        'q' => ['label' => 'Вопрос', 'type' => 'text'],
-                        'a' => ['label' => 'Ответ', 'type' => 'textarea', 'rows' => 3],
-                    ],
-                ],
-            ],
+            ]],
         ],
 
         'about' => [
@@ -440,6 +402,7 @@ function schema(): array
                     'date'    => ['label' => 'Дата отзыва', 'type' => 'text', 'w' => 'm', 'hint' => 'В виде 2026-08-01. Нужна для микроразметки.'],
                     'case'    => ['label' => 'Ключ проекта', 'type' => 'text', 'w' => 'm', 'hint' => 'Например raid-38 — под отзывом появится ссылка на кейс.'],
                     'avatar'  => ['label' => 'Фото', 'type' => 'image'],
+                    'draft'   => ['label' => 'Черновик', 'type' => 'check', 'hint' => 'Черновик не показывается на сайте и не попадает в микроразметку.'],
                 ],
             ]],
         ],
@@ -641,9 +604,7 @@ function schema(): array
                 'meta.blog_desc'        => ['label' => 'Блог — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
                 'meta.blog_noindex'     => ['label' => 'Закрыть от индексации', 'type' => 'check'],
 
-                'meta.price_title'      => ['label' => 'Сколько стоит — title', 'type' => 'text', 'limit' => 60],
                 'meta.price_desc'       => ['label' => 'Сколько стоит — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
-                'meta.price_og'         => ['label' => 'Сколько стоит — картинка для соцсетей', 'type' => 'image'],
                 'meta.price_noindex'    => ['label' => 'Закрыть от индексации', 'type' => 'check'],
 
                 'meta.privacy_title'    => ['label' => 'Политика — title', 'type' => 'text', 'limit' => 60],
@@ -755,9 +716,9 @@ function schema_places(): array
 
         'work'          => ['page' => 'projects',  'anchor' => '',          'where' => 'Страница «Проекты» целиком', 'icon' => '▣'],
         'services'      => ['page' => 'services',  'anchor' => '',          'where' => 'Страница «Услуги» целиком', 'icon' => '▤'],
+        'commercial'    => ['page' => 'landing',   'anchor' => '',          'where' => 'Посадочные под запросы: /landing, /landing-price, ниши', 'icon' => '◈'],
         'about'         => ['page' => 'about',     'anchor' => '',          'where' => 'Страница «О студии» — /about', 'icon' => '☗'],
         'blog'          => ['page' => 'blog',      'anchor' => '',          'where' => 'Раздел «Блог» — /blog и страницы статей', 'icon' => '✍'],
-        'price'         => ['page' => 'landing-price', 'anchor' => '',   'where' => 'Страница «Сколько стоит» — /landing-price', 'icon' => '₽'],
         'reviews'       => ['page' => '',          'anchor' => 'reviews',   'where' => 'Главная и страница цены. Пусто — блока нет', 'icon' => '★'],
         'contacts'      => ['page' => 'contacts',  'anchor' => '',          'where' => 'Страница «Контакты» — только заголовки', 'icon' => '✆'],
         'error404'      => ['page' => 'stranica-kotoroy-net', 'anchor' => '', 'where' => 'Страница, которая открывается по несуществующему адресу', 'icon' => '⚠'],
