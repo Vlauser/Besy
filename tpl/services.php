@@ -1,4 +1,5 @@
 <main>
+  <?php if (has_any('services.kicker', 'services.title', 'services.lede')): ?>
   <section class="page-hero">
     <div class="container reveal">
       <?php if (trim((string)c('services.kicker')) !== ''): ?>
@@ -12,7 +13,9 @@
       <?php endif; ?>
     </div>
   </section>
+  <?php endif; ?>
 
+  <?php if (has_any('services.items')): ?>
   <section class="section">
     <div class="container">
       <div class="home-services-grid">
@@ -22,6 +25,7 @@
       </div>
     </div>
   </section>
+  <?php endif; ?>
 
   <?php require ROOT . '/tpl/_cta.php'; ?>
 </main>

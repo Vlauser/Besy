@@ -297,6 +297,7 @@ function render_login(string $error): void
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Вход — <?= e(c('site.brand', 'AXIOMANTIC')) ?></title>
     <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="<?= url(trim((string)c('seo.favicon')) ?: 'assets/img/favicon.svg') ?>">
     <link rel="stylesheet" href="<?= url('admin/assets/admin.css') ?>?v=<?= @filemtime(ROOT . '/admin/assets/admin.css') ?: 1 ?>">
     </head><body class="login-body">
       <div class="login-box">
@@ -330,6 +331,7 @@ function render_header(array $user, string $action): void
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Панель управления — <?= e(c('site.brand', 'AXIOMANTIC')) ?></title>
     <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="<?= url(trim((string)c('seo.favicon')) ?: 'assets/img/favicon.svg') ?>">
     <link rel="stylesheet" href="<?= url('admin/assets/admin.css') ?>?v=<?= @filemtime(ROOT . '/admin/assets/admin.css') ?: 1 ?>">
     </head><body>
     <div class="shell">
@@ -339,33 +341,55 @@ function render_header(array $user, string $action): void
           <div class="side-role"><?= e($user['name']) ?> · <?= $user['role'] === 'admin' ? 'администратор' : 'редактор' ?></div>
         </div>
 
-        <nav class="side-nav">
-          <a href="<?= url('admin/') ?>" class="<?= $action === 'dashboard' ? 'on' : '' ?>">Обзор</a>
-          <a href="<?= url('admin/?action=leads') ?>" class="<?= $action === 'leads' ? 'on' : '' ?>">
+        <div class="side-find">
+          <input type="search" id="sideFind" placeholder="Найти настройку…"
+                 autocomplete="off" aria-label="Поиск по настройкам">
+        </div>
+
+        <nav class="side-nav" id="sideNav">
+          <a href="<?= url('admin/') ?>" class="<?= $action === 'dashboard' ? 'on' : '' ?>" data-find="обзор главная">Обзор</a>
+          <a href="<?= url('admin/?action=leads') ?>" class="<?= $action === 'leads' ? 'on' : '' ?>" data-find="заявки лиды клиенты">
             Заявки<?php if ($newLeads): ?><i class="badge"><?= $newLeads ?></i><?php endif; ?>
           </a>
 
           <?php foreach ($groups as $group => $sections): ?>
-            <div class="side-group"><?= e($group) ?></div>
+            <div class="side-group" data-group><?= e($group) ?></div>
             <?php foreach ($sections as $key => $title):
-                if (!empty(schema()[$key]['admin_only']) && !is_admin()) continue; ?>
+                $secDef = schema()[$key];
+                if (!empty($secDef['admin_only']) && !is_admin()) continue;
+                $place = schema_place($key);
+
+                /* Строка для поиска: название раздела, где он на сайте
+                   и подписи всех его полей — чтобы настройку можно было
+                   найти по тому слову, которое человек помнит */
+                $find = mb_strtolower($title . ' ' . $place['where'] . ' ' . ($secDef['desc'] ?? ''));
+                foreach ($secDef['fields'] ?? [] as $fdef) {
+                    $find .= ' ' . mb_strtolower((string)($fdef['label'] ?? ''));
+                }
+                foreach ($secDef['repeaters'] ?? [] as $rep) {
+                    $find .= ' ' . mb_strtolower((string)($rep['label'] ?? ''));
+                }
+                ?>
               <a href="<?= url('admin/?action=edit&s=' . urlencode($key)) ?>"
-                 class="<?= ($action === 'edit' && $current === $key) ? 'on' : '' ?>"><?= e($title) ?></a>
+                 class="<?= ($action === 'edit' && $current === $key) ? 'on' : '' ?>"
+                 data-find="<?= e($find) ?>"><span class="side-ico" aria-hidden="true"><?= e($place['icon']) ?></span><?= e($title) ?></a>
             <?php endforeach; ?>
           <?php endforeach; ?>
 
-          <div class="side-group">Доступ</div>
+          <p class="side-empty" id="sideEmpty" hidden>Ничего не нашлось</p>
+
+          <div class="side-group" data-group>Доступ</div>
           <?php if (is_admin()): ?>
-            <a href="<?= url('admin/?action=users') ?>" class="<?= $action === 'users' ? 'on' : '' ?>">Пользователи</a>
+            <a href="<?= url('admin/?action=users') ?>" class="<?= $action === 'users' ? 'on' : '' ?>" data-find="пользователи доступ роли">Пользователи</a>
           <?php endif; ?>
-          <a href="<?= url('admin/?action=health') ?>" class="<?= $action === 'health' ? 'on' : '' ?>">Проверка сайта</a>
-          <a href="<?= url('admin/?action=search') ?>" class="<?= $action === 'search' ? 'on' : '' ?>">Поиск по сайту</a>
+          <a href="<?= url('admin/?action=health') ?>" class="<?= $action === 'health' ? 'on' : '' ?>" data-find="проверка сайта диагностика">Проверка сайта</a>
+          <a href="<?= url('admin/?action=search') ?>" class="<?= $action === 'search' ? 'on' : '' ?>" data-find="поиск по сайту текст">Поиск по сайту</a>
           <?php if (is_admin()): ?>
-            <a href="<?= url('admin/?action=backup') ?>" class="<?= $action === 'backup' ? 'on' : '' ?>">Резервные копии</a>
+            <a href="<?= url('admin/?action=backup') ?>" class="<?= $action === 'backup' ? 'on' : '' ?>" data-find="резервные копии бэкап восстановление">Резервные копии</a>
           <?php endif; ?>
-          <a href="<?= url('admin/?action=password') ?>" class="<?= $action === 'password' ? 'on' : '' ?>">Сменить пароль</a>
-          <a href="<?= url('') ?>" target="_blank" rel="noopener">Открыть сайт ↗</a>
-          <a href="<?= url('admin/?action=logout') ?>" class="danger">Выйти</a>
+          <a href="<?= url('admin/?action=password') ?>" class="<?= $action === 'password' ? 'on' : '' ?>" data-find="пароль вход безопасность">Сменить пароль</a>
+          <a href="<?= url('') ?>" target="_blank" rel="noopener" data-find="открыть сайт посмотреть">Открыть сайт ↗</a>
+          <a href="<?= url('admin/?action=logout') ?>" class="danger" data-find="выйти выход">Выйти</a>
         </nav>
       </aside>
 
@@ -573,6 +597,9 @@ function render_editor(string $key, string $notice, string $error): void
         echo '<h1 class="h1">Недостаточно прав</h1><p class="sub">Этот раздел доступен только администратору.</p>';
         return;
     }
+
+    $place = schema_place($key);
+    $siteUrl = url($place['page']) . ($place['anchor'] !== '' ? '#' . $place['anchor'] : '');
     ?>
     <form method="post" action="<?= url('admin/?action=save') ?>" class="editor" id="editor">
       <?= csrf_field() ?>
@@ -581,20 +608,49 @@ function render_editor(string $key, string $notice, string $error): void
       <div class="head-row">
         <div>
           <h1 class="h1"><?= e($sec['title']) ?></h1>
+          <?php if ($place['where'] !== ''): ?>
+            <p class="where"><span class="where-ico" aria-hidden="true"><?= e($place['icon']) ?></span><?= e($place['where']) ?></p>
+          <?php endif; ?>
           <?php if (!empty($sec['desc'])): ?><p class="sub"><?= e($sec['desc']) ?></p><?php endif; ?>
         </div>
-        <button class="btn" type="submit">Сохранить</button>
+        <div class="head-acts">
+          <a class="btn btn--gh" href="<?= e($siteUrl) ?>" target="_blank" rel="noopener">Посмотреть ↗</a>
+          <button class="btn" type="submit">Сохранить</button>
+        </div>
       </div>
+
+      <?php if (!empty($sec['note'])): ?>
+        <div class="note"><b>Как это работает</b><span><?= e($sec['note']) ?></span></div>
+      <?php endif; ?>
 
       <?php if ($notice): ?><div class="msg msg--ok"><?= e($notice) ?></div><?php endif; ?>
       <?php if ($error): ?><div class="msg msg--err"><?= e($error) ?></div><?php endif; ?>
 
       <?php if (!empty($sec['fields'])): ?>
-        <div class="grid">
-          <?php foreach ($sec['fields'] as $path => $def) {
-              echo field_html('f[' . $path . ']', $def, arr_get(content(), $path, ''));
-          } ?>
-        </div>
+        <?php if (!empty($sec['fieldsets'])): ?>
+          <?php /* Поля разбиты на смысловые группы: так понятно,
+                    какая настройка к какой части блока относится */ ?>
+          <?php foreach ($sec['fieldsets'] as $fs): ?>
+            <section class="fset">
+              <div class="fset-head">
+                <h2 class="h2"><?= e($fs['title'] ?? '') ?></h2>
+                <?php if (!empty($fs['desc'])): ?><p class="sub"><?= e($fs['desc']) ?></p><?php endif; ?>
+              </div>
+              <div class="grid">
+                <?php foreach ($fs['fields'] ?? [] as $path): ?>
+                  <?php if (!isset($sec['fields'][$path])) continue; ?>
+                  <?= field_html('f[' . $path . ']', $sec['fields'][$path], arr_get(content(), $path, '')) ?>
+                <?php endforeach; ?>
+              </div>
+            </section>
+          <?php endforeach; ?>
+        <?php else: ?>
+          <div class="grid">
+            <?php foreach ($sec['fields'] as $path => $def) {
+                echo field_html('f[' . $path . ']', $def, arr_get(content(), $path, ''));
+            } ?>
+          </div>
+        <?php endif; ?>
       <?php endif; ?>
 
       <?php foreach ($sec['repeaters'] ?? [] as $ri => $rep): ?>
@@ -656,6 +712,8 @@ function field_html(string $name, array $def, $value): string
     $type  = $def['type'] ?? 'text';
     $label = $def['label'] ?? '';
     $hint  = $def['hint'] ?? '';
+    $hides = $def['hides'] ?? '';
+    $limit = (int)($def['limit'] ?? 0);
     $w     = $def['w'] ?? '';
     $rows  = (int)($def['rows'] ?? 3);
     $ph    = $def['placeholder'] ?? '';
@@ -676,10 +734,16 @@ function field_html(string $name, array $def, $value): string
         return $out . '</div>';
     }
 
-    $out .= '<label for="' . $id . '"><span>' . e($label) . '</span></label>';
+    $out .= '<label for="' . $id . '"><span>' . e($label) . '</span>';
+    // Подпись «очистите — пропадёт»: главное правило админки
+    if ($hides !== '') {
+        $out .= '<i class="tip" title="Очистите поле — с сайта пропадёт ' . e($hides) . '">пусто&nbsp;— скроется</i>';
+    }
+    $out .= '</label>';
 
     if ($type === 'textarea' || $type === 'list') {
-        $out .= '<textarea id="' . $id . '" name="' . e($name) . '" rows="' . $rows . '">' . e((string)$value) . '</textarea>';
+        $out .= '<textarea id="' . $id . '" name="' . e($name) . '" rows="' . $rows . '"'
+              . ($limit ? ' data-limit="' . $limit . '"' : '') . '>' . e((string)$value) . '</textarea>';
     } elseif ($type === 'number') {
         $out .= '<input id="' . $id . '" type="number" name="' . e($name) . '" value="' . e((string)$value) . '" min="' . e((string)$min) . '" max="' . e((string)$max) . '">';
     } elseif ($type === 'color') {
@@ -697,11 +761,18 @@ function field_html(string $name, array $def, $value): string
         $out .= '<input type="file" accept="image/*" hidden data-img-file>';
         $out .= '</div>';
         $out .= '<div class="img-prev"' . ($value ? '' : ' hidden') . ' data-img-prev>';
-        if ($value) $out .= '<img src="' . e((string)$value) . '" alt="">';
+        if ($value) {
+            // В поле лежит путь от корня сайта. Админка живёт в /admin/,
+            // поэтому без url() браузер искал бы картинку в /admin/assets/…
+            $src = (string)$value;
+            if (!preg_match('~^(https?:)?//~', $src)) $src = url($src);
+            $out .= '<img src="' . e($src) . '" alt="">';
+        }
         $out .= '</div>';
     } else {
         $out .= '<input id="' . $id . '" type="text" name="' . e($name) . '" value="' . e((string)$value)
-              . '"' . ($ph ? ' placeholder="' . e((string)$ph) . '"' : '') . '>';
+              . '"' . ($ph ? ' placeholder="' . e((string)$ph) . '"' : '')
+              . ($limit ? ' data-limit="' . $limit . '"' : '') . '>';
     }
 
     if ($hint) $out .= '<small>' . e($hint) . '</small>';

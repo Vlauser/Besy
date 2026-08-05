@@ -210,3 +210,51 @@ a.card:hover{border-color:var(--ink);text-decoration:none;transform:translateY(-
 .char-count{margin-top:6px;font-size:12.5px;color:var(--mut)}
 .char-count.near{color:var(--warn)}
 .char-count.over{color:var(--err);font-weight:500}
+
+/* ==========================================================
+   Понятная навигация: где я и что правлю
+   ========================================================== */
+
+/* поиск по настройкам */
+.side-find{padding:0 16px 12px}
+.side-find input{width:100%;background:#1B1F25;border:1px solid #2A2F36;border-radius:var(--r);
+  color:#E9EAEC;padding:9px 12px;font-size:14px;-webkit-appearance:none}
+.side-find input::placeholder{color:#6E747E}
+.side-find input:focus{outline:none;border-color:var(--klein);background:#20252C}
+.side-empty{padding:14px 20px;color:#6E747E;font-size:13.5px}
+
+/* значок раздела в меню.
+   [hidden] прописан явно: display:flex ниже перебил бы его,
+   и поиск перестал бы прятать пункты */
+.side-nav a{display:flex;align-items:center;gap:9px}
+.side-nav a[hidden],.side-group[hidden]{display:none}
+.side-ico{flex:none;width:18px;text-align:center;color:#6E747E;font-size:13px}
+.side-nav a.on .side-ico,.side-nav a:hover .side-ico{color:var(--klein)}
+
+/* где раздел находится на сайте */
+.where{display:inline-flex;align-items:center;gap:8px;margin:2px 0 10px;
+  background:var(--klein-soft);color:var(--klein);border-radius:999px;
+  padding:5px 13px 5px 10px;font-size:13px;line-height:1.35}
+.where-ico{font-size:12px;opacity:.8}
+.head-acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* объяснение правила раздела */
+.note{border:1px solid var(--rule);border-left:3px solid var(--klein);background:var(--card);
+  border-radius:var(--r);padding:14px 16px;margin-bottom:24px;display:grid;gap:5px}
+.note b{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--klein)}
+.note span{color:var(--mut);font-size:14px;line-height:1.55}
+
+/* смысловые группы полей внутри раздела */
+.fset{border:1px solid var(--rule);background:var(--card);border-radius:var(--r);
+  padding:20px 20px 4px;margin-bottom:18px}
+.fset-head{margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--rule-2)}
+.fset-head .h2{margin-bottom:6px}
+.fset-head .sub{margin-bottom:0;font-size:13.5px}
+
+/* пометка «очистите — пропадёт с сайта».
+   min-height держит поля в строке на одной линии, даже когда
+   у соседа подпись переносится на вторую строку */
+.fieldset label{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-height:34px}
+.tip{font-style:normal;font-size:11px;letter-spacing:.02em;text-transform:none;
+  color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:2px 8px;cursor:help;
+  white-space:nowrap}

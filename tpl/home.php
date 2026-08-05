@@ -1,8 +1,9 @@
 <main>
+  <?php if (has_any('hero.title_1', 'hero.title_2', 'hero.title_accent', 'hero.text', 'hero.cta_primary', 'hero.badges', 'hero.image')): ?>
   <section class="hero">
     <div class="container hero-grid">
       <div class="hero-copy reveal">
-        <h1><?= e(c('hero.title_1')) ?><br><?= e(c('hero.title_2')) ?> <?php if (trim((string)c('hero.title_accent')) !== ''): ?><span><?= e(c('hero.title_accent')) ?></span><?php endif; ?></h1>
+        <h1><?php if (trim((string)c('hero.title_1')) !== ''): ?><?= e(c('hero.title_1')) ?><?php if (trim((string)c('hero.title_2')) !== '' || trim((string)c('hero.title_accent')) !== ''): ?><br><?php endif; ?><?php endif; ?><?= e(c('hero.title_2')) ?> <?php if (trim((string)c('hero.title_accent')) !== ''): ?><span><?= e(c('hero.title_accent')) ?></span><?php endif; ?></h1>
         <?php if (trim((string)c('hero.text')) !== ''): ?>
         <p class="hero-text"><?= e(c('hero.text')) ?></p>
         <?php endif; ?>
@@ -14,11 +15,14 @@
           <a href="#projects" class="button button-secondary"><?= e(c('hero.cta_secondary')) ?></a>
           <?php endif; ?>
         </div>
+        <?php if (has_any('hero.badges')): ?>
         <div class="badge-row">
           <?php foreach ((array)c('hero.badges', []) as $b): ?>
-            <span class="tag"><?= icon('check', 14) ?><?= e($b['text'] ?? '') ?></span>
+            <?php if (trim((string)($b['text'] ?? '')) === '') continue; ?>
+            <span class="tag"><?= icon('check', 14) ?><?= e($b['text']) ?></span>
           <?php endforeach; ?>
         </div>
+        <?php endif; ?>
       </div>
       <?php if ($img = trim((string)c('hero.image'))): ?>
       <div class="hero-art reveal reveal-delay">
@@ -27,7 +31,9 @@
       <?php endif; ?>
     </div>
   </section>
+  <?php endif; ?>
 
+  <?php if (has_any('comparison.kicker', 'comparison.title', 'comparison.lede', 'comparison.bad', 'comparison.good', 'comparison.center_num')): ?>
   <section class="section comparison-section">
     <div class="container">
       <div class="section-heading split-heading">
@@ -74,7 +80,9 @@
       </div>
     </div>
   </section>
+  <?php endif; ?>
 
+  <?php if (has_any('process.kicker', 'process.title', 'process.items')): ?>
   <section class="section process-section">
     <div class="container">
       <div class="section-heading">
@@ -106,7 +114,9 @@
       </div>
     </div>
   </section>
+  <?php endif; ?>
 
+  <?php if (has_any('benefits.kicker', 'benefits.title', 'benefits.items')): ?>
   <section class="section benefits-section">
     <div class="container">
       <div class="benefits-shell">
@@ -140,7 +150,9 @@
       </div>
     </div>
   </section>
+  <?php endif; ?>
 
+  <?php if (has_any('home_services.kicker', 'home_services.title', 'home_services.lede', 'home_services.items')): ?>
   <section class="section home-services-section" id="services">
     <div class="container">
       <div class="section-heading split-heading">
@@ -168,9 +180,11 @@
       </div>
     </div>
   </section>
+  <?php endif; ?>
 
   <?php require ROOT . '/tpl/_cta.php'; ?>
 
+  <?php if (has_any('projects_home.kicker', 'projects_home.title', 'work.items')): ?>
   <section class="section projects-section" id="projects">
     <div class="container">
       <div class="section-heading compact-heading">
@@ -193,7 +207,9 @@
       </div>
     </div>
   </section>
+  <?php endif; ?>
 
+  <?php if (has_any('faq.kicker', 'faq.title', 'faq.lede', 'faq.items')): ?>
   <section class="section faq-section">
     <div class="container faq-layout">
       <div class="section-heading">
@@ -213,7 +229,9 @@
       <?php require ROOT . '/tpl/_faq.php'; ?>
     </div>
   </section>
+  <?php endif; ?>
 
+  <?php if (has_any('request.kicker', 'request.title', 'request.text', 'request.form_small', 'request.form_big')): ?>
   <section class="section home-contact-section" id="request">
     <div class="container">
       <div class="home-contact-shell">
@@ -254,4 +272,5 @@
       </div>
     </div>
   </section>
+  <?php endif; ?>
 </main>

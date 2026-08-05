@@ -1,3 +1,4 @@
+<?php if (has_any('cta.kicker', 'cta.title', 'cta.text', 'cta.button', 'cta.image')): ?>
 <section class="section cta-section">
   <div class="container">
     <div class="cta-card">
@@ -21,3 +22,4 @@
     </div>
   </div>
 </section>
+<?php endif; ?>

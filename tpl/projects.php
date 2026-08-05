@@ -1,4 +1,5 @@
 <main>
+  <?php if (has_any('work.kicker', 'work.title', 'work.lede')): ?>
   <section class="page-hero">
     <div class="container reveal">
       <?php if (trim((string)c('work.kicker')) !== ''): ?>
@@ -12,15 +13,18 @@
       <?php endif; ?>
     </div>
   </section>
+  <?php endif; ?>
 
   <section class="section">
     <div class="container">
+      <?php if (has_any('work.filters')): ?>
       <div class="filters" id="filters" aria-label="Фильтр проектов">
         <?php foreach ((array)c('work.filters', []) as $i => $f): ?>
           <button type="button" class="filter-button<?= $i === 0 ? ' active' : '' ?>"
                   data-f="<?= e($f['key'] ?? 'all') ?>" aria-pressed="<?= $i === 0 ? 'true' : 'false' ?>"><?= e($f['label'] ?? '') ?></button>
         <?php endforeach; ?>
       </div>
+      <?php endif; ?>
 
       <div class="project-grid" id="projectGrid">
         <?php foreach ((array)c('work.items', []) as $project): ?>

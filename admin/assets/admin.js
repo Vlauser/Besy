@@ -289,6 +289,73 @@
     copy.scrollIntoView({ block: 'center', behavior: 'smooth' });
   });
 
+  /* ---------- поиск по настройкам ----------
+     Разделов больше двадцати, и держать в голове, что где лежит,
+     невозможно. Ищем по названию раздела, по описанию места на сайте
+     и по подписям всех его полей. */
+  (function () {
+    var input = document.getElementById('sideFind');
+    var nav = document.getElementById('sideNav');
+    if (!input || !nav) return;
+
+    var links = [].slice.call(nav.querySelectorAll('a[data-find]'));
+    var groups = [].slice.call(nav.querySelectorAll('[data-group]'));
+    var empty = document.getElementById('sideEmpty');
+
+    function reset() {
+      links.forEach(function (a) { a.hidden = false; });
+      groups.forEach(function (g) { g.hidden = false; });
+      if (empty) empty.hidden = true;
+    }
+
+    function apply() {
+      var q = input.value.trim().toLowerCase();
+      if (!q) { reset(); return; }
+
+      var words = q.split(/\s+/);
+      var shown = 0;
+
+      links.forEach(function (a) {
+        var hay = (a.getAttribute('data-find') || '') + ' ' + a.textContent.toLowerCase();
+        var ok = words.every(function (w) { return hay.indexOf(w) !== -1; });
+        a.hidden = !ok;
+        if (ok) shown++;
+      });
+
+      // Заголовок группы прячем, если под ним ничего не осталось
+      groups.forEach(function (g) {
+        var any = false;
+        var el = g.nextElementSibling;
+        while (el && !el.hasAttribute('data-group')) {
+          if (el.tagName === 'A' && !el.hidden) { any = true; break; }
+          el = el.nextElementSibling;
+        }
+        g.hidden = !any;
+      });
+
+      if (empty) empty.hidden = shown > 0;
+    }
+
+    input.addEventListener('input', apply);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { input.value = ''; apply(); }
+      if (e.key === 'Enter') {
+        var first = links.filter(function (a) { return !a.hidden; })[0];
+        if (first) { e.preventDefault(); first.click(); }
+      }
+    });
+
+    // Ctrl+K или / — быстрый переход в поиск
+    document.addEventListener('keydown', function (e) {
+      var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ''));
+      if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || (e.key === '/' && !typing)) {
+        e.preventDefault();
+        input.focus();
+        input.select();
+      }
+    });
+  })();
+
   /* ---------- счётчик символов ---------- */
   var LIMITS = [
     { match: /_title\]/, max: 60,  label: 'заголовок в выдаче' },
@@ -311,6 +378,13 @@
   }
 
   document.querySelectorAll('input[name], textarea[name]').forEach(function (el) {
+    // Ограничение приходит из схемы полей: data-limit="60"
+    var own = parseInt(el.getAttribute('data-limit') || '', 10);
+    if (own > 0) {
+      attach(el, { max: own, label: el.getAttribute('data-limit-note') || 'знаков' });
+      return;
+    }
+
     var name = el.getAttribute('name') || '';
     for (var i = 0; i < LIMITS.length; i++) {
       if (LIMITS[i].match.test(name)) { attach(el, LIMITS[i]); break; }

@@ -1,4 +1,5 @@
 <main>
+  <?php if (has_any('contacts.kicker', 'contacts.title', 'contacts.lede')): ?>
   <section class="page-hero contacts-hero">
     <div class="container reveal">
       <?php if (trim((string)c('contacts.kicker')) !== ''): ?>
@@ -12,6 +13,7 @@
       <?php endif; ?>
     </div>
   </section>
+  <?php endif; ?>
 
   <section class="section contacts-content" id="request">
     <div class="container contact-layout">
@@ -44,6 +46,7 @@
     </div>
   </section>
 
+  <?php if (has_any('contacts.faq_kicker', 'contacts.faq_title', 'contacts.faq_lede', 'faq.items')): ?>
   <section class="section faq-section">
     <div class="container faq-layout">
       <div class="section-heading">
@@ -60,4 +63,5 @@
       <?php require ROOT . '/tpl/_faq.php'; ?>
     </div>
   </section>
+  <?php endif; ?>
 </main>

@@ -68,7 +68,20 @@ function seo_canonicalize(string $path): void
 {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') return;
 
-    $target = $path === '' ? '/' : $path;
+    $path = $path === '' ? '/' : $path;
+
+    /* Служебные адреса не трогаем. У админки и загрузок слэш на конце
+       осмысленный: это настоящие папки на диске, и снятие слэша увело бы
+       запрос в никуда — вплоть до петли редиректов. */
+    foreach (['/admin', '/api', '/assets', '/uploads', '/install.php'] as $skip) {
+        if ($path === $skip || str_starts_with($path, $skip . '/')) return;
+    }
+
+    // На всякий случай: реальный файл или папка канонизации не подлежит
+    $onDisk = ROOT . '/' . ltrim($path, '/');
+    if ($path !== '/' && (is_file($onDisk) || is_dir($onDisk))) return;
+
+    $target = $path;
 
     // /index.php на конце — служебный вход, наружу его не показываем
     $target = (string)preg_replace('~/index\.php$~i', '/', $target);

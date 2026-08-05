@@ -21,10 +21,10 @@ function schema(): array
                 'hero.title_1'       => ['label' => 'Заголовок, первая строка', 'type' => 'text'],
                 'hero.title_2'       => ['label' => 'Вторая строка, начало', 'type' => 'text', 'w' => 'm', 'hint' => 'Например «за».'],
                 'hero.title_accent'  => ['label' => 'Выделенная часть', 'type' => 'text', 'w' => 'm', 'hint' => 'Показывается акцентным цветом.'],
-                'hero.text'          => ['label' => 'Описание под заголовком', 'type' => 'textarea', 'rows' => 3],
+                'hero.text'          => ['label' => 'Описание под заголовком', 'type' => 'textarea', 'rows' => 3, 'hides' => 'описание'],
                 'hero.cta_primary'   => ['label' => 'Главная кнопка', 'type' => 'text', 'w' => 'm'],
                 'hero.cta_secondary' => ['label' => 'Вторая кнопка', 'type' => 'text', 'w' => 'm'],
-                'hero.image'         => ['label' => 'Иллюстрация справа', 'type' => 'image', 'hint' => 'Персонаж. Пустое поле — блок скрывается.'],
+                'hero.image'         => ['label' => 'Иллюстрация справа', 'type' => 'image', 'hint' => 'Персонаж. Пустое поле — блок скрывается.', 'hides' => 'картинку'],
             ],
             'repeaters' => [[
                 'path' => 'hero.badges', 'label' => 'Плашка', 'title_field' => 'text', 'max' => 6,
@@ -37,14 +37,14 @@ function schema(): array
             'title' => 'Сравнение с обычной разработкой',
             'desc'  => 'Две колонки и цифра между ними: слева как бывает обычно, справа как у вас.',
             'fields' => [
-                'comparison.kicker'      => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'comparison.title'       => ['label' => 'Заголовок', 'type' => 'text'],
-                'comparison.lede'        => ['label' => 'Описание справа', 'type' => 'textarea', 'rows' => 2],
-                'comparison.label_bad'   => ['label' => 'Подпись левой колонки', 'type' => 'text', 'w' => 'm'],
-                'comparison.label_good'  => ['label' => 'Подпись правой колонки', 'type' => 'text', 'w' => 'm'],
-                'comparison.center_pre'  => ['label' => 'Центр: надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'comparison.center_num'  => ['label' => 'Центр: цифра', 'type' => 'text', 'w' => 's'],
-                'comparison.center_post' => ['label' => 'Центр: подпись снизу', 'type' => 'text', 'w' => 's'],
+                'comparison.kicker'      => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'comparison.title'       => ['label' => 'Заголовок', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'comparison.lede'        => ['label' => 'Описание справа', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+                'comparison.label_bad'   => ['label' => 'Подпись левой колонки', 'type' => 'text', 'w' => 'm', 'hides' => 'подпись колонки'],
+                'comparison.label_good'  => ['label' => 'Подпись правой колонки', 'type' => 'text', 'w' => 'm', 'hides' => 'подпись колонки'],
+                'comparison.center_pre'  => ['label' => 'Центр: надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над цифрой'],
+                'comparison.center_num'  => ['label' => 'Центр: цифра', 'type' => 'text', 'w' => 's', 'hides' => 'цифру'],
+                'comparison.center_post' => ['label' => 'Центр: подпись снизу', 'type' => 'text', 'w' => 's', 'hides' => 'подпись под цифрой'],
             ],
             'repeaters' => [
                 [
@@ -62,8 +62,8 @@ function schema(): array
             'group' => 'Главная',
             'title' => 'Этапы работы',
             'fields' => [
-                'process.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'process.title'  => ['label' => 'Заголовок', 'type' => 'text'],
+                'process.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'process.title'  => ['label' => 'Заголовок', 'type' => 'text', 'hides' => 'заголовок блока'],
             ],
             'repeaters' => [[
                 'path' => 'process.items', 'label' => 'Этап', 'title_field' => 'title', 'max' => 6,
@@ -80,9 +80,9 @@ function schema(): array
             'title' => 'Узнали себя (боли клиента)',
             'desc'  => 'Ситуации, в которых клиенту нужен сайт. Говорите его словами, а не своими.',
             'fields' => [
-                'benefits.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'benefits.title'  => ['label' => 'Заголовок', 'type' => 'text', 'w' => 'm'],
-                'benefits.cta'    => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm'],
+                'benefits.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'benefits.title'  => ['label' => 'Заголовок', 'type' => 'text', 'w' => 'm', 'hides' => 'заголовок блока'],
+                'benefits.cta'    => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm', 'hides' => 'кнопку'],
             ],
             'repeaters' => [[
                 'path' => 'benefits.items', 'label' => 'Ситуация', 'title_field' => 'title', 'max' => 8,
@@ -98,10 +98,10 @@ function schema(): array
             'title' => 'Услуги на главной',
             'desc'  => 'Две-три карточки. Полный список — в разделе «Услуги».',
             'fields' => [
-                'home_services.kicker'   => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'home_services.title'    => ['label' => 'Заголовок', 'type' => 'text'],
-                'home_services.lede'     => ['label' => 'Описание справа', 'type' => 'textarea', 'rows' => 2],
-                'home_services.all_link' => ['label' => 'Кнопка «все услуги»', 'type' => 'text', 'w' => 'm'],
+                'home_services.kicker'   => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'home_services.title'    => ['label' => 'Заголовок', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'home_services.lede'     => ['label' => 'Описание справа', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+                'home_services.all_link' => ['label' => 'Кнопка «все услуги»', 'type' => 'text', 'w' => 'm', 'hides' => 'кнопку «все услуги»'],
             ],
             'repeaters' => [[
                 'path' => 'home_services.items', 'label' => 'Услуга', 'title_field' => 'name', 'max' => 4,
@@ -123,11 +123,11 @@ function schema(): array
             'title' => 'Блок с персонажем',
             'desc'  => 'Повторяется на всех страницах, кроме политики.',
             'fields' => [
-                'cta.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'cta.title'  => ['label' => 'Заголовок', 'type' => 'text'],
-                'cta.text'   => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 2],
-                'cta.button' => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm'],
-                'cta.image'  => ['label' => 'Иллюстрация', 'type' => 'image'],
+                'cta.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'cta.title'  => ['label' => 'Заголовок', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'cta.text'   => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание'],
+                'cta.button' => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm', 'hides' => 'кнопку'],
+                'cta.image'  => ['label' => 'Иллюстрация', 'type' => 'image', 'hides' => 'картинку'],
             ],
         ],
 
@@ -136,9 +136,9 @@ function schema(): array
             'title' => 'Проекты на главной',
             'desc'  => 'Сами проекты — в разделе «Портфолио». На главную попадают первые три из списка.',
             'fields' => [
-                'projects_home.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'projects_home.title'  => ['label' => 'Заголовок', 'type' => 'text', 'w' => 'm'],
-                'projects_home.button' => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm'],
+                'projects_home.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'projects_home.title'  => ['label' => 'Заголовок', 'type' => 'text', 'w' => 'm', 'hides' => 'заголовок блока'],
+                'projects_home.button' => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm', 'hides' => 'кнопку'],
             ],
         ],
 
@@ -147,10 +147,10 @@ function schema(): array
             'title' => 'Вопросы и ответы',
             'desc'  => 'Показываются и на главной, и на странице контактов.',
             'fields' => [
-                'faq.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'faq.title'  => ['label' => 'Заголовок', 'type' => 'text'],
-                'faq.lede'   => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 2],
-                'faq.link'   => ['label' => 'Ссылка «задать вопрос»', 'type' => 'text', 'w' => 'm'],
+                'faq.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'faq.title'  => ['label' => 'Заголовок', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'faq.lede'   => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+                'faq.link'   => ['label' => 'Ссылка «задать вопрос»', 'type' => 'text', 'w' => 'm', 'hides' => 'ссылку'],
             ],
             'repeaters' => [[
                 'path' => 'faq.items', 'label' => 'Вопрос', 'title_field' => 'q', 'max' => 15,
@@ -166,10 +166,10 @@ function schema(): array
             'title' => 'Блок заявки',
             'desc'  => 'Нижний блок главной с формой. Пункт меню «Контакты» ведёт именно сюда.',
             'fields' => [
-                'request.kicker'     => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'request.title'      => ['label' => 'Заголовок', 'type' => 'text'],
-                'request.text'       => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 2],
-                'request.promise'    => ['label' => 'Обещание под контактами', 'type' => 'text'],
+                'request.kicker'     => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'request.title'      => ['label' => 'Заголовок', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'request.text'       => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание'],
+                'request.promise'    => ['label' => 'Обещание под контактами', 'type' => 'text', 'hides' => 'строку с обещанием'],
                 'request.form_small' => ['label' => 'Над формой: мелкая строка', 'type' => 'text', 'w' => 'm'],
                 'request.form_big'   => ['label' => 'Над формой: крупная строка', 'type' => 'text', 'w' => 'm'],
             ],
@@ -182,9 +182,9 @@ function schema(): array
             'title' => 'Портфолио',
             'desc'  => 'Ключ категории у проекта должен совпадать с ключом фильтра, иначе проект не покажется при выборе.',
             'fields' => [
-                'work.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'work.title'  => ['label' => 'Заголовок страницы', 'type' => 'text'],
-                'work.lede'   => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 3],
+                'work.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'work.title'  => ['label' => 'Заголовок страницы', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'work.lede'   => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 3, 'hides' => 'описание блока'],
             ],
             'repeaters' => [
                 [
@@ -214,9 +214,9 @@ function schema(): array
             'group' => 'Страницы',
             'title' => 'Услуги',
             'fields' => [
-                'services.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'services.title'  => ['label' => 'Заголовок страницы', 'type' => 'text'],
-                'services.lede'   => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 3],
+                'services.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'services.title'  => ['label' => 'Заголовок страницы', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'services.lede'   => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 3, 'hides' => 'описание блока'],
             ],
             'repeaters' => [[
                 'path' => 'services.items', 'label' => 'Услуга', 'title_field' => 'name', 'max' => 12,
@@ -238,9 +238,9 @@ function schema(): array
             'title' => 'Страница контактов',
             'desc'  => 'Сами адреса и телефоны — в разделе «Контакты и шапка». Здесь только заголовки.',
             'fields' => [
-                'contacts.kicker'         => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'contacts.title'          => ['label' => 'Заголовок страницы', 'type' => 'text'],
-                'contacts.lede'           => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 2],
+                'contacts.kicker'         => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'contacts.title'          => ['label' => 'Заголовок страницы', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'contacts.lede'           => ['label' => 'Описание', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
                 'contacts.heading_kicker' => ['label' => 'Способы связи: надпись', 'type' => 'text', 'w' => 'm'],
                 'contacts.heading_title'  => ['label' => 'Способы связи: заголовок', 'type' => 'text', 'w' => 'm'],
                 'contacts.faq_kicker'     => ['label' => 'FAQ: надпись', 'type' => 'text', 'w' => 'm'],
@@ -256,12 +256,12 @@ function schema(): array
             'title' => 'Страница 404',
             'desc'  => 'Показывается, когда посетитель попал на несуществующий адрес. Способы связи берутся из раздела «Контакты и шапка».',
             'fields' => [
-                'error404.code'         => ['label' => 'Крупная надпись', 'type' => 'text', 'w' => 's'],
-                'error404.title'        => ['label' => 'Заголовок', 'type' => 'text'],
-                'error404.text'         => ['label' => 'Пояснение', 'type' => 'textarea', 'rows' => 2, 'hint' => 'Перенос строки сохраняется.'],
-                'error404.btn_home'     => ['label' => 'Кнопка «на главную»', 'type' => 'text', 'w' => 'm'],
-                'error404.btn_projects' => ['label' => 'Кнопка «проекты»', 'type' => 'text', 'w' => 'm'],
-                'error404.image'        => ['label' => 'Иллюстрация', 'type' => 'image'],
+                'error404.code'         => ['label' => 'Крупная надпись', 'type' => 'text', 'w' => 's', 'hides' => 'крупную надпись'],
+                'error404.title'        => ['label' => 'Заголовок', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'error404.text'         => ['label' => 'Пояснение', 'type' => 'textarea', 'rows' => 2, 'hint' => 'Перенос строки сохраняется.', 'hides' => 'описание'],
+                'error404.btn_home'     => ['label' => 'Кнопка «на главную»', 'type' => 'text', 'w' => 'm', 'hides' => 'кнопку'],
+                'error404.btn_projects' => ['label' => 'Кнопка «проекты»', 'type' => 'text', 'w' => 'm', 'hides' => 'кнопку'],
+                'error404.image'        => ['label' => 'Иллюстрация', 'type' => 'image', 'hides' => 'картинку'],
             ],
         ],
 
@@ -271,23 +271,23 @@ function schema(): array
             'desc'  => 'Пустой канал связи просто не показывается на сайте.',
             'fields' => [
                 'site.brand'        => ['label' => 'Название', 'type' => 'text', 'w' => 'm'],
-                'site.brand_mark'   => ['label' => 'Значок после названия', 'type' => 'text', 'w' => 's'],
+                'site.brand_mark'   => ['label' => 'Значок после названия', 'type' => 'text', 'w' => 's', 'hides' => 'значок после названия'],
                 'site.email'        => ['label' => 'Почта для документов', 'type' => 'text', 'w' => 'm', 'hint' => 'Указывается в политике, согласии и микроразметке. Чтобы почта появилась на сайте, добавьте её ещё и в список каналов ниже.'],
                 'site.phone'        => ['label' => 'Телефон', 'type' => 'text', 'w' => 'm'],
-                'site.hours'        => ['label' => 'Город и часы работы', 'type' => 'text'],
+                'site.hours'        => ['label' => 'Город и часы работы', 'type' => 'text', 'hides' => 'строку с городом и часами'],
 
-                'site.header_cta'   => ['label' => 'Кнопка в шапке', 'type' => 'text', 'w' => 'm'],
-                'site.nav_home'     => ['label' => 'Меню: главная', 'type' => 'text', 'w' => 's'],
-                'site.nav_projects' => ['label' => 'Меню: проекты', 'type' => 'text', 'w' => 's'],
-                'site.nav_services' => ['label' => 'Меню: услуги', 'type' => 'text', 'w' => 's'],
-                'site.nav_contacts' => ['label' => 'Меню: контакты', 'type' => 'text', 'w' => 's'],
+                'site.header_cta'   => ['label' => 'Кнопка в шапке', 'type' => 'text', 'w' => 'm', 'hides' => 'кнопку в шапке'],
+                'site.nav_home'     => ['label' => 'Меню: главная', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
+                'site.nav_projects' => ['label' => 'Меню: проекты', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
+                'site.nav_services' => ['label' => 'Меню: услуги', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
+                'site.nav_contacts' => ['label' => 'Меню: контакты', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
 
-                'site.footer_note'          => ['label' => 'Подпись в подвале', 'type' => 'textarea', 'rows' => 2],
-                'site.footer_nav_title'     => ['label' => 'Подвал: заголовок навигации', 'type' => 'text', 'w' => 'm'],
-                'site.footer_contact_title' => ['label' => 'Подвал: заголовок контактов', 'type' => 'text', 'w' => 'm'],
+                'site.footer_note'          => ['label' => 'Подпись в подвале', 'type' => 'textarea', 'rows' => 2, 'hides' => 'подпись в подвале'],
+                'site.footer_nav_title'     => ['label' => 'Подвал: заголовок навигации', 'type' => 'text', 'w' => 'm', 'hides' => 'заголовок столбца'],
+                'site.footer_contact_title' => ['label' => 'Подвал: заголовок контактов', 'type' => 'text', 'w' => 'm', 'hides' => 'заголовок столбца'],
                 'site.footer_socials_title' => ['label' => 'Подвал: заголовок соцсетей', 'type' => 'text', 'w' => 'm', 'hint' => 'Столбец появляется, только если ниже добавлена хотя бы одна соцсеть.'],
-                'site.footer_bottom_left'   => ['label' => 'Подвал: строка слева', 'type' => 'text', 'w' => 'm'],
-                'site.footer_bottom_right'  => ['label' => 'Подвал: строка справа', 'type' => 'text', 'w' => 'm'],
+                'site.footer_bottom_left'   => ['label' => 'Подвал: строка слева', 'type' => 'text', 'w' => 'm', 'hides' => 'строку в подвале'],
+                'site.footer_bottom_right'  => ['label' => 'Подвал: строка справа', 'type' => 'text', 'w' => 'm', 'hides' => 'строку в подвале'],
 
                 'site.legal_name' => ['label' => 'Полное наименование', 'type' => 'text', 'hint' => 'По ст. 9 закона о защите прав потребителей ИП обязан сообщить о себе до сделки.'],
                 'site.ogrnip'     => ['label' => 'ОГРНИП', 'type' => 'text', 'w' => 'm'],
@@ -311,29 +311,50 @@ function schema(): array
 
         'forms' => [
             'group' => 'Настройки',
-            'title' => 'Тексты в формах',
-            'desc'  => 'Человек сам выбирает, позвонить ему или написать. Имя и комментарий — необязательные, чтобы не отпугивать длинной анкетой.',
+            'title' => 'Поля формы заявки',
+            'desc'  => 'Одна форма на весь сайт: и во всплывающем окне, и в блоке внизу главной, и на странице контактов. Правите здесь — меняется везде.',
+            'note'  => 'Очистите подпись поля — поле исчезнет с сайта. Так убирают лишние вопросы: чем короче форма, тем больше заявок. Убрать нельзя только контакт и галочку согласия — без них заявку невозможно принять по закону.',
+            'fieldsets' => [
+                [
+                    'title'  => 'Как с вами связаться',
+                    'desc'   => 'Человек сам выбирает: позвонить ему или написать в мессенджер. Оставите подпись только у одной кнопки — переключателя не будет, форма сразу покажет нужное поле.',
+                    'fields' => ['forms.mode_label', 'forms.mode_call', 'forms.mode_write',
+                                 'forms.label_phone', 'forms.ph_phone', 'forms.label_messenger', 'forms.err_contact'],
+                ],
+                [
+                    'title'  => 'Необязательные поля',
+                    'desc'   => 'Имя и комментарий заявку не блокируют. Если они вам не нужны — очистите подпись, и поле пропадёт из формы.',
+                    'fields' => ['forms.label_name', 'forms.ph_name',
+                                 'forms.label_message', 'forms.ph_message', 'forms.optional_note'],
+                ],
+                [
+                    'title'  => 'Кнопка и согласия',
+                    'desc'   => 'Галочка согласия на обработку данных обязательна по 152-ФЗ и проверяется ещё раз на сервере — убрать её из админки нельзя.',
+                    'fields' => ['forms.submit', 'forms.err_agree', 'forms.agree',
+                                 'forms.marketing_on', 'forms.marketing', 'forms.marketing_note'],
+                ],
+            ],
             'fields' => [
-                'forms.mode_label'      => ['label' => 'Заголовок выбора связи', 'type' => 'text', 'w' => 'm'],
-                'forms.mode_call'       => ['label' => 'Кнопка «позвонить»', 'type' => 'text', 'w' => 'm'],
-                'forms.mode_write'      => ['label' => 'Кнопка «написать»', 'type' => 'text', 'w' => 'm'],
-                'forms.label_phone'     => ['label' => 'Подпись поля телефона', 'type' => 'text', 'w' => 'm'],
-                'forms.ph_phone'        => ['label' => 'Подсказка в поле телефона', 'type' => 'text', 'w' => 'm'],
-                'forms.label_messenger' => ['label' => 'Подпись выбора мессенджера', 'type' => 'text', 'w' => 'm'],
-                'forms.err_contact'     => ['label' => 'Ошибка: контакт не заполнен', 'type' => 'text', 'w' => 'm'],
+                'forms.mode_label'      => ['label' => 'Заголовок над выбором', 'type' => 'text', 'w' => 'm', 'hides' => 'подпись над кнопками'],
+                'forms.mode_call'       => ['label' => 'Кнопка «позвонить»', 'type' => 'text', 'w' => 'm', 'hides' => 'вариант со звонком'],
+                'forms.mode_write'      => ['label' => 'Кнопка «написать»', 'type' => 'text', 'w' => 'm', 'hides' => 'вариант с мессенджером'],
+                'forms.label_phone'     => ['label' => 'Подпись поля телефона', 'type' => 'text', 'w' => 'm', 'hides' => 'подпись над полем'],
+                'forms.ph_phone'        => ['label' => 'Серый текст в поле телефона', 'type' => 'text', 'w' => 'm', 'hint' => 'Виден, пока поле пустое. Показывайте формат номера, а не «Введите телефон».'],
+                'forms.label_messenger' => ['label' => 'Подпись выбора мессенджера', 'type' => 'text', 'w' => 'm', 'hides' => 'подпись над кнопками'],
+                'forms.err_contact'     => ['label' => 'Ошибка: контакт не заполнен', 'type' => 'text', 'w' => 'm', 'hint' => 'Показывается красным под полем, если человек не ввёл контакт.'],
 
-                'forms.label_name'      => ['label' => 'Подпись поля «имя»', 'type' => 'text', 'w' => 'm'],
-                'forms.ph_name'         => ['label' => 'Подсказка в поле «имя»', 'type' => 'text', 'w' => 'm'],
-                'forms.label_message'   => ['label' => 'Подпись поля «комментарий»', 'type' => 'text', 'w' => 'm'],
-                'forms.ph_message'      => ['label' => 'Подсказка в поле «комментарий»', 'type' => 'text', 'w' => 'm'],
-                'forms.optional_note'   => ['label' => 'Пометка «необязательно»', 'type' => 'text', 'w' => 'm'],
+                'forms.label_name'      => ['label' => 'Подпись поля «Имя»', 'type' => 'text', 'w' => 'm', 'hides' => 'всё поле «Имя»'],
+                'forms.ph_name'         => ['label' => 'Серый текст в поле «Имя»', 'type' => 'text', 'w' => 'm', 'hint' => 'Виден, пока поле пустое.'],
+                'forms.label_message'   => ['label' => 'Подпись поля «Комментарий»', 'type' => 'text', 'w' => 'm', 'hides' => 'всё поле «Комментарий»'],
+                'forms.ph_message'      => ['label' => 'Серый текст в «Комментарии»', 'type' => 'text', 'w' => 'm', 'hint' => 'Виден, пока поле пустое.'],
+                'forms.optional_note'   => ['label' => 'Пометка «необязательно»', 'type' => 'text', 'w' => 'm', 'hides' => 'пометку у необязательных полей'],
 
-                'forms.submit'          => ['label' => 'Кнопка отправки', 'type' => 'text', 'w' => 'm'],
-                'forms.err_agree'       => ['label' => 'Ошибка: нет согласия', 'type' => 'text', 'w' => 'm'],
-                'forms.agree'           => ['label' => 'Текст согласия', 'type' => 'text', 'hint' => 'Кусок в [[двойных скобках]] станет ссылкой на согласие. Галочка обязательна и проверяется на сервере.'],
-                'forms.marketing_on'    => ['label' => 'Показывать галочку про рассылку', 'type' => 'check', 'hint' => 'По ч. 1 ст. 18 закона о рекламе согласие на рассылку должно быть отдельным и не предустановленным.'],
-                'forms.marketing'       => ['label' => 'Текст галочки про рассылку', 'type' => 'text'],
-                'forms.marketing_note'  => ['label' => 'Подпись под галочкой', 'type' => 'text', 'w' => 'm'],
+                'forms.submit'          => ['label' => 'Надпись на кнопке отправки', 'type' => 'text', 'w' => 'm', 'hint' => 'Оставите пустым — на кнопке будет «Отправить». Совсем убрать кнопку нельзя.'],
+                'forms.err_agree'       => ['label' => 'Ошибка: нет согласия', 'type' => 'text', 'w' => 'm', 'hint' => 'Показывается, если человек не поставил обязательную галочку.'],
+                'forms.agree'           => ['label' => 'Текст галочки согласия', 'type' => 'text', 'hint' => 'Кусок в [[двойных скобках]] станет ссылкой на страницу согласия. Галочка обязательна и проверяется на сервере — бот её не обойдёт.'],
+                'forms.marketing_on'    => ['label' => 'Спрашивать согласие на рассылку', 'type' => 'check', 'hint' => 'Отдельная галочка, по умолчанию снятая. По ч. 1 ст. 18 закона о рекламе писать с предложениями можно только тем, кто её отметил.'],
+                'forms.marketing'       => ['label' => 'Текст галочки про рассылку', 'type' => 'text', 'hides' => 'галочку про рассылку'],
+                'forms.marketing_note'  => ['label' => 'Подпись под галочкой', 'type' => 'text', 'w' => 'm', 'hides' => 'подпись под галочкой'],
             ],
             'repeaters' => [[
                 'path' => 'forms.messengers', 'label' => 'Мессенджер', 'title_field' => 'label', 'max' => 5,
@@ -350,9 +371,9 @@ function schema(): array
             'title' => 'Всплывающая форма заявки',
             'desc'  => 'Всплывает по кнопке «Обсудить проект» на внутренних страницах. На главной те же кнопки просто прокручивают к форме внизу.',
             'fields' => [
-                'modal.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm'],
-                'modal.title'  => ['label' => 'Заголовок', 'type' => 'text'],
-                'modal.text'   => ['label' => 'Пояснение', 'type' => 'textarea', 'rows' => 2],
+                'modal.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'modal.title'  => ['label' => 'Заголовок', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'modal.text'   => ['label' => 'Пояснение', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание'],
             ],
         ],
 
@@ -361,10 +382,10 @@ function schema(): array
             'title' => 'Окно «Заявка отправлена»',
             'desc'  => 'Всплывает, только когда заявка действительно ушла на сервер. Закрывается кнопкой, крестиком, кликом по фону и клавишей Esc.',
             'fields' => [
-                'success.title'  => ['label' => 'Заголовок', 'type' => 'text'],
-                'success.text'   => ['label' => 'Пояснение', 'type' => 'textarea', 'rows' => 2],
-                'success.button' => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm'],
-                'success.image'  => ['label' => 'Иллюстрация', 'type' => 'image'],
+                'success.title'  => ['label' => 'Заголовок', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'success.text'   => ['label' => 'Пояснение', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание'],
+                'success.button' => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm', 'hides' => 'кнопку'],
+                'success.image'  => ['label' => 'Иллюстрация', 'type' => 'image', 'hides' => 'картинку'],
             ],
         ],
 
@@ -376,30 +397,30 @@ function schema(): array
                 'seo.og_image' => ['label' => 'Картинка для соцсетей по умолчанию', 'type' => 'image', 'hint' => 'Превью ссылки в Telegram, WhatsApp, ВК. Размер 1200×630.'],
                 'seo.favicon'  => ['label' => 'Фавикон', 'type' => 'image', 'hint' => 'Квадратная картинка, лучше 512×512 PNG или SVG.'],
 
-                'meta.home_title'       => ['label' => 'Главная — title', 'type' => 'text'],
-                'meta.home_desc'        => ['label' => 'Главная — description', 'type' => 'textarea', 'rows' => 2],
+                'meta.home_title'       => ['label' => 'Главная — title', 'type' => 'text', 'limit' => 60],
+                'meta.home_desc'        => ['label' => 'Главная — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
                 'meta.home_og'          => ['label' => 'Главная — картинка для соцсетей', 'type' => 'image'],
                 'meta.home_noindex'     => ['label' => 'Закрыть от индексации', 'type' => 'check'],
 
-                'meta.work_title'       => ['label' => 'Проекты — title', 'type' => 'text'],
-                'meta.work_desc'        => ['label' => 'Проекты — description', 'type' => 'textarea', 'rows' => 2],
+                'meta.work_title'       => ['label' => 'Проекты — title', 'type' => 'text', 'limit' => 60],
+                'meta.work_desc'        => ['label' => 'Проекты — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
                 'meta.work_og'          => ['label' => 'Проекты — картинка для соцсетей', 'type' => 'image'],
                 'meta.work_noindex'     => ['label' => 'Закрыть от индексации', 'type' => 'check'],
 
-                'meta.services_title'   => ['label' => 'Услуги — title', 'type' => 'text'],
-                'meta.services_desc'    => ['label' => 'Услуги — description', 'type' => 'textarea', 'rows' => 2],
+                'meta.services_title'   => ['label' => 'Услуги — title', 'type' => 'text', 'limit' => 60],
+                'meta.services_desc'    => ['label' => 'Услуги — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
                 'meta.services_og'      => ['label' => 'Услуги — картинка для соцсетей', 'type' => 'image'],
                 'meta.services_noindex' => ['label' => 'Закрыть от индексации', 'type' => 'check'],
 
-                'meta.contacts_title'   => ['label' => 'Контакты — title', 'type' => 'text'],
-                'meta.contacts_desc'    => ['label' => 'Контакты — description', 'type' => 'textarea', 'rows' => 2],
+                'meta.contacts_title'   => ['label' => 'Контакты — title', 'type' => 'text', 'limit' => 60],
+                'meta.contacts_desc'    => ['label' => 'Контакты — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
                 'meta.contacts_og'      => ['label' => 'Контакты — картинка для соцсетей', 'type' => 'image'],
                 'meta.contacts_noindex' => ['label' => 'Закрыть от индексации', 'type' => 'check'],
 
-                'meta.privacy_title'    => ['label' => 'Политика — title', 'type' => 'text'],
-                'meta.privacy_desc'     => ['label' => 'Политика — description', 'type' => 'textarea', 'rows' => 2],
-                'meta.consent_title'    => ['label' => 'Согласие — title', 'type' => 'text'],
-                'meta.consent_desc'     => ['label' => 'Согласие — description', 'type' => 'textarea', 'rows' => 2],
+                'meta.privacy_title'    => ['label' => 'Политика — title', 'type' => 'text', 'limit' => 60],
+                'meta.privacy_desc'     => ['label' => 'Политика — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
+                'meta.consent_title'    => ['label' => 'Согласие — title', 'type' => 'text', 'limit' => 60],
+                'meta.consent_desc'     => ['label' => 'Согласие — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
             ],
         ],
 
@@ -476,6 +497,56 @@ function schema(): array
             ],
         ],
     ];
+}
+
+/**
+ * Где каждый раздел находится на сайте.
+ *
+ * Нужно, чтобы редактор не гадал, что он правит: в шапке раздела
+ * пишется страница и место на ней, рядом — кнопка «посмотреть»,
+ * которая открывает нужный блок в соседней вкладке.
+ *
+ * page   — адрес страницы: '' главная, 'services', 'contacts', 'projects'
+ * anchor — якорь, чтобы страница открылась сразу на нужном блоке
+ * where  — человеческое описание места
+ * icon   — значок в меню
+ */
+function schema_places(): array
+{
+    return [
+        'hero'          => ['page' => '',          'anchor' => '',          'where' => 'Главная · самый первый экран', 'icon' => '◆'],
+        'comparison'    => ['page' => '',          'anchor' => '',          'where' => 'Главная · 2-й блок, сразу под первым экраном', 'icon' => '⇄'],
+        'process'       => ['page' => '',          'anchor' => '',          'where' => 'Главная · 3-й блок, карточки этапов', 'icon' => '№'],
+        'benefits'      => ['page' => '',          'anchor' => '',          'where' => 'Главная · 4-й блок, «узнали себя»', 'icon' => '✦'],
+        'home_services' => ['page' => '',          'anchor' => 'services',  'where' => 'Главная · 5-й блок, карточки услуг', 'icon' => '▤'],
+        'cta'           => ['page' => '',          'anchor' => '',          'where' => 'Повторяется на главной, в проектах и услугах', 'icon' => '☺'],
+        'projects_home' => ['page' => '',          'anchor' => 'projects',  'where' => 'Главная · блок кейсов, первые три проекта', 'icon' => '▣'],
+        'faq'           => ['page' => '',          'anchor' => '',          'where' => 'Главная и страница контактов', 'icon' => '?'],
+        'request'       => ['page' => '',          'anchor' => 'request',   'where' => 'Главная · последний блок с формой', 'icon' => '✉'],
+
+        'work'          => ['page' => 'projects',  'anchor' => '',          'where' => 'Страница «Проекты» целиком', 'icon' => '▣'],
+        'services'      => ['page' => 'services',  'anchor' => '',          'where' => 'Страница «Услуги» целиком', 'icon' => '▤'],
+        'contacts'      => ['page' => 'contacts',  'anchor' => '',          'where' => 'Страница «Контакты» — только заголовки', 'icon' => '✆'],
+        'error404'      => ['page' => 'stranica-kotoroy-net', 'anchor' => '', 'where' => 'Страница, которая открывается по несуществующему адресу', 'icon' => '⚠'],
+
+        'site'          => ['page' => '',          'anchor' => '',          'where' => 'Шапка и подвал на всех страницах', 'icon' => '⌂'],
+        'forms'         => ['page' => 'contacts',  'anchor' => 'request',   'where' => 'Все формы заявки на сайте', 'icon' => '✎'],
+        'modal'         => ['page' => 'services',  'anchor' => '',          'where' => 'Окно, всплывающее по кнопке «Обсудить проект»', 'icon' => '▢'],
+        'success'       => ['page' => '',          'anchor' => '',          'where' => 'Окно после успешной отправки заявки', 'icon' => '✔'],
+        'legal'         => ['page' => 'privacy',   'anchor' => '',          'where' => 'Страницы политики и согласия, баннер про cookie', 'icon' => '§'],
+
+        'meta'          => ['page' => '',          'anchor' => '',          'where' => 'Не видно на сайте — это подписи в поисковой выдаче', 'icon' => '⌕'],
+        'seo'           => ['page' => '',          'anchor' => '',          'where' => 'Служебное: адрес сайта, robots.txt, коды поисковиков', 'icon' => '⚙'],
+        'design'        => ['page' => '',          'anchor' => '',          'where' => 'Цвета и размеры на всём сайте', 'icon' => '◐'],
+        'integrations'  => ['page' => '',          'anchor' => '',          'where' => 'Служебное: куда падают заявки и какой счётчик стоит', 'icon' => '⚡'],
+    ];
+}
+
+/** Данные о месте раздела с запасными значениями. */
+function schema_place(string $key): array
+{
+    $all = schema_places();
+    return ($all[$key] ?? []) + ['page' => '', 'anchor' => '', 'where' => '', 'icon' => '•'];
 }
 
 function schema_groups(): array
