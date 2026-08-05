@@ -8,6 +8,90 @@
 
   var CFG = window.AXM || {};
 
+  /* ==========================================================
+     Аналитика: цели Метрики и рекламные метки
+     ========================================================== */
+
+  /* Цель Метрики. Пока счётчик не разрешён — вызовы просто игнорируются. */
+  function goal(name, params) {
+    if (window.ym && window.AXM_METRIKA) {
+      window.ym(window.AXM_METRIKA, 'reachGoal', name, params);
+    }
+  }
+  window.axGoal = goal;
+
+  /* ---------- рекламные метки ----------
+     Директ дописывает к адресу yclid, кампании — utm. Без них
+     непонятно, какое объявление привело заявку. Запоминаем метки
+     первого захода и передаём вместе с формой.
+
+     Метки хранятся, только если человек согласился на cookie.
+     Отказался — берём то, что есть в адресе прямо сейчас. */
+
+  var MARK_KEYS = [
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+    'yclid', 'gclid', 'roistat', '_openstat', 'etext'
+  ];
+  var MARK_STORE = 'axm_marks';
+
+  function marksFromUrl() {
+    var out = {};
+    try {
+      var q = new URLSearchParams(location.search);
+      MARK_KEYS.forEach(function (k) {
+        var v = q.get(k);
+        if (v) out[k] = String(v).slice(0, 200);
+      });
+    } catch (e) {}
+    return out;
+  }
+
+  function marksRead() {
+    try {
+      return JSON.parse(localStorage.getItem(MARK_STORE) || '{}') || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function marksSave(data) {
+    try { localStorage.setItem(MARK_STORE, JSON.stringify(data)); } catch (e) {}
+  }
+
+  /* Вызывается после согласия на cookie */
+  function marksRemember() {
+    var now = marksFromUrl();
+    if (!Object.keys(now).length) return;
+
+    var box = marksRead();
+    // Первый источник не перезаписываем: именно он привёл человека на сайт
+    if (!box.first) {
+      box.first = { marks: now, ref: document.referrer || '', landing: location.pathname, at: new Date().toISOString() };
+    }
+    box.last = { marks: now, ref: document.referrer || '', landing: location.pathname, at: new Date().toISOString() };
+    marksSave(box);
+  }
+
+  /* Метки для отправки вместе с заявкой */
+  function marksForLead() {
+    var box = marksRead();
+    var src = (box.first && box.first.marks) ? box.first : null;
+
+    if (!src) {
+      var now = marksFromUrl();
+      if (!Object.keys(now).length) return null;
+      src = { marks: now, ref: document.referrer || '', landing: location.pathname, at: new Date().toISOString() };
+    }
+
+    return {
+      marks: src.marks,
+      ref: src.ref || document.referrer || '',
+      landing: src.landing || location.pathname,
+      at: src.at || '',
+      repeat: !!(box.last && box.first && box.last.at !== box.first.at)
+    };
+  }
+
   /* ---------- появление блоков при прокрутке ---------- */
   var reveals = document.querySelectorAll('.reveal');
   if (reveals.length) {
@@ -69,6 +153,8 @@
       if (!wasOpen) {
         item.classList.add('open');
         btn.setAttribute('aria-expanded', 'true');
+        var label = btn.querySelector('span');
+        goal('faq_open', { question: label ? label.textContent.trim().slice(0, 120) : '' });
       }
     });
   }
@@ -222,7 +308,8 @@
         website: val('[name=website]'),
         agree: 1,
         agree_text: agreeEl ? agreeEl.textContent.trim() : '',
-        marketing: (form.querySelector('[name=marketing]') || {}).checked ? 1 : 0
+        marketing: (form.querySelector('[name=marketing]') || {}).checked ? 1 : 0,
+        source: marksForLead()
       };
 
       btn.disabled = true;
@@ -251,7 +338,7 @@
           if (backdrop && window.__axCloseModal) window.__axCloseModal();
 
           document.dispatchEvent(new CustomEvent('axiomantic:form-success'));
-          if (window.ym && window.AXM_METRIKA) window.ym(window.AXM_METRIKA, 'reachGoal', 'lead');
+          goal('lead', { form: payload.form, mode: payload.contact_mode });
         })
         .catch(function (err) {
           if (failBox) { failBox.textContent = err.message; failBox.hidden = false; }
@@ -260,6 +347,14 @@
           btn.disabled = false;
           btn.textContent = label;
         });
+    });
+
+    // Начало заполнения — отдельная цель: показывает, где люди бросают форму
+    var started = false;
+    form.addEventListener('input', function () {
+      if (started) return;
+      started = true;
+      goal('form_start', { form: CFG.page || 'site' });
     });
 
     form.addEventListener('input', function (e) {
@@ -287,6 +382,7 @@
       lastFocus = document.activeElement;
       modal.hidden = false;
       document.body.classList.add('ax-modal-open');
+      goal('form_open', { page: CFG.page || 'site' });
       var first = modal.querySelector('[data-mode-btn], input, button');
       if (first) setTimeout(function () { first.focus(); }, 30);
     }
@@ -311,6 +407,68 @@
     });
   })();
 
+  /* ---------- цели: клики по контактам и проектам ----------
+     Директ умеет оптимизировать показы под цели. Одной цели «заявка»
+     ему мало: набирается слишком медленно, чтобы обучиться. Клик
+     по Telegram или по кейсу — это тоже интерес, и его видно сразу. */
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[href]');
+    if (!a) return;
+
+    var href = a.getAttribute('href') || '';
+
+    if (href.indexOf('mailto:') === 0) {
+      goal('click_email');
+    } else if (href.indexOf('tel:') === 0) {
+      goal('click_phone');
+    } else if (/t\.me|telegram\./i.test(href)) {
+      goal('click_telegram');
+    } else if (/(wa\.me|whatsapp)/i.test(href)) {
+      goal('click_whatsapp');
+    } else if (a.closest('.project-card')) {
+      var card = a.closest('.project-card');
+      var title = card ? card.querySelector('h3') : null;
+      goal('project_click', { project: title ? title.textContent.trim() : '' });
+    }
+  });
+
+  /* ---------- глубина прокрутки ----------
+     Показывает, дочитывают ли страницу. В Метрике по этим целям
+     видно, на каком экране люди отваливаются. */
+  (function () {
+    var marks = [25, 50, 75, 100];
+    var done = {};
+
+    function check() {
+      var doc = document.documentElement;
+      var full = doc.scrollHeight - doc.clientHeight;
+      if (full <= 0) return;
+
+      var pct = Math.round((window.pageYOffset / full) * 100);
+
+      marks.forEach(function (m) {
+        if (!done[m] && pct >= m) {
+          done[m] = true;
+          goal('scroll_' + m);
+        }
+      });
+
+      if (done[100]) window.removeEventListener('scroll', onScroll);
+    }
+
+    var waiting = false;
+    function onScroll() {
+      if (waiting) return;
+      waiting = true;
+      requestAnimationFrame(function () {
+        waiting = false;
+        check();
+      });
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+  })();
+
   /* ---------- cookie и отложенный запуск Метрики ---------- */
   (function () {
     var KEY = 'axm_cookie_consent';
@@ -328,6 +486,7 @@
       var id = window.AXM_METRIKA;
       if (!id || window.__axmMetrikaOn) return;
       window.__axmMetrikaOn = true;
+
       (function (m, e, t, r, i, k, a) {
         m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments); };
         m[i].l = 1 * new Date();
@@ -335,11 +494,26 @@
         k = e.createElement(t); a = e.getElementsByTagName(t)[0];
         k.async = 1; k.src = r; a.parentNode.insertBefore(k, a);
       })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js', 'ym');
-      window.ym(id, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true });
+
+      window.ym(id, 'init', {
+        clickmap: true,            // карта кликов
+        trackLinks: true,          // уходы по внешним ссылкам
+        accurateTrackBounce: true, // отказом считается уход раньше 15 секунд
+        webvisor: true,            // запись сеансов: видно, где человек застрял
+        trackHash: true            // переходы по якорям внутри страницы
+      });
+
+      // Метки рекламной кампании прикрепляем к визиту:
+      // в отчётах Метрики по ним можно резать статистику
+      var box = marksRead();
+      if (box.first && box.first.marks && Object.keys(box.first.marks).length) {
+        window.ym(id, 'params', { source: box.first.marks });
+      }
     }
 
     var choice = read();
     if (choice === 'yes') {
+      marksRemember();
       startMetrika();
     } else if (choice !== 'no' && box) {
       box.hidden = false;
@@ -354,7 +528,10 @@
         if (!b) return;
         var v = b.getAttribute('data-cookie');
         save(v);
-        if (v === 'yes') startMetrika();
+        if (v === 'yes') {
+          marksRemember();
+          startMetrika();
+        }
         box.classList.remove('show');
         setTimeout(function () { box.hidden = true; }, 300);
       });

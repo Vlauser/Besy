@@ -67,6 +67,34 @@ if (empty($in['agree'])) {
 $agreeText = $clean($in['agree_text'] ?? '', 500);
 if ($agreeText === '') $agreeText = (string)c('forms.agree');
 
+/* --- Откуда пришёл человек ---
+   Метки рекламной кампании: без них не понять, какое объявление Директа
+   принесло заявку и стоит ли оно денег. Берём только известные ключи,
+   всё остальное из запроса отбрасываем. */
+$markKeys = [
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+    'yclid', 'gclid', 'roistat', '_openstat', 'etext',
+];
+
+$source = [];
+$src = $in['source'] ?? null;
+
+if (is_array($src)) {
+    $marks = [];
+    foreach ((array)($src['marks'] ?? []) as $k => $v) {
+        if (!in_array($k, $markKeys, true)) continue;
+        if (!is_scalar($v)) continue;
+        $val = $clean($v, 200);
+        if ($val !== '') $marks[$k] = $val;
+    }
+
+    if ($marks) $source['marks'] = $marks;
+    if ($r = $clean($src['ref'] ?? '', 300))     $source['ref'] = $r;
+    if ($l = $clean($src['landing'] ?? '', 200)) $source['landing'] = $l;
+    if ($a = $clean($src['at'] ?? '', 40))       $source['at'] = $a;
+    $source['repeat'] = !empty($src['repeat']);
+}
+
 /* --- Сохраняем --- */
 $lead = [
     'id'      => bin2hex(random_bytes(8)),
@@ -84,6 +112,9 @@ $lead = [
     'ua'      => mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 200),
     'ref'     => mb_substr((string)($_SERVER['HTTP_REFERER'] ?? ''), 0, 200),
     'done'    => false,
+
+    // Рекламная кампания, приведшая человека на сайт
+    'source'  => $source,
 
     // Подтверждение согласия — на случай проверки по 152-ФЗ
     'agree'      => true,
@@ -111,6 +142,22 @@ if ($token !== '' && $chat !== '') {
     ];
     if ($service !== '') $lines[] = '*Услуга:* ' . $service;
     if ($message !== '') $lines[] = '*Задача:* ' . $message;
+
+    // Реклама: сразу видно, окупается ли кампания
+    if (!empty($source['marks'])) {
+        $m = $source['marks'];
+        $campaign = trim(implode(' / ', array_filter([
+            $m['utm_source']   ?? '',
+            $m['utm_medium']   ?? '',
+            $m['utm_campaign'] ?? '',
+        ])));
+        if ($campaign !== '') $lines[] = '*Реклама:* ' . $campaign;
+        if (!empty($m['utm_term'])) $lines[] = '*Запрос:* ' . $m['utm_term'];
+        if (!empty($m['yclid']))    $lines[] = '*yclid:* ' . $m['yclid'];
+    } elseif (!empty($source['ref'])) {
+        $lines[] = '*Переход с:* ' . $source['ref'];
+    }
+
     $lines[] = '';
     $lines[] = '_' . date('d.m.Y H:i') . ' · ' . ($page !== '' ? $page : '/') . '_';
 
@@ -156,10 +203,18 @@ if ($mailTo !== '' && filter_var($mailTo, FILTER_VALIDATE_EMAIL)) {
     $subject = 'Новая заявка с сайта' . ($name !== '' ? ' — ' . $name : '');
     $how = $lead['contact_mode'] === 'call' ? 'просит позвонить'
          : ($lead['messenger'] !== '' ? 'написать в ' . $lead['messenger'] : '');
+    $campaign = '';
+    if (!empty($source['marks'])) {
+        $pairs = [];
+        foreach ($source['marks'] as $k => $v) $pairs[] = "{$k}={$v}";
+        $campaign = "Реклама: " . implode(', ', $pairs) . "\n";
+    }
+
     $body = "Имя: " . ($name !== '' ? $name : 'не указано') . "\nКонтакт: {$contact}\n"
         . ($how !== '' ? "Способ связи: {$how}\n" : '')
         . ($service !== '' ? "Услуга: {$service}\n" : '')
         . ($message !== '' ? "Задача: {$message}\n" : '')
+        . $campaign
         . "\nСтраница: {$page}\nДата: " . date('d.m.Y H:i');
 
     $headers = "From: no-reply@" . ($_SERVER['HTTP_HOST'] ?? 'localhost') . "\r\n"

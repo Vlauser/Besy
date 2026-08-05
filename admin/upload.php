@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once dirname(__DIR__) . '/inc/auth.php';
+require_once dirname(__DIR__) . '/inc/webp.php';
 
 /**
  * Загрузка картинок из админки.
@@ -93,6 +94,12 @@ if (!@move_uploaded_file($f['tmp_name'], $dest)) {
     up_fail('Не удалось сохранить файл. Проверьте права на /uploads', 500);
 }
 @chmod($dest, 0644);
+
+/* Сразу делаем WebP-двойника: сайт отдаст его вместо тяжёлого оригинала.
+   Не получилось — не беда, картинка просто останется в исходном формате. */
+if ($webpFile = webp_make($dest)) {
+    @chmod($webpFile, 0644);
+}
 
 echo json_encode([
     'ok'  => true,

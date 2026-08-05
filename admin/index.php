@@ -137,13 +137,22 @@ if ($action === 'export') {
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");                    // BOM — чтобы Excel не ломал кириллицу
     fputcsv($out, ['Дата', 'Имя', 'Контакт', 'Услуга', 'Задача', 'Страница', 'Обработана',
+        'Источник', 'Канал', 'Кампания', 'Запрос', 'yclid', 'Переход с', 'Точка входа',
         'Согласие на ПДн', 'Текст согласия', 'Редакция политики', 'IP', 'Согласие на рассылку'], ';');
     foreach (leads_all() as $l) {
+        $m = (array)($l['source']['marks'] ?? []);
         fputcsv($out, [
             date('d.m.Y H:i', strtotime($l['date'] ?? 'now')),
             $l['name'] ?? '', $l['contact'] ?? '', $l['service'] ?? '',
             $l['message'] ?? '', $l['page'] ?? '',
             !empty($l['done']) ? 'да' : 'нет',
+            $m['utm_source'] ?? '',
+            $m['utm_medium'] ?? '',
+            $m['utm_campaign'] ?? '',
+            $m['utm_term'] ?? '',
+            $m['yclid'] ?? '',
+            $l['source']['ref'] ?? '',
+            $l['source']['landing'] ?? '',
             !empty($l['agree']) ? 'да' : '—',
             $l['agree_text'] ?? '',
             $l['policy_rev'] ?? '',
@@ -499,6 +508,39 @@ function render_leads(): void
               <?php if (!empty($l['service'])): ?><div><span>Услуга</span><b><?= e($l['service']) ?></b></div><?php endif; ?>
               <div><span>Страница</span><b><?= e($l['page'] ?: '/') ?></b></div>
             </div>
+
+            <?php
+            /* Откуда пришёл человек: по этим строкам считается,
+               окупается ли реклама */
+            $srcMarks = (array)($l['source']['marks'] ?? []);
+            $srcRef   = trim((string)($l['source']['ref'] ?? ''));
+            ?>
+            <?php if ($srcMarks || $srcRef !== ''): ?>
+              <div class="lead-source">
+                <?php if ($srcMarks): ?>
+                  <b>Реклама</b>
+                  <span>
+                    <?= e(implode(' / ', array_filter([
+                          $srcMarks['utm_source']   ?? '',
+                          $srcMarks['utm_medium']   ?? '',
+                          $srcMarks['utm_campaign'] ?? '',
+                        ]))) ?>
+                  </span>
+                  <?php if (!empty($srcMarks['utm_term'])): ?>
+                    <span>Запрос: <?= e($srcMarks['utm_term']) ?></span>
+                  <?php endif; ?>
+                  <?php if (!empty($srcMarks['yclid'])): ?>
+                    <span>yclid: <?= e($srcMarks['yclid']) ?></span>
+                  <?php endif; ?>
+                <?php else: ?>
+                  <b>Переход</b>
+                  <span><?= e($srcRef) ?></span>
+                <?php endif; ?>
+                <?php if (!empty($l['source']['landing'])): ?>
+                  <span>Вошёл на: <?= e($l['source']['landing']) ?></span>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
 
             <?php if (!empty($l['agree'])): ?>
               <div class="lead-consent">
