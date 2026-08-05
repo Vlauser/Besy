@@ -16,7 +16,7 @@
         <?php endif; ?>
       </div>
       <?php if ($ctaimg = trim((string)c('cta.image'))): ?>
-        <div class="cta-art"><img src="<?= url($ctaimg) ?>" alt="Фирменный персонаж <?= e(c('site.brand')) ?>"></div>
+        <div class="cta-art"><?= img_html($ctaimg, 'Фирменный персонаж ' . (string)c('site.brand')) ?></div>
       <?php endif; ?>
     </div>
   </div>

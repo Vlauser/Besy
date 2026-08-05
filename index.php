@@ -4,6 +4,7 @@ require_once __DIR__ . '/inc/store.php';
 require_once __DIR__ . '/inc/seo.php';
 require_once __DIR__ . '/inc/design.php';
 require_once __DIR__ . '/inc/icons.php';
+require_once __DIR__ . '/inc/img.php';
 require_once __DIR__ . '/inc/view.php';
 
 /* Определяем страницу по адресу.
@@ -51,6 +52,14 @@ $NAV          = $page['nav'];
 $CANONICAL    = seo_url($slug);
 $SLUG         = $page['tpl'] === '404' ? '' : $slug;
 $CRUMBS       = seo_crumbs($SLUG);
+
+/* Самая крупная картинка первого экрана — по ней считается LCP.
+   Просим браузер начать её загрузку из <head>, а не по ходу разметки. */
+$LCP_IMAGE = '';
+$LCP_TYPE  = '';
+if ($page['tpl'] === 'home' && ($heroImg = trim((string)c('hero.image'))) !== '') {
+    [$LCP_IMAGE, $LCP_TYPE] = img_preload_src($heroImg);
+}
 
 require __DIR__ . '/tpl/_head.php';
 require __DIR__ . '/tpl/_nav.php';

@@ -22,7 +22,7 @@
       </div>
       <?php if ($img = trim((string)c('hero.image'))): ?>
       <div class="hero-art reveal reveal-delay">
-        <img src="<?= url($img) ?>" alt="Фирменный персонаж <?= e(c('site.brand')) ?>">
+        <?= img_html($img, 'Фирменный персонаж ' . (string)c('site.brand'), ['lcp' => true]) ?>
       </div>
       <?php endif; ?>
     </div>

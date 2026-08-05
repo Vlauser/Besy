@@ -29,10 +29,7 @@
           </svg>
         </button>
         <div class="ax-success-art">
-          <img
-            src="<?= url(c('success.image')) ?>"
-            alt="Персонаж Axiomantic показывает жест класс"
-          />
+          <?= img_html((string)c('success.image'), 'Персонаж Axiomantic показывает жест класс') ?>
         </div>
         <div class="ax-success-content">
           <span class="ax-success-mark" aria-hidden="true"

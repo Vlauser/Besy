@@ -38,7 +38,7 @@
     <?php if ($img404 = trim((string)c('error404.image'))): ?>
       <div class="e404-art" aria-hidden="true">
         <div class="e404-browser-ghost"><i></i><i></i><i></i><b></b><b></b><b></b></div>
-        <img src="<?= url($img404) ?>" alt="">
+        <?= img_html($img404, '') ?>
       </div>
     <?php endif; ?>
   </section>

@@ -2,7 +2,12 @@
   <a href="<?= e($project['url'] ?? '#') ?>" target="_blank" rel="noreferrer" aria-label="Смотреть проект <?= e($project['name'] ?? '') ?>">
     <div class="project-visual">
       <?php if (!empty($project['image'])): ?>
-        <img class="project-screenshot" src="<?= url($project['image']) ?>" alt="Главная страница проекта <?= e($project['name'] ?? '') ?>" loading="lazy">
+        <?= img_html(
+              (string)$project['image'],
+              'Сайт проекта ' . trim((string)($project['name'] ?? ''))
+                . (trim((string)($project['category'] ?? '')) !== '' ? ' — ' . $project['category'] : ''),
+              ['class' => 'project-screenshot']
+            ) ?>
       <?php else: ?>
         <?php if (trim((string)($project['monogram'] ?? '')) !== ''): ?>
         <span class="project-monogram"><?= e($project['monogram'] ?? '') ?></span>
