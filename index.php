@@ -6,11 +6,20 @@ require_once __DIR__ . '/inc/design.php';
 require_once __DIR__ . '/inc/icons.php';
 require_once __DIR__ . '/inc/view.php';
 
-/* Определяем страницу по адресу */
-$uri  = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+/* Определяем страницу по адресу.
+   Query и якорь отрезаем вручную: parse_url принял бы адрес вида
+   //projects за протокол-относительный и вернул бы «projects» доменом. */
+$uri = (string)($_SERVER['REQUEST_URI'] ?? '/');
+$uri = explode('#', explode('?', $uri, 2)[0], 2)[0];
+if ($uri === '') $uri = '/';
+
 if (BASE_PATH !== '' && str_starts_with($uri, BASE_PATH)) {
     $uri = substr($uri, strlen(BASE_PATH));
 }
+
+/* Лишние варианты адреса уводим 301-м, чтобы не плодить дубли в индексе */
+seo_canonicalize($uri);
+
 $slug = trim($uri, '/');
 
 /* Служебные адреса для поисковиков */
@@ -40,9 +49,12 @@ $PAGE_IMAGE   = seo_image($METAKEY);
 $PAGE_NOINDEX = seo_noindex($METAKEY) || $page['tpl'] === '404';
 $NAV          = $page['nav'];
 $CANONICAL    = seo_url($slug);
+$SLUG         = $page['tpl'] === '404' ? '' : $slug;
+$CRUMBS       = seo_crumbs($SLUG);
 
 require __DIR__ . '/tpl/_head.php';
 require __DIR__ . '/tpl/_nav.php';
+require __DIR__ . '/tpl/_crumbs.php';
 
 $tplFile = __DIR__ . '/tpl/' . $page['tpl'] . '.php';
 if (is_file($tplFile)) {

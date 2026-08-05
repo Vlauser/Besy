@@ -3700,3 +3700,60 @@ body.ax-modal-open{overflow:hidden}
 
 /* «Задать вопрос» — кнопка, но выглядит как ссылка */
 button.text-link{border:0;background:none;padding:0;font:inherit;cursor:pointer}
+
+/* ==========================================================
+   Хлебные крошки
+   Стоят над первым экраном внутренних страниц. Фон совпадает
+   с .page-hero, поэтому стыка не видно.
+   ========================================================== */
+.crumbs {
+  padding: 26px 0 0;
+  background: #fbfcfe;
+}
+
+.crumbs + main .page-hero {
+  padding-top: 34px;
+}
+
+.crumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.crumbs li + li::before {
+  content: "/";
+  margin-right: 8px;
+  color: var(--line);
+}
+
+.crumbs a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+
+.crumbs a:hover {
+  color: var(--blue);
+}
+
+.crumbs [aria-current="page"] {
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .crumbs {
+    padding-top: 18px;
+  }
+
+  .crumbs ol {
+    font-size: 13px;
+  }
+}
