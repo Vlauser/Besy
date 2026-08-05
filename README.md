@@ -5,25 +5,58 @@
 
 ## Обновление с прошлой версии
 
-Структура контента изменилась полностью, поэтому `data/content.json`
-заменяется. Учётные записи и накопленные заявки при этом сохраняются.
+**Ваши тексты сохраняются.** Контент, учётные записи и накопленные заявки
+не затираются: новые разделы дописываются к существующему `content.json`
+скриптом `tools/upgrade.php`, а всё заполненное остаётся как было.
 
-Порядок: залить архив в `/tmp`, затем одной строкой
+**1. Сделайте копию — до всего остального**
 
+```bash
+mkdir -p ~/backups && tar czf ~/backups/axm-$(date +%F-%H%M).tgz -C /var/www/axiomantic .
 ```
-cd /tmp && rm -rf axm && unzip -q axiomantic-export-cms.zip -d axm \
- && cp -a /var/www/axiomantic/data/users.json /tmp/users.bak 2>/dev/null \
- && cp -a /var/www/axiomantic/data/leads.json /tmp/leads.bak 2>/dev/null \
+
+**2. Залейте архив в `/tmp` и выполните одной строкой**
+
+```bash
+cd /tmp && rm -rf axm && unzip -q axiomantic-cms.zip -d axm \
+ && cp -a /var/www/axiomantic/data/. /tmp/data.bak/ \
  && cp -a axm/axiomantic-cms/. /var/www/axiomantic/ \
- && cp -a /tmp/users.bak /var/www/axiomantic/data/users.json 2>/dev/null \
- && cp -a /tmp/leads.bak /var/www/axiomantic/data/leads.json 2>/dev/null \
+ && cp -a /tmp/data.bak/. /var/www/axiomantic/data/ \
+ && cp -a axm/axiomantic-cms/data/content.default.json /var/www/axiomantic/data/ \
  && chown -R www-data:www-data /var/www/axiomantic \
  && chmod -R 775 /var/www/axiomantic/data /var/www/axiomantic/uploads \
- && rm -rf axm /tmp/users.bak /tmp/leads.bak && echo ОБНОВЛЕНО
+ && rm -rf axm /tmp/data.bak && echo ФАЙЛЫ ОБНОВЛЕНЫ
 ```
 
-Перед обновлением сделайте копию:
-`tar czf ~/backups/before-redesign.tgz -C /var/www/axiomantic .`
+Папка `data` возвращается из копии целиком — поэтому ваш контент,
+пользователи и заявки остаются нетронутыми.
+
+**3. Допишите новые настройки в контент**
+
+```bash
+cd /var/www/axiomantic && sudo -u www-data php tools/upgrade.php
+```
+
+Скрипт добавит только недостающие ключи и напишет, какие разделы затронул.
+Запускать можно повторно — второй раз он ничего не изменит.
+
+**4. Пережмите картинки в WebP**
+
+```bash
+cd /var/www/axiomantic && sudo -u www-data php tools/make-webp.php
+```
+
+**5. Проверьте**
+
+Откройте главную, `/landing-price`, любой проект вида `/projects/raid-38`,
+`/sitemap.xml` и админку. В админке загляните в новые разделы —
+«Сколько стоит» и «Отзывы».
+
+Если что-то пошло не так, откат — одной командой:
+
+```bash
+tar xzf ~/backups/axm-ГГГГ-ММ-ДД-ЧЧММ.tgz -C /var/www/axiomantic
+```
 
 ---
 
