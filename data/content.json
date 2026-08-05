@@ -598,6 +598,7 @@
   },
   "seo": {
     "canonical_host": "https://axiomantic.ru",
+    "force_host": 1,
     "title_suffix": "",
     "title_fallback": "AXIOMANTIC® — сайты, которые двигают бизнес",
     "og_image": "",
