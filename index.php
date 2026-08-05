@@ -38,6 +38,8 @@ $routes = [
     'services'  => ['tpl' => 'services', 'meta' => 'services', 'nav' => 'services'],
     // Коммерческая посадочная под запросы о стоимости
     'landing-price' => ['tpl' => 'price', 'meta' => 'price', 'nav' => 'price'],
+    'about'     => ['tpl' => 'about',    'meta' => 'about',    'nav' => 'about'],
+    'blog'      => ['tpl' => 'blog',     'meta' => 'blog',     'nav' => 'blog'],
     'contacts'  => ['tpl' => 'contacts', 'meta' => 'contacts', 'nav' => 'contacts'],
     'privacy'   => ['tpl' => 'privacy',  'meta' => 'privacy',  'nav' => ''],
     'consent'   => ['tpl' => 'consent',  'meta' => 'consent',  'nav' => ''],
@@ -51,8 +53,20 @@ if (str_starts_with($slug, 'projects/')) {
     $PROJECT = work_item(substr($slug, strlen('projects/')));
 }
 
+/* Статья блога: /blog/<ключ>. Черновики недоступны и по прямой ссылке */
+$POST = null;
+if (str_starts_with($slug, 'blog/')) {
+    $POST = blog_post(substr($slug, strlen('blog/')));
+}
+
+/* Пустой блог наружу не показываем: страница со словами «статей пока нет»
+   в индексе — это страница без содержания, Яндекс за такие не хвалит */
+$blogEmpty = ($slug === 'blog' && !blog_posts());
+
 if ($PROJECT !== null) {
     $page = ['tpl' => 'project', 'meta' => 'work', 'nav' => 'work'];
+} elseif ($POST !== null) {
+    $page = ['tpl' => 'post', 'meta' => 'blog', 'nav' => 'blog'];
 } elseif (!isset($routes[$slug])) {
     http_response_code(404);
     $page = ['tpl' => '404', 'meta' => 'home', 'nav' => ''];
@@ -60,17 +74,35 @@ if ($PROJECT !== null) {
     $page = $routes[$slug];
 }
 
-$METAKEY      = $page['meta'];
-$PAGE_TITLE   = $PROJECT ? seo_project_title($PROJECT) : seo_title($METAKEY);
-$PAGE_DESC    = $PROJECT ? seo_project_desc($PROJECT)  : seo_desc($METAKEY);
-$PAGE_IMAGE   = $PROJECT ? seo_project_image($PROJECT) : seo_image($METAKEY);
-$PAGE_NOINDEX = $PREVIEW || ($PROJECT
-    ? (!empty(c('seo.noindex_all')) || !empty($PROJECT['noindex']))
-    : (seo_noindex($METAKEY) || $page['tpl'] === '404'));
+$METAKEY = $page['meta'];
+
+if ($PROJECT) {
+    $PAGE_TITLE = seo_project_title($PROJECT);
+    $PAGE_DESC  = seo_project_desc($PROJECT);
+    $PAGE_IMAGE = seo_project_image($PROJECT);
+} elseif ($POST) {
+    $PAGE_TITLE = seo_post_title($POST);
+    $PAGE_DESC  = seo_post_desc($POST);
+    $PAGE_IMAGE = seo_post_image($POST);
+} else {
+    $PAGE_TITLE = seo_title($METAKEY);
+    $PAGE_DESC  = seo_desc($METAKEY);
+    $PAGE_IMAGE = seo_image($METAKEY);
+}
+
+$PAGE_NOINDEX = $PREVIEW || !empty(c('seo.noindex_all')) || $page['tpl'] === '404';
+if (!$PAGE_NOINDEX) {
+    if ($PROJECT)        $PAGE_NOINDEX = !empty($PROJECT['noindex']);
+    elseif ($POST)       $PAGE_NOINDEX = seo_noindex('blog');
+    // Пустой раздел блога — страница без содержания, в индекс её не пускаем
+    elseif ($blogEmpty)  $PAGE_NOINDEX = true;
+    else                 $PAGE_NOINDEX = seo_noindex($METAKEY);
+}
+
 $NAV          = $page['nav'];
 $CANONICAL    = seo_url($slug);
 $SLUG         = $page['tpl'] === '404' ? '' : $slug;
-$CRUMBS       = seo_crumbs($SLUG, $PROJECT);
+$CRUMBS       = seo_crumbs($SLUG, $PROJECT, $POST);
 
 /* Самая крупная картинка первого экрана — по ней считается LCP.
    Просим браузер начать её загрузку из <head>, а не по ходу разметки. */
@@ -80,6 +112,8 @@ if ($page['tpl'] === 'home' && ($heroImg = trim((string)c('hero.image'))) !== ''
     [$LCP_IMAGE, $LCP_TYPE] = img_preload_src($heroImg);
 } elseif ($PROJECT && ($shot = trim((string)($PROJECT['image'] ?? ''))) !== '') {
     [$LCP_IMAGE, $LCP_TYPE] = img_preload_src($shot);
+} elseif ($POST && ($cover = trim((string)($POST['image'] ?? ''))) !== '') {
+    [$LCP_IMAGE, $LCP_TYPE] = img_preload_src($cover);
 }
 
 require __DIR__ . '/tpl/_head.php';

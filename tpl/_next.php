@@ -26,6 +26,16 @@ $all = [
         'text'  => 'Работы студии с задачами и решениями',
         'url'   => url('projects'),
     ],
+    'about' => [
+        'title' => trim((string)c('site.nav_about')) ?: 'О студии',
+        'text'  => 'Кто делает сайты и как устроен процесс',
+        'url'   => url('about'),
+    ],
+    'blog' => [
+        'title' => trim((string)c('site.nav_blog')) ?: 'Блог',
+        'text'  => 'Как устроены сайты, которые приводят клиентов',
+        'url'   => url('blog'),
+    ],
     'contacts' => [
         'title' => trim((string)c('site.nav_contacts')) ?: 'Контакты',
         'text'  => 'Обсудить задачу и получить расчёт',
@@ -33,14 +43,17 @@ $all = [
     ],
 ];
 
+// Пустой блог никуда не ведём
+if (!blog_posts()) unset($all['blog']);
+
 // Со страницы проекта уводим в услуги, цену и остальные работы
 $order = str_starts_with($here, 'projects/')
-    ? ['services', 'landing-price', 'projects']
-    : ['services', 'landing-price', 'projects', 'contacts'];
+    ? ['services', 'landing-price', 'projects', 'about']
+    : ['services', 'landing-price', 'projects', 'about', 'blog', 'contacts'];
 
 $links = [];
 foreach ($order as $key) {
-    if ($key === $here) continue;
+    if ($key === $here || !isset($all[$key])) continue;
     $links[] = $all[$key];
 }
 if (count($links) > 3) $links = array_slice($links, 0, 3);

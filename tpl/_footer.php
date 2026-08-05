@@ -25,6 +25,11 @@
           <?php if (trim((string)c('site.nav_price')) !== ''): ?>
           <a href="<?= url('landing-price') ?>"><?= e(c('site.nav_price')) ?></a>
           <?php endif; ?>
+          <?php /* В подвале «О студии» стоит всегда — в шапке пунктов и так много */ ?>
+          <a href="<?= url('about') ?>"><?= e(trim((string)c('site.nav_about')) ?: 'О студии') ?></a>
+          <?php if (blog_posts()): ?>
+          <a href="<?= url('blog') ?>"><?= e(trim((string)c('site.nav_blog')) ?: 'Блог') ?></a>
+          <?php endif; ?>
           <?php if (trim((string)c('site.nav_contacts')) !== ''): ?>
           <a href="<?= url('contacts') ?>"><?= e(c('site.nav_contacts')) ?></a>
           <?php endif; ?>

@@ -325,6 +325,94 @@ function schema(): array
             ],
         ],
 
+        'about' => [
+            'group' => 'Страницы',
+            'title' => 'О студии',
+            'desc'  => 'Страница /about — кто вы и как работаете. Сейчас человек решается отдать десятки тысяч, ничего не зная об исполнителе.',
+            'note'  => 'Это самая дешёвая страница доверия, которая у вас есть: отзывов ещё нет, домен молодой, а рассказать о себе можно уже сегодня. Пишите конкретно — «делаем сайты за 72 часа, потому что процесс отлажен так-то» работает, «мы команда профессионалов» не работает.',
+            'fieldsets' => [
+                [
+                    'title'  => 'Первый экран',
+                    'desc'   => 'Заголовок становится H1 страницы.',
+                    'fields' => ['about.kicker', 'about.title', 'about.lede', 'about.image'],
+                ],
+                [
+                    'title'  => 'Рассказ о студии',
+                    'desc'   => 'Свободный текст с разметкой: ## заголовок, - пункт, **жирный**, > цитата, ![описание](путь к картинке).',
+                    'fields' => ['about.body_title', 'about.body'],
+                ],
+                [
+                    'title'  => 'Заголовки остальных блоков',
+                    'desc'   => 'Сами принципы и люди добавляются списками ниже.',
+                    'fields' => ['about.values_title', 'about.values_lede', 'about.team_title', 'about.team_lede'],
+                ],
+            ],
+            'fields' => [
+                'about.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'about.title'  => ['label' => 'Заголовок страницы (H1)', 'type' => 'text', 'hides' => 'заголовок страницы'],
+                'about.lede'   => ['label' => 'Описание под заголовком', 'type' => 'textarea', 'rows' => 3, 'hides' => 'описание'],
+                'about.image'  => ['label' => 'Иллюстрация', 'type' => 'image', 'hides' => 'картинку'],
+
+                'about.body_title' => ['label' => 'Заголовок блока', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'about.body'       => ['label' => 'Текст о студии', 'type' => 'textarea', 'rows' => 14, 'hides' => 'весь блок с рассказом', 'hint' => 'Разметка: ## заголовок, - пункт, **жирный**, > цитата, --- разделитель. HTML вставить нельзя, он экранируется.'],
+
+                'about.values_title' => ['label' => 'Заголовок блока принципов', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'about.values_lede'  => ['label' => 'Описание блока принципов', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+                'about.team_title'   => ['label' => 'Заголовок блока команды', 'type' => 'text', 'hides' => 'заголовок блока'],
+                'about.team_lede'    => ['label' => 'Описание блока команды', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+            ],
+            'repeaters' => [
+                [
+                    'path' => 'about.values', 'label' => 'Принцип', 'title_field' => 'title', 'max' => 8,
+                    'fields' => [
+                        'title' => ['label' => 'Принцип', 'type' => 'text'],
+                        'text'  => ['label' => 'Пояснение', 'type' => 'textarea', 'rows' => 2],
+                    ],
+                ],
+                [
+                    'path' => 'about.team', 'label' => 'Человек', 'title_field' => 'name', 'max' => 12,
+                    'fields' => [
+                        'name'   => ['label' => 'Имя и фамилия', 'type' => 'text', 'w' => 'm'],
+                        'role'   => ['label' => 'Чем занимается', 'type' => 'text', 'w' => 'm'],
+                        'bio'    => ['label' => 'Пара слов о человеке', 'type' => 'textarea', 'rows' => 2],
+                        'photo'  => ['label' => 'Фото', 'type' => 'image'],
+                        'link'   => ['label' => 'Ссылка на профиль', 'type' => 'text', 'hint' => 'Telegram, Behance, GitHub — если человек не против.'],
+                    ],
+                ],
+            ],
+        ],
+
+        'blog' => [
+            'group' => 'Страницы',
+            'title' => 'Блог',
+            'desc'  => 'Список статей — /blog, каждая статья на своём адресе /blog/ключ. Пока статей нет, раздел на сайте не показывается.',
+            'note'  => 'Блог нужен не ради самих статей, а ради переходов на коммерческие страницы. По вашему ТЗ каждая статья должна вести на услугу, цену или кейс — для этого у статьи есть поле «Куда ведём дальше». Писать блог имеет смысл после того, как готовы коммерческие посадочные, иначе трафику некуда идти.',
+            'fields' => [
+                'blog.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
+                'blog.title'  => ['label' => 'Заголовок раздела (H1)', 'type' => 'text', 'hides' => 'заголовок страницы'],
+                'blog.lede'   => ['label' => 'Описание раздела', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание'],
+                'blog.empty'  => ['label' => 'Текст, когда статей нет', 'type' => 'text', 'hint' => 'Виден только вам: пока статей нет, раздел закрыт от посетителей и поисковика.'],
+            ],
+            'repeaters' => [[
+                'path' => 'blog.items', 'label' => 'Статья', 'title_field' => 'title', 'max' => 200,
+                'fields' => [
+                    'title'   => ['label' => 'Заголовок статьи', 'type' => 'text'],
+                    'slug'    => ['label' => 'Адрес статьи', 'type' => 'text', 'w' => 'm', 'hint' => 'Латиницей через дефис: skolko-stoit-lending. Получится /blog/skolko-stoit-lending. Не меняйте у опубликованной статьи — старый адрес выпадет из поиска.'],
+                    'date'    => ['label' => 'Дата публикации', 'type' => 'text', 'w' => 'm', 'hint' => 'В виде 2026-08-05. По ней статьи сортируются, и она показывается в выдаче.'],
+                    'updated' => ['label' => 'Дата правки', 'type' => 'text', 'w' => 'm', 'hint' => 'Заполняйте, если серьёзно переписали статью. Яндекс любит обновлённые материалы.'],
+                    'excerpt' => ['label' => 'Короткое описание', 'type' => 'textarea', 'rows' => 2, 'hint' => 'Показывается в списке статей. Если не заполнить description ниже, пойдёт и в поисковую выдачу.'],
+                    'image'   => ['label' => 'Картинка статьи', 'type' => 'image'],
+                    'body'    => ['label' => 'Текст статьи', 'type' => 'textarea', 'rows' => 20, 'hint' => 'Разметка: ## заголовок, - пункт, **жирный**, > цитата, --- разделитель, ![описание](assets/img/файл.jpg) — картинка, [текст](/landing-price) — ссылка внутри сайта.'],
+                    'author'  => ['label' => 'Автор', 'type' => 'text', 'w' => 'm', 'hint' => 'Живой человек, а не название студии: поисковик ценит авторство.'],
+                    'next'    => ['label' => 'Куда ведём дальше', 'type' => 'text', 'w' => 'm', 'hint' => 'Адрес внутри сайта: /landing-price, /services, /projects/raid-38. Внизу статьи появится кнопка перехода.'],
+                    'next_label' => ['label' => 'Надпись на кнопке', 'type' => 'text', 'w' => 'm'],
+                    'meta_title' => ['label' => 'Title в выдаче', 'type' => 'text', 'limit' => 60, 'hint' => 'Пусто — возьмётся заголовок статьи.'],
+                    'meta_desc'  => ['label' => 'Description в выдаче', 'type' => 'textarea', 'rows' => 2, 'limit' => 160, 'hint' => 'Пусто — возьмётся короткое описание.'],
+                    'draft'   => ['label' => 'Черновик', 'type' => 'check', 'hint' => 'Черновик не виден на сайте и не попадает в карту сайта. Так можно писать статью в несколько заходов.'],
+                ],
+            ]],
+        ],
+
         'reviews' => [
             'group' => 'Страницы',
             'title' => 'Отзывы',
@@ -397,6 +485,8 @@ function schema(): array
                 'site.nav_projects' => ['label' => 'Меню: проекты', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
                 'site.nav_services' => ['label' => 'Меню: услуги', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
                 'site.nav_price'    => ['label' => 'Меню: цены', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
+                'site.nav_blog'     => ['label' => 'Меню: блог', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
+                'site.nav_about'    => ['label' => 'Меню: о студии', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню', 'hint' => 'В шапке уже много пунктов — по умолчанию ссылка стоит только в подвале. Заполните, чтобы вывести и в меню.'],
                 'site.nav_contacts' => ['label' => 'Меню: контакты', 'type' => 'text', 'w' => 's', 'hides' => 'пункт меню'],
 
                 'site.footer_note'          => ['label' => 'Подпись в подвале', 'type' => 'textarea', 'rows' => 2, 'hides' => 'подпись в подвале'],
@@ -534,6 +624,14 @@ function schema(): array
                 'meta.contacts_og'      => ['label' => 'Контакты — картинка для соцсетей', 'type' => 'image'],
                 'meta.contacts_noindex' => ['label' => 'Закрыть от индексации', 'type' => 'check'],
 
+                'meta.about_title'      => ['label' => 'О студии — title', 'type' => 'text', 'limit' => 60],
+                'meta.about_desc'       => ['label' => 'О студии — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
+                'meta.about_noindex'    => ['label' => 'Закрыть от индексации', 'type' => 'check'],
+
+                'meta.blog_title'       => ['label' => 'Блог — title', 'type' => 'text', 'limit' => 60],
+                'meta.blog_desc'        => ['label' => 'Блог — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
+                'meta.blog_noindex'     => ['label' => 'Закрыть от индексации', 'type' => 'check'],
+
                 'meta.price_title'      => ['label' => 'Сколько стоит — title', 'type' => 'text', 'limit' => 60],
                 'meta.price_desc'       => ['label' => 'Сколько стоит — description', 'type' => 'textarea', 'rows' => 2, 'limit' => 160],
                 'meta.price_og'         => ['label' => 'Сколько стоит — картинка для соцсетей', 'type' => 'image'],
@@ -648,6 +746,8 @@ function schema_places(): array
 
         'work'          => ['page' => 'projects',  'anchor' => '',          'where' => 'Страница «Проекты» целиком', 'icon' => '▣'],
         'services'      => ['page' => 'services',  'anchor' => '',          'where' => 'Страница «Услуги» целиком', 'icon' => '▤'],
+        'about'         => ['page' => 'about',     'anchor' => '',          'where' => 'Страница «О студии» — /about', 'icon' => '☗'],
+        'blog'          => ['page' => 'blog',      'anchor' => '',          'where' => 'Раздел «Блог» — /blog и страницы статей', 'icon' => '✍'],
         'price'         => ['page' => 'landing-price', 'anchor' => '',   'where' => 'Страница «Сколько стоит» — /landing-price', 'icon' => '₽'],
         'reviews'       => ['page' => '',          'anchor' => 'reviews',   'where' => 'Главная и страница цены. Пусто — блока нет', 'icon' => '★'],
         'contacts'      => ['page' => 'contacts',  'anchor' => '',          'where' => 'Страница «Контакты» — только заголовки', 'icon' => '✆'],

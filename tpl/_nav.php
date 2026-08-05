@@ -15,6 +15,12 @@
       <?php if (trim((string)c('site.nav_price')) !== ''): ?>
       <a href="<?= url('landing-price') ?>"<?= $NAV === 'price' ? ' class="active"' : '' ?>><?= e(c('site.nav_price')) ?></a>
       <?php endif; ?>
+      <?php if (trim((string)c('site.nav_blog')) !== ''): ?>
+      <a href="<?= url('blog') ?>"<?= $NAV === 'blog' ? ' class="active"' : '' ?>><?= e(c('site.nav_blog')) ?></a>
+      <?php endif; ?>
+      <?php if (trim((string)c('site.nav_about')) !== ''): ?>
+      <a href="<?= url('about') ?>"<?= $NAV === 'about' ? ' class="active"' : '' ?>><?= e(c('site.nav_about')) ?></a>
+      <?php endif; ?>
       <?php if (trim((string)c('site.nav_contacts')) !== ''): ?>
       <a href="<?= url('contacts') ?>"<?= $NAV === 'contacts' ? ' class="active"' : '' ?>><?= e(c('site.nav_contacts')) ?></a>
       <?php endif; ?>

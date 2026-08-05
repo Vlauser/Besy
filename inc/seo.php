@@ -208,6 +208,50 @@ function seo_project_image(array $p): string
     return seo_base() . '/' . ltrim($img, '/');
 }
 
+/* ==================== Статьи блога ==================== */
+
+/** Title статьи: своё поле важнее, иначе заголовок плюс бренд. */
+function seo_post_title(array $p): string
+{
+    $own = trim((string)($p['meta_title'] ?? ''));
+    if ($own !== '') return $own;
+
+    $title = trim((string)($p['title'] ?? '')) ?: 'Статья';
+    $brand = trim((string)c('site.brand', ''));
+
+    // Длинный заголовок не удлиняем: в выдаче он и так обрежется
+    if ($brand !== '' && mb_strlen($title) < 45) $title .= ' — ' . $brand;
+
+    return $title;
+}
+
+/** Description статьи. */
+function seo_post_desc(array $p): string
+{
+    $own = trim((string)($p['meta_desc'] ?? ''));
+    if ($own !== '') return $own;
+
+    $desc = trim((string)($p['excerpt'] ?? ''));
+    if ($desc === '') {
+        // Берём начало текста, срезая разметку
+        $body = trim((string)($p['body'] ?? ''));
+        $body = preg_replace('/^[#>\-\*\s]+/mu', '', $body) ?? $body;
+        $desc = trim(preg_replace('/\s+/u', ' ', $body) ?? '');
+    }
+
+    return mb_strlen($desc) > 160 ? mb_substr($desc, 0, 157) . '…' : $desc;
+}
+
+/** Картинка статьи. */
+function seo_post_image(array $p): string
+{
+    $img = trim((string)($p['image'] ?? ''));
+    if ($img === '') return seo_image('blog');
+    if (str_starts_with($img, 'http')) return $img;
+
+    return seo_base() . '/' . ltrim($img, '/');
+}
+
 /* ==================== Хлебные крошки ==================== */
 
 /**
@@ -219,7 +263,7 @@ function seo_project_image(array $p): string
  *
  * @return array<int, array{name: string, url: string, path: string}> пусто на главной
  */
-function seo_crumbs(string $slug, ?array $project = null): array
+function seo_crumbs(string $slug, ?array $project = null, ?array $post = null): array
 {
     $slug = trim($slug, '/');
     if ($slug === '') return [];
@@ -229,6 +273,23 @@ function seo_crumbs(string $slug, ?array $project = null): array
         'url'  => seo_url(''),
         'path' => url(''),
     ];
+
+    // Статья блога: Главная → Блог → Заголовок
+    if ($post !== null) {
+        return [
+            $home,
+            [
+                'name' => trim((string)c('site.nav_blog')) ?: 'Блог',
+                'url'  => seo_url('blog'),
+                'path' => url('blog'),
+            ],
+            [
+                'name' => trim((string)($post['title'] ?? '')) ?: 'Статья',
+                'url'  => seo_url($slug),
+                'path' => url($slug),
+            ],
+        ];
+    }
 
     // Страница проекта: Главная → Проекты → Название работы
     if ($project !== null) {
@@ -251,6 +312,8 @@ function seo_crumbs(string $slug, ?array $project = null): array
         'projects' => trim((string)c('site.nav_projects')) ?: 'Проекты',
         'services' => trim((string)c('site.nav_services')) ?: 'Услуги',
         'landing-price' => trim((string)c('price.title')) ?: 'Сколько стоит',
+        'about'    => trim((string)c('about.title')) ?: 'О студии',
+        'blog'     => trim((string)c('site.nav_blog')) ?: 'Блог',
         'contacts' => trim((string)c('site.nav_contacts')) ?: 'Контакты',
         'privacy'  => trim((string)c('legal.privacy_title')) ?: 'Политика обработки данных',
         'consent'  => trim((string)c('legal.consent_title')) ?: 'Согласие на обработку данных',
@@ -380,27 +443,41 @@ function seo_node_website(): array
 }
 
 /** Текущая страница. */
-function seo_node_webpage(string $slug, string $key, array $crumbs, ?array $project = null): array
+function seo_node_webpage(string $slug, string $key, array $crumbs, ?array $project = null, ?array $post = null): array
 {
     $base = seo_base();
     $url  = seo_url($slug);
 
     $type = 'WebPage';
     if ($slug === 'contacts')  $type = 'ContactPage';
+    if ($slug === 'about')     $type = 'AboutPage';
+    if ($slug === 'blog')      $type = 'CollectionPage';
     if ($project !== null)     $type = 'ItemPage';
+    if ($post !== null)        $type = 'WebPage';
+
+    if ($project) {
+        $name = seo_project_title($project);
+        $desc = seo_project_desc($project);
+    } elseif ($post) {
+        $name = seo_post_title($post);
+        $desc = seo_post_desc($post);
+    } else {
+        $name = seo_title($key);
+        $desc = seo_desc($key);
+    }
 
     $node = [
         '@type'       => $type,
         '@id'         => $url . '#webpage',
         'url'         => $url,
-        'name'        => $project ? seo_project_title($project) : seo_title($key),
-        'description' => $project ? seo_project_desc($project)  : seo_desc($key),
+        'name'        => $name,
+        'description' => $desc,
         'inLanguage'  => 'ru-RU',
         'isPartOf'    => ['@id' => $base . '/#website'],
         'about'       => ['@id' => $base . '/#organization'],
     ];
 
-    $img = $project ? seo_project_image($project) : seo_image($key);
+    $img = $project ? seo_project_image($project) : ($post ? seo_post_image($post) : seo_image($key));
     if ($img !== '') {
         $node['primaryImageOfPage'] = ['@type' => 'ImageObject', 'url' => $img];
     }
@@ -628,6 +705,80 @@ function seo_node_project(string $slug, array $p): array
     return $node;
 }
 
+/**
+ * Статья блога.
+ *
+ * Даты и автор — не украшение: по ним Яндекс показывает дату в выдаче
+ * и понимает, что материал живой, а не заброшенный три года назад.
+ */
+function seo_node_post(string $slug, array $p): array
+{
+    $base = seo_base();
+    $url  = seo_url($slug);
+
+    $node = [
+        '@type'            => 'BlogPosting',
+        '@id'              => $url . '#article',
+        'headline'         => trim((string)($p['title'] ?? '')),
+        'description'      => seo_post_desc($p),
+        'mainEntityOfPage' => ['@id' => $url . '#webpage'],
+        'publisher'        => ['@id' => $base . '/#organization'],
+        'inLanguage'       => 'ru-RU',
+    ];
+
+    if ($d = trim((string)($p['date'] ?? ''))) {
+        $ts = strtotime($d);
+        if ($ts) $node['datePublished'] = date('c', $ts);
+    }
+    // Если правок не было, дата изменения равна дате публикации
+    $upd = trim((string)($p['updated'] ?? '')) ?: trim((string)($p['date'] ?? ''));
+    if ($upd && ($ts = strtotime($upd))) {
+        $node['dateModified'] = date('c', $ts);
+    }
+
+    $author = trim((string)($p['author'] ?? ''));
+    $node['author'] = $author !== ''
+        ? ['@type' => 'Person', 'name' => $author]
+        : ['@id' => $base . '/#organization'];
+
+    if ($img = seo_post_image($p)) $node['image'] = $img;
+
+    return $node;
+}
+
+/** Список статей — для страницы /blog. */
+function seo_node_blog(string $slug): ?array
+{
+    $posts = blog_posts();
+    if (!$posts) return null;
+
+    $list = [];
+    foreach ($posts as $i => $p) {
+        $list[] = [
+            '@type'    => 'ListItem',
+            'position' => $i + 1,
+            'url'      => seo_url('blog/' . trim((string)$p['slug'], '/')),
+            'name'     => trim((string)($p['title'] ?? '')),
+        ];
+    }
+
+    return [
+        '@type'           => 'Blog',
+        '@id'             => seo_url($slug) . '#blog',
+        'name'            => trim((string)c('blog.title')) ?: 'Блог',
+        'publisher'       => ['@id' => seo_base() . '/#organization'],
+        'blogPost'        => array_map(
+            fn($p) => [
+                '@type'    => 'BlogPosting',
+                'headline' => trim((string)($p['title'] ?? '')),
+                'url'      => seo_url('blog/' . trim((string)$p['slug'], '/')),
+            ],
+            $posts
+        ),
+        'mainEntity' => ['@type' => 'ItemList', 'itemListElement' => $list],
+    ];
+}
+
 /** Портфолио: список работ студии. */
 function seo_node_portfolio(string $slug): ?array
 {
@@ -681,26 +832,38 @@ function seo_node_portfolio(string $slug): ?array
  * через @id, поэтому поисковик понимает: это одна и та же компания,
  * вот её сайт, вот конкретная страница и её место в структуре.
  */
-function seo_jsonld(string $slug = '', string $key = 'home', ?array $project = null): string
+function seo_jsonld(string $slug = '', string $key = 'home', ?array $project = null, ?array $post = null): string
 {
-    $crumbs = seo_crumbs($slug, $project);
+    $crumbs = seo_crumbs($slug, $project, $post);
 
     $graph = [
         seo_node_org(),
         seo_node_website(),
-        seo_node_webpage($slug, $key, $crumbs, $project),
+        seo_node_webpage($slug, $key, $crumbs, $project, $post),
     ];
 
     if ($crumbs) $graph[] = seo_node_breadcrumb($slug, $crumbs);
 
+    $wrap = fn(array $g) => json_encode(
+        ['@context' => 'https://schema.org', '@graph' => $g],
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    );
+
     // Страница одной работы: описываем саму работу, списки тут не нужны
     if ($project !== null) {
         $graph[] = seo_node_project($slug, $project);
+        return $wrap($graph);
+    }
 
-        return json_encode(
-            ['@context' => 'https://schema.org', '@graph' => $graph],
-            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-        );
+    // Страница статьи
+    if ($post !== null) {
+        $graph[] = seo_node_post($slug, $post);
+        return $wrap($graph);
+    }
+
+    if ($slug === 'blog') {
+        if ($n = seo_node_blog($slug)) $graph[] = $n;
+        return $wrap($graph);
     }
 
     // Вопросы выводятся на главной и в контактах — размечаем их там же
@@ -740,6 +903,8 @@ function seo_pages(): array
         'services'  => ['0.9', 'monthly', 'services'],
         // Запросы о цене — самый горячий коммерческий интент
         'landing-price' => ['0.9', 'monthly', 'price'],
+        'about'     => ['0.6', 'yearly',  'about'],
+        'blog'      => ['0.7', 'weekly',  'blog'],
         'contacts'  => ['0.7', 'monthly', 'contacts'],
         'privacy'   => ['0.2', 'yearly',  'privacy'],
         'consent'   => ['0.2', 'yearly',  'consent'],
@@ -775,6 +940,8 @@ function seo_render_sitemap(): never
 
     foreach (seo_pages() as $slug => [$priority, $freq, $key]) {
         if (seo_noindex($key)) continue;
+        // Раздел блога без статей — страница без содержания
+        if ($slug === 'blog' && !blog_posts()) continue;
 
         echo "  <url>\n";
         echo '    <loc>' . e(seo_url($slug)) . "</loc>\n";
@@ -799,6 +966,30 @@ function seo_render_sitemap(): never
         }
 
         echo "  </url>\n";
+
+        // За разделом блога идут сами статьи
+        if ($slug === 'blog') {
+            foreach (blog_posts() as $post) {
+                $pslug = trim((string)$post['slug'], '/');
+                $pdate = trim((string)($post['updated'] ?? '')) ?: trim((string)($post['date'] ?? ''));
+                $pts   = $pdate !== '' ? strtotime($pdate) : false;
+
+                echo "  <url>\n";
+                echo '    <loc>' . e(seo_url('blog/' . $pslug)) . "</loc>\n";
+                echo '    <lastmod>' . ($pts ? date('Y-m-d', $pts) : $lastmod) . "</lastmod>\n";
+                echo "    <changefreq>monthly</changefreq>\n";
+                echo "    <priority>0.6</priority>\n";
+
+                if ($img = trim((string)($post['image'] ?? ''))) {
+                    echo "    <image:image>\n";
+                    echo '      <image:loc>' . e(seo_base() . '/' . ltrim($img, '/')) . "</image:loc>\n";
+                    echo '      <image:title>' . e((string)$post['title']) . "</image:title>\n";
+                    echo "    </image:image>\n";
+                }
+
+                echo "  </url>\n";
+            }
+        }
 
         // Сразу за списком работ идут их собственные страницы
         if ($slug === 'projects') {

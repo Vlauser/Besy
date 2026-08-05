@@ -64,6 +64,73 @@ function work_url(string $slug): string
     return url('projects/' . trim($slug, '/'));
 }
 
+/* ==================== Блог ==================== */
+
+/**
+ * Опубликованные статьи, свежие сверху.
+ *
+ * Черновики и записи без адреса не показываются нигде: ни в списке,
+ * ни по прямой ссылке, ни в карте сайта.
+ */
+function blog_posts(): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    $out = [];
+    foreach ((array)c('blog.items', []) as $p) {
+        if (!is_array($p)) continue;
+        if (!empty($p['draft'])) continue;
+        if (trim((string)($p['slug'] ?? '')) === '') continue;
+        if (trim((string)($p['title'] ?? '')) === '') continue;
+        $out[] = $p;
+    }
+
+    // Свежие вперёд; статьи без даты уходят в конец
+    usort($out, function ($a, $b) {
+        return strcmp(trim((string)($b['date'] ?? '')), trim((string)($a['date'] ?? '')));
+    });
+
+    return $cache = $out;
+}
+
+/** Статья по адресу. */
+function blog_post(string $slug): ?array
+{
+    $slug = trim($slug);
+    if ($slug === '') return null;
+
+    foreach (blog_posts() as $i => $p) {
+        if (trim((string)$p['slug']) === $slug) {
+            $p['_index'] = $i;
+            return $p;
+        }
+    }
+
+    return null;
+}
+
+/** Ссылка на статью. */
+function blog_url(string $slug): string
+{
+    return url('blog/' . trim($slug, '/'));
+}
+
+/** Дата статьи по-человечески: 5 августа 2026. */
+function blog_date(string $raw): string
+{
+    $raw = trim($raw);
+    if ($raw === '') return '';
+
+    $ts = strtotime($raw);
+    if ($ts === false) return $raw;
+
+    $months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+               'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+    return (int)date('j', $ts) . ' ' . $months[(int)date('n', $ts) - 1] . ' ' . date('Y', $ts);
+}
+
 /**
  * Есть ли в разделе хоть что-то заполненное.
  *

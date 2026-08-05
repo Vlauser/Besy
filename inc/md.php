@@ -16,6 +16,11 @@ function md_inline(string $s): string
     $s = preg_replace('/\*\*(.+?)\*\*/u', '<strong>$1</strong>', $s) ?? $s;
     $s = preg_replace('/(?<![\*\w])\*([^\*\n]+)\*(?!\*)/u', '<em>$1</em>', $s) ?? $s;
 
+    // Ссылки внутри сайта: [текст](/blog) — открываются в той же вкладке
+    $s = preg_replace_callback('/\[([^\]]+)\]\((\/[^\s\)]*)\)/u', function ($m) {
+        return '<a href="' . $m[2] . '">' . $m[1] . '</a>';
+    }, $s) ?? $s;
+
     // Ссылки вида [текст](адрес)
     $s = preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/u', function ($m) {
         return '<a href="' . $m[2] . '" target="_blank" rel="noopener">' . $m[1] . '</a>';
@@ -70,6 +75,23 @@ function md_to_html(string $md): string
             continue;
         }
 
+        // Картинка на всю ширину: ![описание](путь)
+        // Описание обязательно — это alt для поиска по картинкам
+        if (preg_match('~^!\[([^\]]*)\]\(([^\s\)]+)\)$~u', $t, $m)) {
+            $flushPara();
+            $closeList();
+            $out[] = md_image($m[2], $m[1]);
+            continue;
+        }
+
+        // Цитата
+        if (preg_match('/^&gt;\s*(.+)$/u', $t, $m)) {
+            $flushPara();
+            $closeList();
+            $out[] = '<blockquote><p>' . md_inline(trim($m[1])) . '</p></blockquote>';
+            continue;
+        }
+
         // Заголовки
         if (preg_match('/^(#{1,4})\s+(.+)$/u', $t, $m)) {
             $flushPara();
@@ -100,6 +122,36 @@ function md_to_html(string $md): string
     $closeList();
 
     return implode("\n", $out);
+}
+
+/**
+ * Картинка внутри текста статьи.
+ *
+ * Локальные файлы отдаём через img_html — с WebP, размерами и отложенной
+ * загрузкой. Чужие адреса вставляем как есть, но без размеров: их не узнать,
+ * не скачав файл. Всё, что не похоже на путь к картинке, отбрасываем —
+ * так через разметку не подсунуть постороннюю ссылку.
+ */
+function md_image(string $src, string $alt): string
+{
+    $src = html_entity_decode($src, ENT_QUOTES, 'UTF-8');
+    $alt = html_entity_decode($alt, ENT_QUOTES, 'UTF-8');
+
+    if (str_starts_with($src, 'https://') || str_starts_with($src, 'http://')) {
+        return '<figure class="md-figure"><img src="' . e($src) . '" alt="' . e($alt)
+             . '" loading="lazy" decoding="async"></figure>';
+    }
+
+    $rel = ltrim($src, '/');
+    if ($rel === '' || !is_file(ROOT . '/' . $rel)) return '';
+
+    $html = function_exists('img_html')
+        ? img_html($rel, $alt)
+        : '<img src="' . e(url($rel)) . '" alt="' . e($alt) . '" loading="lazy">';
+
+    return '<figure class="md-figure">' . $html
+         . ($alt !== '' ? '<figcaption>' . e($alt) . '</figcaption>' : '')
+         . '</figure>';
 }
 
 /**
