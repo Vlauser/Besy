@@ -71,6 +71,9 @@
   </div>
 </footer>
 
+<?php /* В предпросмотре из админки баннер не нужен — он закрывал бы блок,
+         который редактор как раз и пришёл посмотреть */ ?>
+<?php if (empty($PREVIEW)): ?>
 <aside class="cookie-notice" id="cookie" hidden role="dialog" aria-live="polite" aria-label="Уведомление о cookies">
   <p><?= agree_html((string)c('legal.cookie_text'), url('privacy')) ?></p>
   <div class="cookie-actions">
@@ -82,6 +85,7 @@
     <?php endif; ?>
   </div>
 </aside>
+<?php endif; ?>
 
 <?php require ROOT . '/tpl/_modal.php'; ?>
 <?php require ROOT . '/tpl/_success.php'; ?>

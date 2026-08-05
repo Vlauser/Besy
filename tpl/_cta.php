@@ -1,5 +1,5 @@
 <?php if (has_any('cta.kicker', 'cta.title', 'cta.text', 'cta.button', 'cta.image')): ?>
-<section class="section cta-section">
+<section class="section cta-section" id="cta">
   <div class="container">
     <div class="cta-card">
       <div class="cta-copy">

@@ -258,3 +258,21 @@ a.card:hover{border-color:var(--ink);text-decoration:none;transform:translateY(-
 .tip{font-style:normal;font-size:11px;letter-spacing:.02em;text-transform:none;
   color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:2px 8px;cursor:help;
   white-space:nowrap}
+
+/* ==========================================================
+   Предпросмотр блока прямо в редакторе
+   ========================================================== */
+.preview{border:1px solid var(--rule);background:var(--card);border-radius:var(--r);
+  margin-bottom:24px;overflow:hidden}
+.preview[hidden]{display:none}
+
+.preview-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:12px 14px;border-bottom:1px solid var(--rule-2);background:#FAFAF8}
+.preview-bar > span{font-size:13px;color:var(--mut);margin-right:auto}
+.preview-sizes{display:flex;gap:6px}
+.preview-sizes .mini.is-active{background:var(--klein);border-color:var(--klein);color:#fff}
+
+.preview-stage{background:var(--paper);padding:16px;display:flex;justify-content:center}
+.preview-stage iframe{width:100%;height:520px;border:1px solid var(--rule);border-radius:6px;
+  background:#fff;transition:width .2s ease}
+.preview-stage.is-phone iframe{width:390px;height:640px}

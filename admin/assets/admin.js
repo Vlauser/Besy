@@ -356,6 +356,56 @@
     });
   })();
 
+  /* ---------- предпросмотр блока ----------
+     Страница грузится по требованию: незачем тянуть весь сайт
+     каждому, кто просто зашёл поправить одну строчку. */
+  (function () {
+    var box = document.querySelector('[data-preview]');
+    var toggle = document.querySelector('[data-preview-toggle]');
+    if (!box || !toggle) return;
+
+    var frame = box.querySelector('[data-preview-frame]');
+    var stage = box.querySelector('.preview-stage');
+    var KEY = 'axm_admin_preview';
+
+    function load() {
+      if (!frame.getAttribute('src')) {
+        frame.setAttribute('src', frame.getAttribute('data-src'));
+      }
+    }
+
+    function open(on) {
+      box.hidden = !on;
+      toggle.setAttribute('aria-expanded', on ? 'true' : 'false');
+      toggle.textContent = on ? 'Скрыть предпросмотр' : 'Предпросмотр';
+      try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) {}
+      if (on) load();
+    }
+
+    toggle.addEventListener('click', function () { open(box.hidden); });
+
+    // Панель открыта — держим её открытой и после сохранения
+    var saved = null;
+    try { saved = localStorage.getItem(KEY); } catch (e) {}
+    if (saved === '1') open(true);
+
+    box.addEventListener('click', function (e) {
+      var size = e.target.closest('[data-preview-size]');
+      if (size) {
+        box.querySelectorAll('[data-preview-size]').forEach(function (b) {
+          b.classList.toggle('is-active', b === size);
+        });
+        stage.classList.toggle('is-phone', size.getAttribute('data-preview-size') !== 'full');
+        return;
+      }
+
+      if (e.target.closest('[data-preview-reload]')) {
+        frame.removeAttribute('src');
+        load();
+      }
+    });
+  })();
+
   /* ---------- счётчик символов ---------- */
   var LIMITS = [
     { match: /_title\]/, max: 60,  label: 'заголовок в выдаче' },

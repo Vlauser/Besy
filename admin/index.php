@@ -632,10 +632,35 @@ function render_editor(string $key, string $notice, string $error): void
           <?php if (!empty($sec['desc'])): ?><p class="sub"><?= e($sec['desc']) ?></p><?php endif; ?>
         </div>
         <div class="head-acts">
-          <a class="btn btn--gh" href="<?= e($siteUrl) ?>" target="_blank" rel="noopener">Посмотреть ↗</a>
+          <?php if ($place['page'] !== 'stranica-kotoroy-net'): ?>
+            <button class="btn btn--gh" type="button" data-preview-toggle
+                    aria-expanded="false">Предпросмотр</button>
+          <?php endif; ?>
+          <a class="btn btn--gh" href="<?= e($siteUrl) ?>" target="_blank" rel="noopener">Открыть ↗</a>
           <button class="btn" type="submit">Сохранить</button>
         </div>
       </div>
+
+      <?php if ($place['page'] !== 'stranica-kotoroy-net'): ?>
+        <?php /* Предпросмотр показывает живую страницу сайта, прокрученную
+                 к нужному блоку. Обновляется после сохранения — заодно
+                 сразу видно, что правка доехала */ ?>
+        <section class="preview" data-preview hidden>
+          <div class="preview-bar">
+            <span>Так блок выглядит на сайте</span>
+            <div class="preview-sizes" role="group" aria-label="Ширина экрана">
+              <button type="button" class="mini is-active" data-preview-size="full">Компьютер</button>
+              <button type="button" class="mini" data-preview-size="390">Телефон</button>
+            </div>
+            <button type="button" class="mini" data-preview-reload>Обновить</button>
+          </div>
+          <div class="preview-stage">
+            <iframe data-preview-frame title="Предпросмотр блока"
+                    data-src="<?= e(url($place['page']) . '?preview=1' . ($place['anchor'] !== '' ? '#' . $place['anchor'] : '')) ?>"
+                    loading="lazy"></iframe>
+          </div>
+        </section>
+      <?php endif; ?>
 
       <?php if (!empty($sec['note'])): ?>
         <div class="note"><b>Как это работает</b><span><?= e($sec['note']) ?></span></div>

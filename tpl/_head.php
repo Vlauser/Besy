@@ -62,7 +62,7 @@
 <style><?= $dcss ?></style>
 <?php endif; ?>
 <script type="application/ld+json"><?= seo_jsonld($SLUG ?? '', $METAKEY ?? 'home', $PROJECT ?? null) ?></script>
-<?php if ($mid = trim((string)c('integrations.metrika_id'))): ?>
+<?php if (empty($PREVIEW) && ($mid = trim((string)c('integrations.metrika_id')))): ?>
 <?php /* Соединение с Метрикой готовится заранее, но сам счётчик
          подключается из app.js только после согласия на cookie */ ?>
 <link rel="preconnect" href="https://mc.yandex.ru" crossorigin>

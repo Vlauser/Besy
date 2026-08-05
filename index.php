@@ -23,6 +23,11 @@ seo_canonicalize($uri);
 
 $slug = trim($uri, '/');
 
+/* Предпросмотр из админки: страница показывается внутри панели.
+   В этом режиме прячем баннер cookie и не запускаем счётчик, чтобы
+   правки редактора не попадали в статистику и не мешали смотреть блок. */
+$PREVIEW = isset($_GET['preview']);
+
 /* Служебные адреса для поисковиков */
 if ($slug === 'sitemap.xml') seo_render_sitemap();
 if ($slug === 'robots.txt')  seo_render_robots();
@@ -57,9 +62,9 @@ $METAKEY      = $page['meta'];
 $PAGE_TITLE   = $PROJECT ? seo_project_title($PROJECT) : seo_title($METAKEY);
 $PAGE_DESC    = $PROJECT ? seo_project_desc($PROJECT)  : seo_desc($METAKEY);
 $PAGE_IMAGE   = $PROJECT ? seo_project_image($PROJECT) : seo_image($METAKEY);
-$PAGE_NOINDEX = $PROJECT
+$PAGE_NOINDEX = $PREVIEW || ($PROJECT
     ? (!empty(c('seo.noindex_all')) || !empty($PROJECT['noindex']))
-    : (seo_noindex($METAKEY) || $page['tpl'] === '404');
+    : (seo_noindex($METAKEY) || $page['tpl'] === '404'));
 $NAV          = $page['nav'];
 $CANONICAL    = seo_url($slug);
 $SLUG         = $page['tpl'] === '404' ? '' : $slug;

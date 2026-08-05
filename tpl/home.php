@@ -1,6 +1,6 @@
 <main>
   <?php if (has_any('hero.title_1', 'hero.title_2', 'hero.title_accent', 'hero.text', 'hero.cta_primary', 'hero.badges', 'hero.image')): ?>
-  <section class="hero">
+  <section class="hero" id="hero">
     <div class="container hero-grid">
       <div class="hero-copy reveal">
         <h1><?php if (trim((string)c('hero.title_1')) !== ''): ?><?= e(c('hero.title_1')) ?><?php if (trim((string)c('hero.title_2')) !== '' || trim((string)c('hero.title_accent')) !== ''): ?><br><?php endif; ?><?php endif; ?><?= e(c('hero.title_2')) ?> <?php if (trim((string)c('hero.title_accent')) !== ''): ?><span><?= e(c('hero.title_accent')) ?></span><?php endif; ?></h1>
@@ -34,7 +34,7 @@
   <?php endif; ?>
 
   <?php if (has_any('comparison.kicker', 'comparison.title', 'comparison.lede', 'comparison.bad', 'comparison.good', 'comparison.center_num')): ?>
-  <section class="section comparison-section">
+  <section class="section comparison-section" id="comparison">
     <div class="container">
       <div class="section-heading split-heading">
         <div>
@@ -83,7 +83,7 @@
   <?php endif; ?>
 
   <?php if (has_any('process.kicker', 'process.title', 'process.items')): ?>
-  <section class="section process-section">
+  <section class="section process-section" id="process">
     <div class="container">
       <div class="section-heading">
         <?php if (trim((string)c('process.kicker')) !== ''): ?>
@@ -117,7 +117,7 @@
   <?php endif; ?>
 
   <?php if (has_any('benefits.kicker', 'benefits.title', 'benefits.items')): ?>
-  <section class="section benefits-section">
+  <section class="section benefits-section" id="benefits">
     <div class="container">
       <div class="benefits-shell">
         <div class="section-heading benefits-heading">
@@ -210,7 +210,7 @@
   <?php endif; ?>
 
   <?php if (has_any('faq.kicker', 'faq.title', 'faq.lede', 'faq.items')): ?>
-  <section class="section faq-section">
+  <section class="section faq-section" id="faq-block">
     <div class="container faq-layout">
       <div class="section-heading">
         <?php if (trim((string)c('faq.kicker')) !== ''): ?>

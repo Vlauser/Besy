@@ -523,14 +523,14 @@ function schema(): array
 function schema_places(): array
 {
     return [
-        'hero'          => ['page' => '',          'anchor' => '',          'where' => 'Главная · самый первый экран', 'icon' => '◆'],
-        'comparison'    => ['page' => '',          'anchor' => '',          'where' => 'Главная · 2-й блок, сразу под первым экраном', 'icon' => '⇄'],
-        'process'       => ['page' => '',          'anchor' => '',          'where' => 'Главная · 3-й блок, карточки этапов', 'icon' => '№'],
-        'benefits'      => ['page' => '',          'anchor' => '',          'where' => 'Главная · 4-й блок, «узнали себя»', 'icon' => '✦'],
+        'hero'          => ['page' => '',          'anchor' => 'hero',          'where' => 'Главная · самый первый экран', 'icon' => '◆'],
+        'comparison'    => ['page' => '',          'anchor' => 'comparison',          'where' => 'Главная · 2-й блок, сразу под первым экраном', 'icon' => '⇄'],
+        'process'       => ['page' => '',          'anchor' => 'process',          'where' => 'Главная · 3-й блок, карточки этапов', 'icon' => '№'],
+        'benefits'      => ['page' => '',          'anchor' => 'benefits',          'where' => 'Главная · 4-й блок, «узнали себя»', 'icon' => '✦'],
         'home_services' => ['page' => '',          'anchor' => 'services',  'where' => 'Главная · 5-й блок, карточки услуг', 'icon' => '▤'],
-        'cta'           => ['page' => '',          'anchor' => '',          'where' => 'Повторяется на главной, в проектах и услугах', 'icon' => '☺'],
+        'cta'           => ['page' => '',          'anchor' => 'cta',          'where' => 'Повторяется на главной, в проектах и услугах', 'icon' => '☺'],
         'projects_home' => ['page' => '',          'anchor' => 'projects',  'where' => 'Главная · блок кейсов, первые три проекта', 'icon' => '▣'],
-        'faq'           => ['page' => '',          'anchor' => '',          'where' => 'Главная и страница контактов', 'icon' => '?'],
+        'faq'           => ['page' => '',          'anchor' => 'faq-block',          'where' => 'Главная и страница контактов', 'icon' => '?'],
         'request'       => ['page' => '',          'anchor' => 'request',   'where' => 'Главная · последний блок с формой', 'icon' => '✉'],
 
         'work'          => ['page' => 'projects',  'anchor' => '',          'where' => 'Страница «Проекты» целиком', 'icon' => '▣'],
