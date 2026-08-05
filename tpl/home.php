@@ -82,40 +82,6 @@
   </section>
   <?php endif; ?>
 
-  <?php if (has_any('process.kicker', 'process.title', 'process.items')): ?>
-  <section class="section process-section" id="process">
-    <div class="container">
-      <div class="section-heading">
-        <?php if (trim((string)c('process.kicker')) !== ''): ?>
-        <span class="section-kicker"><?= e(c('process.kicker')) ?></span>
-        <?php endif; ?>
-        <?php if (trim((string)c('process.title')) !== ''): ?>
-        <h2><?= e(c('process.title')) ?></h2>
-        <?php endif; ?>
-      </div>
-      <div class="process-grid">
-        <?php foreach ((array)c('process.items', []) as $n => $p): ?>
-          <article class="process-card">
-            <div class="card-top">
-              <?php if (trim((string)($p['number'] ?? '')) !== ''): ?>
-              <span class="step-number"><?= e($p['number'] ?? '') ?></span>
-              <?php endif; ?>
-              <span class="icon-box"><?= icon_cycle($n) ?></span>
-            </div>
-            <?php if (trim((string)($p['title'] ?? '')) !== ''): ?>
-            <h3><?= e($p['title'] ?? '') ?></h3>
-            <?php endif; ?>
-            <?php if (trim((string)($p['text'] ?? '')) !== ''): ?>
-            <p><?= e($p['text'] ?? '') ?></p>
-            <?php endif; ?>
-            <div class="card-line"></div>
-          </article>
-        <?php endforeach; ?>
-      </div>
-    </div>
-  </section>
-  <?php endif; ?>
-
   <?php if (has_any('benefits.kicker', 'benefits.title', 'benefits.items')): ?>
   <section class="section benefits-section" id="benefits">
     <div class="container">
@@ -182,21 +148,52 @@
   </section>
   <?php endif; ?>
 
+  <?php if (has_any('process.kicker', 'process.title', 'process.items')): ?>
+  <section class="section home-process-section" id="process">
+    <div class="container process-list-layout">
+      <div class="section-heading process-list-heading">
+        <?php if (trim((string)c('process.kicker')) !== ''): ?><span class="section-kicker"><?= e(c('process.kicker')) ?></span><?php endif; ?>
+        <?php if (trim((string)c('process.title')) !== ''): ?><h2><?= e(c('process.title')) ?></h2><?php endif; ?>
+      </div>
+      <div class="process-list">
+        <?php foreach ((array)c('process.items', []) as $n => $p): ?>
+          <article class="process-list-item">
+            <span><?= e($p['number'] ?? str_pad((string)($n + 1), 2, '0', STR_PAD_LEFT)) ?></span>
+            <div><h3><?= e($p['title'] ?? '') ?></h3><p><?= e($p['text'] ?? '') ?></p></div>
+          </article>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  </section>
+  <?php endif; ?>
+
   <?php require ROOT . '/tpl/_cta.php'; ?>
 
   <?php if (has_any('projects_home.kicker', 'projects_home.title', 'work.items')): ?>
   <section class="section projects-section" id="projects">
     <div class="container">
-      <div class="section-heading compact-heading">
-        <?php if (trim((string)c('projects_home.kicker')) !== ''): ?>
-        <span class="section-kicker"><?= e(c('projects_home.kicker')) ?></span>
-        <?php endif; ?>
-        <?php if (trim((string)c('projects_home.title')) !== ''): ?>
-        <h2><?= e(c('projects_home.title')) ?></h2>
+      <div class="section-heading split-heading">
+        <div>
+          <?php if (trim((string)c('projects_home.kicker')) !== ''): ?>
+          <span class="section-kicker"><?= e(c('projects_home.kicker')) ?></span>
+          <?php endif; ?>
+          <?php if (trim((string)c('projects_home.title')) !== ''): ?>
+          <h2><?= e(c('projects_home.title')) ?></h2>
+          <?php endif; ?>
+        </div>
+        <?php if (trim((string)c('projects_home.lede')) !== ''): ?>
+        <p><?= e(c('projects_home.lede')) ?></p>
         <?php endif; ?>
       </div>
       <div class="project-grid home-project-grid">
-        <?php foreach (array_slice((array)c('work.items', []), 0, 3) as $project): ?>
+        <?php
+        $homeProjects = [];
+        foreach ((array)c('projects_home.slugs', []) as $homeSlug) {
+            if ($found = work_item((string)$homeSlug)) $homeProjects[] = $found;
+        }
+        if (!$homeProjects) $homeProjects = array_slice((array)c('work.items', []), 0, 3);
+        ?>
+        <?php foreach ($homeProjects as $project): ?>
           <?php require ROOT . '/tpl/_project_card.php'; ?>
         <?php endforeach; ?>
       </div>
@@ -210,6 +207,21 @@
   <?php endif; ?>
 
   <?php require ROOT . '/tpl/_reviews.php'; ?>
+
+  <?php $homePosts = array_slice(blog_posts(), 0, 3); if ($homePosts): ?>
+  <section class="section blog-preview-section">
+    <div class="container">
+      <div class="section-heading split-heading">
+        <div><span class="section-kicker">Блог</span><h2>Коротко о сайтах и продажах.</h2></div>
+        <p>Выбор формата, цена, структура и запуск — понятными словами и с практическим ответом в каждом материале.</p>
+      </div>
+      <div class="blog-grid blog-grid-home">
+        <?php foreach ($homePosts as $i => $p): ?><?php require ROOT . '/tpl/_blog_card.php'; ?><?php endforeach; ?>
+      </div>
+      <div class="section-action"><a href="<?= url('blog') ?>" class="button button-secondary">Все материалы</a></div>
+    </div>
+  </section>
+  <?php endif; ?>
 
   <?php if (has_any('faq.kicker', 'faq.title', 'faq.lede', 'faq.items')): ?>
   <section class="section faq-section" id="faq-block">
@@ -261,6 +273,7 @@
           <?php endif; ?>
         </div>
         <div class="home-contact-form-wrap">
+          <?php if (has_any('request.form_small', 'request.form_big')): ?>
           <div class="form-heading">
             <?php if (trim((string)c('request.form_small')) !== ''): ?>
             <span><?= e(c('request.form_small')) ?></span>
@@ -269,6 +282,7 @@
             <strong><?= e(c('request.form_big')) ?></strong>
             <?php endif; ?>
           </div>
+          <?php endif; ?>
           <?php require ROOT . '/tpl/_form.php'; ?>
         </div>
       </div>

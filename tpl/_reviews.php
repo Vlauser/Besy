@@ -36,6 +36,7 @@ if (!$items) return;
         $work   = $case !== '' ? work_item($case) : null;
         ?>
         <article class="review-card">
+          <span class="testimonial-draft">Текст для замены</span>
           <?php if ($rating >= 1 && $rating <= 5): ?>
             <div class="review-stars" aria-label="Оценка <?= $rating ?> из 5">
               <?php for ($i = 1; $i <= 5; $i++): ?>

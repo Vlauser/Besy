@@ -17,6 +17,7 @@
 <link rel="preload" href="<?= url('assets/fonts/geist-875ccdd4.woff2') ?>" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="<?= url('assets/fonts/geist-mono-44e03052.woff2') ?>" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="<?= url('assets/style.css') ?>?v=<?= @filemtime(ROOT . '/assets/style.css') ?: 1 ?>">
+<link rel="stylesheet" href="<?= url('assets/commercial.css') ?>?v=<?= @filemtime(ROOT . '/assets/commercial.css') ?: 1 ?>">
 
 <?php /* Картинка первого экрана — обычно самый крупный элемент, по которому
          считается LCP. Просим браузер начать её заранее, не дожидаясь разметки */ ?>

@@ -197,6 +197,7 @@
         var on = b.getAttribute('data-mode-btn') === mode;
         b.classList.toggle('is-active', on);
         b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
       });
       form.querySelectorAll('[data-pane]').forEach(function (p) {
         p.hidden = p.getAttribute('data-pane') !== mode;
@@ -210,7 +211,7 @@
       b.addEventListener('click', function () { setMode(b.getAttribute('data-mode-btn')); });
     });
 
-    // выбор мессенджера меняет подсказку в поле
+    // Telegram принимает никнейм, MAX — только номер телефона
     form.querySelectorAll('[data-messenger]').forEach(function (b) {
       b.addEventListener('click', function () {
         form.querySelectorAll('[data-messenger]').forEach(function (x) {
@@ -219,10 +220,13 @@
           x.setAttribute('aria-pressed', on ? 'true' : 'false');
         });
         var inp = form.querySelector('[data-pane="write"] [data-contact]');
+        var fieldLabel = form.querySelector('[data-messenger-field-label]');
         if (inp) {
           inp.placeholder = b.getAttribute('data-placeholder') || '';
+          inp.type = b.getAttribute('data-input-type') || 'text';
           inp.focus();
         }
+        if (fieldLabel) fieldLabel.textContent = b.getAttribute('data-field-label') || '';
       });
     });
   });
@@ -278,9 +282,13 @@
           valid = false;
         }
       } else {
-        var ok = /^@?[a-zA-Z0-9_.]{3,}$/.test(contact) || contact.replace(/\D/g, '').length >= 10;
+        var selectedMessenger = form.querySelector('[data-messenger].is-active');
+        var messengerKey = selectedMessenger ? selectedMessenger.getAttribute('data-messenger') : '';
+        var ok = messengerKey === 'max'
+          ? contact.replace(/\D/g, '').length >= 10
+          : /^@?[a-zA-Z0-9_.]{3,}$/.test(contact);
         if (!ok) {
-          showError(input, 'Укажите @ник или номер');
+          showError(input, messengerKey === 'max' ? 'Проверьте номер телефона' : 'Укажите @username');
           valid = false;
         }
       }
@@ -404,6 +412,42 @@
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !modal.hidden) close();
+    });
+  })();
+
+  /* ---------- просмотр сайта проекта в большом прокручиваемом окне ---------- */
+  (function () {
+    var preview = document.querySelector('[data-site-preview]');
+    if (!preview) return;
+
+    var dialog = preview.querySelector('.site-preview-modal');
+    var frame = preview.querySelector('[data-site-preview-frame]');
+    var openButton = document.querySelector('[data-site-preview-open]');
+    var closeButton = preview.querySelector('[data-site-preview-close]');
+    var lastFocus = null;
+
+    function openPreview() {
+      lastFocus = document.activeElement;
+      preview.hidden = false;
+      document.body.classList.add('ax-modal-open');
+      if (frame && !frame.getAttribute('src')) frame.setAttribute('src', frame.getAttribute('data-src') || '');
+      if (closeButton) closeButton.focus();
+    }
+
+    function closePreview() {
+      preview.hidden = true;
+      document.body.classList.remove('ax-modal-open');
+      if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+
+    if (frame) frame.addEventListener('load', function () { frame.classList.add('loaded'); });
+    if (openButton) openButton.addEventListener('click', openPreview);
+    if (closeButton) closeButton.addEventListener('click', closePreview);
+    preview.addEventListener('mousedown', function (e) {
+      if (!dialog || !dialog.contains(e.target)) closePreview();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !preview.hidden) closePreview();
     });
   })();
 

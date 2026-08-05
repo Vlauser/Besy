@@ -38,11 +38,11 @@ $messengers = (array)c('forms.messengers', []);
     <?php endif; ?>
 
     <?php if ($showSwitch): ?>
-      <div class="ax-mode" role="group" aria-label="<?= e(c('forms.mode_label')) ?>">
+      <div class="ax-mode" role="tablist" aria-label="<?= e(trim((string)c('forms.mode_label')) ?: 'Способ связи') ?>">
         <?php foreach ($modes as $key => $label): ?>
           <button type="button" data-mode-btn="<?= e($key) ?>"
                   class="<?= $key === $defaultMode ? 'is-active' : '' ?>"
-                  aria-pressed="<?= $key === $defaultMode ? 'true' : 'false' ?>">
+                  role="tab" aria-selected="<?= $key === $defaultMode ? 'true' : 'false' ?>" aria-pressed="<?= $key === $defaultMode ? 'true' : 'false' ?>">
             <?= icon($key === 'call' ? 'phone' : 'chat', 16) ?><?= e($label) ?>
           </button>
         <?php endforeach; ?>
@@ -76,13 +76,16 @@ $messengers = (array)c('forms.messengers', []);
               <?php foreach ($messengers as $i => $m): ?>
                 <button type="button" data-messenger="<?= e($m['key'] ?? '') ?>"
                         data-placeholder="<?= e($m['placeholder'] ?? '') ?>"
+                        data-field-label="<?= e($m['field_label'] ?? c('forms.label_messenger')) ?>"
+                        data-input-type="<?= e($m['input_type'] ?? 'text') ?>"
                         class="<?= $i === 0 ? 'is-active' : '' ?>"
                         aria-pressed="<?= $i === 0 ? 'true' : 'false' ?>"><?= e($m['label'] ?? '') ?></button>
               <?php endforeach; ?>
-            </div>
+          </div>
           <?php endif; ?>
 
-          <input type="text" name="messenger_contact" data-contact
+          <span class="ax-label" data-messenger-field-label><?= e($messengers[0]['field_label'] ?? c('forms.label_messenger')) ?></span>
+          <input type="<?= e($messengers[0]['input_type'] ?? 'text') ?>" name="messenger_contact" data-contact
                  placeholder="<?= e($messengers[0]['placeholder'] ?? '') ?>">
           <em class="field-error" hidden><?= e(c('forms.err_contact')) ?></em>
         </div>
@@ -110,7 +113,7 @@ $messengers = (array)c('forms.messengers', []);
        Единственное поле, которое нельзя убрать из админки -->
   <label class="consent-row">
     <input type="checkbox" name="consent" data-req-check>
-    <span><?= agree_html((string)c('forms.agree'), url('consent')) ?></span>
+        <span><?= agree_html((string)c('forms.agree'), url('assets/axiomantic-personal-data-consent.pdf')) ?></span>
   </label>
   <?php if (trim((string)c('forms.err_agree')) !== ''): ?>
     <em class="field-error consent-error" hidden><?= e(c('forms.err_agree')) ?></em>
@@ -126,7 +129,7 @@ $messengers = (array)c('forms.messengers', []);
 
   <input type="text" name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
 
-  <button class="button button-primary" type="button" data-submit><?= e(trim((string)c('forms.submit')) ?: 'Отправить') ?></button>
+  <button class="button button-primary" type="button" data-submit><?= !empty($FORM_MODAL) ? 'Отправить заявку' : e(trim((string)c('forms.submit')) ?: 'Отправить') ?></button>
 
   <?php if (trim((string)c('legal.policy_link')) !== ''): ?>
     <p class="form-policy"><a href="<?= url('privacy') ?>" target="_blank" rel="noopener"><?= e(c('legal.policy_link')) ?></a></p>

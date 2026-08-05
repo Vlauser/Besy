@@ -25,16 +25,20 @@
           <?php if (trim((string)c('site.nav_price')) !== ''): ?>
           <a href="<?= url('landing-price') ?>"><?= e(c('site.nav_price')) ?></a>
           <?php endif; ?>
-          <?php /* В подвале «О студии» стоит всегда — в шапке пунктов и так много */ ?>
-          <a href="<?= url('about') ?>"><?= e(trim((string)c('site.nav_about')) ?: 'О студии') ?></a>
+          <?php /* В подвале «О команде» стоит всегда — в шапке пунктов и так много */ ?>
+          <a href="<?= url('about') ?>"><?= e(trim((string)c('site.nav_about')) ?: 'О команде') ?></a>
           <?php if (blog_posts()): ?>
           <a href="<?= url('blog') ?>"><?= e(trim((string)c('site.nav_blog')) ?: 'Блог') ?></a>
           <?php endif; ?>
           <?php if (trim((string)c('site.nav_contacts')) !== ''): ?>
           <a href="<?= url('contacts') ?>"><?= e(c('site.nav_contacts')) ?></a>
           <?php endif; ?>
-          <a href="<?= url('privacy') ?>">Политика данных</a>
-          <a href="<?= url('consent') ?>">Согласие на обработку</a>
+        </div>
+        <div>
+          <span>Услуги</span>
+          <a href="<?= url('landing') ?>">Лендинги</a>
+          <a href="<?= url('website-development') ?>">Сайты под ключ</a>
+          <a href="<?= url('landing-price') ?>">Стоимость</a>
         </div>
         <div>
           <?php if (trim((string)c('site.footer_contact_title')) !== ''): ?>
@@ -63,18 +67,16 @@
     </div>
 
     <div class="footer-bottom">
-      <?php if (trim((string)c('site.footer_bottom_left')) !== ''): ?>
-      <span><?= e(c('site.footer_bottom_left')) ?></span>
-      <?php endif; ?>
-      <?php if (trim((string)c('site.footer_bottom_right')) !== ''): ?>
-      <span><?= e(c('site.footer_bottom_right')) ?></span>
-      <?php endif; ?>
-    </div>
-
-    <div class="footer-legal">
-      <?php if ($ln = trim((string)c('site.legal_name'))): ?><span><?= e($ln) ?></span><?php endif; ?>
-      <?php if ($og = trim((string)c('site.ogrnip'))): ?><span>ОГРНИП <?= e($og) ?></span><?php endif; ?>
-      <?php if ($innum = trim((string)c('site.inn'))): ?><span>ИНН <?= e($innum) ?></span><?php endif; ?>
+      <div class="footer-legal">
+        <?php if (trim((string)c('site.footer_bottom_left')) !== ''): ?><span><?= e(c('site.footer_bottom_left')) ?></span><?php endif; ?>
+        <?php if ($ln = trim((string)c('site.legal_name'))): ?><span><?= e($ln) ?></span><?php endif; ?>
+        <?php if ($innum = trim((string)c('site.inn'))): ?><span>ИНН <?= e($innum) ?><?php if ($og = trim((string)c('site.ogrnip'))): ?> · ОГРНИП <?= e($og) ?><?php endif; ?></span><?php endif; ?>
+        <div class="footer-documents">
+          <a href="<?= url('privacy') ?>">Политика обработки персональных данных</a>
+          <a href="<?= url('assets/axiomantic-personal-data-consent.pdf') ?>" target="_blank" rel="noreferrer">Согласие на обработку персональных данных</a>
+        </div>
+      </div>
+      <?php if (trim((string)c('site.footer_bottom_right')) !== ''): ?><span><?= e(c('site.footer_bottom_right')) ?></span><?php endif; ?>
     </div>
   </div>
 </footer>

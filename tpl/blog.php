@@ -31,36 +31,10 @@ $posts = blog_posts();
       <?php if (!$posts): ?>
         <p class="blog-empty"><?= e(trim((string)c('blog.empty')) ?: 'Статей пока нет.') ?></p>
       <?php else: ?>
+        <div class="blog-index-intro"><span>Разбираем реальные задачи бизнеса</span><p>Каждый материал отвечает на один вопрос и ведёт к полезной странице, а не к ещё одной статье ради трафика.</p></div>
         <div class="blog-grid">
           <?php foreach ($posts as $i => $p): ?>
-            <?php
-            $url  = blog_url((string)$p['slug']);
-            $date = blog_date((string)($p['date'] ?? ''));
-            ?>
-            <article class="post-card">
-              <a href="<?= e($url) ?>">
-                <?php if (trim((string)($p['image'] ?? '')) !== ''): ?>
-                  <div class="post-cover">
-                    <?= img_html(
-                          (string)$p['image'],
-                          'Иллюстрация к статье «' . trim((string)$p['title']) . '»',
-                          ['lcp' => $i === 0]
-                        ) ?>
-                  </div>
-                <?php endif; ?>
-
-                <div class="post-meta">
-                  <?php if ($date !== ''): ?>
-                    <time datetime="<?= e((string)($p['date'] ?? '')) ?>"><?= e($date) ?></time>
-                  <?php endif; ?>
-                  <h2><?= e($p['title']) ?></h2>
-                  <?php if (trim((string)($p['excerpt'] ?? '')) !== ''): ?>
-                    <p><?= e($p['excerpt']) ?></p>
-                  <?php endif; ?>
-                  <span class="post-more">Читать <?= icon('arrow', 16) ?></span>
-                </div>
-              </a>
-            </article>
+            <?php $BLOG_FIRST = $i === 0; require ROOT . '/tpl/_blog_card.php'; unset($BLOG_FIRST); ?>
           <?php endforeach; ?>
         </div>
       <?php endif; ?>

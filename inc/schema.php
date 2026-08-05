@@ -113,6 +113,7 @@ function schema(): array
                     'price'    => ['label' => 'Цена', 'type' => 'text', 'w' => 'm'],
                     'note'     => ['label' => 'Подпись под ценой', 'type' => 'text', 'w' => 'm'],
                     'button'   => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm'],
+                    'href'     => ['label' => 'Страница «Подробнее»', 'type' => 'text', 'w' => 'm', 'hint' => '/landing, /website-development, /bots или /seo'],
                     'featured' => ['label' => 'Выделить карточку', 'type' => 'check', 'w' => 'm'],
                 ],
             ]],
@@ -134,10 +135,12 @@ function schema(): array
         'projects_home' => [
             'group' => 'Главная',
             'title' => 'Проекты на главной',
-            'desc'  => 'Сами проекты — в разделе «Портфолио». На главную попадают первые три из списка.',
+            'desc'  => 'Сами проекты — в разделе «Портфолио». Здесь можно выбрать три проекта по их ключам.',
             'fields' => [
                 'projects_home.kicker' => ['label' => 'Надпись сверху', 'type' => 'text', 'w' => 'm', 'hides' => 'надпись над заголовком'],
                 'projects_home.title'  => ['label' => 'Заголовок', 'type' => 'text', 'w' => 'm', 'hides' => 'заголовок блока'],
+                'projects_home.lede'   => ['label' => 'Описание справа', 'type' => 'textarea', 'rows' => 2, 'hides' => 'описание блока'],
+                'projects_home.slugs'  => ['label' => 'Ключи проектов на главной', 'type' => 'lines', 'rows' => 3, 'hint' => 'По одному ключу проекта в строке.'],
                 'projects_home.button' => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm', 'hides' => 'кнопку'],
             ],
         ],
@@ -237,6 +240,7 @@ function schema(): array
                     'price'    => ['label' => 'Цена', 'type' => 'text', 'w' => 'm'],
                     'note'     => ['label' => 'Подпись под ценой', 'type' => 'text', 'w' => 'm'],
                     'button'   => ['label' => 'Кнопка', 'type' => 'text', 'w' => 'm'],
+                    'href'     => ['label' => 'Страница «Подробнее»', 'type' => 'text', 'w' => 'm', 'hint' => '/landing, /website-development, /bots или /seo'],
                     'featured' => ['label' => 'Выделить карточку', 'type' => 'check', 'w' => 'm'],
                 ],
             ]],
@@ -396,9 +400,12 @@ function schema(): array
             'repeaters' => [[
                 'path' => 'blog.items', 'label' => 'Статья', 'title_field' => 'title', 'max' => 200,
                 'fields' => [
+                    'category'=> ['label' => 'Категория', 'type' => 'text', 'w' => 'm'],
                     'title'   => ['label' => 'Заголовок статьи', 'type' => 'text'],
+                    'card_title' => ['label' => 'Короткий заголовок карточки', 'type' => 'text'],
                     'slug'    => ['label' => 'Адрес статьи', 'type' => 'text', 'w' => 'm', 'hint' => 'Латиницей через дефис: skolko-stoit-lending. Получится /blog/skolko-stoit-lending. Не меняйте у опубликованной статьи — старый адрес выпадет из поиска.'],
                     'date'    => ['label' => 'Дата публикации', 'type' => 'text', 'w' => 'm', 'hint' => 'В виде 2026-08-05. По ней статьи сортируются, и она показывается в выдаче.'],
+                    'read_time' => ['label' => 'Время чтения', 'type' => 'text', 'w' => 'm'],
                     'updated' => ['label' => 'Дата правки', 'type' => 'text', 'w' => 'm', 'hint' => 'Заполняйте, если серьёзно переписали статью. Яндекс любит обновлённые материалы.'],
                     'excerpt' => ['label' => 'Короткое описание', 'type' => 'textarea', 'rows' => 2, 'hint' => 'Показывается в списке статей. Если не заполнить description ниже, пойдёт и в поисковую выдачу.'],
                     'image'   => ['label' => 'Картинка статьи', 'type' => 'image'],
@@ -568,6 +575,8 @@ function schema(): array
                 'fields' => [
                     'key'         => ['label' => 'Ключ', 'type' => 'text', 'w' => 'm', 'hint' => 'Латиницей: telegram, max, whatsapp. Попадает в заявку.'],
                     'label'       => ['label' => 'Название на кнопке', 'type' => 'text', 'w' => 'm'],
+                    'field_label' => ['label' => 'Подпись поля', 'type' => 'text', 'w' => 'm', 'hint' => 'Например: «Никнейм в Telegram» или «Номер телефона».'],
+                    'input_type'  => ['label' => 'Тип поля', 'type' => 'text', 'w' => 's', 'hint' => 'text для Telegram, tel для MAX.'],
                     'placeholder' => ['label' => 'Подсказка в поле', 'type' => 'text'],
                 ],
             ]],

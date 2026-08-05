@@ -318,6 +318,9 @@ function seo_crumbs(string $slug, ?array $project = null, ?array $post = null): 
         'privacy'  => trim((string)c('legal.privacy_title')) ?: 'Политика обработки данных',
         'consent'  => trim((string)c('legal.consent_title')) ?: 'Согласие на обработку данных',
     ];
+    if (function_exists('commercial_page') && ($commercial = commercial_page($slug))) {
+        $names[$slug] = trim((string)($commercial['h1'] ?? '')) ?: 'Услуга';
+    }
     if (!isset($names[$slug])) return [];
 
     return [
@@ -897,7 +900,7 @@ function seo_jsonld(string $slug = '', string $key = 'home', ?array $project = n
 /** Страницы для карты сайта: slug => [приоритет, частота, ключ настроек]. */
 function seo_pages(): array
 {
-    return [
+    $pages = [
         ''          => ['1.0', 'weekly',  'home'],
         'projects'  => ['0.9', 'weekly',  'work'],
         'services'  => ['0.9', 'monthly', 'services'],
@@ -909,6 +912,12 @@ function seo_pages(): array
         'privacy'   => ['0.2', 'yearly',  'privacy'],
         'consent'   => ['0.2', 'yearly',  'consent'],
     ];
+    if (function_exists('commercial_pages')) {
+        foreach (commercial_pages() as $slug => $page) {
+            $pages[(string)$slug] = ['0.9', 'monthly', 'services'];
+        }
+    }
+    return $pages;
 }
 
 /** Отдаёт sitemap.xml и завершает выполнение. */

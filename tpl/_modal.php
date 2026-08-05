@@ -16,6 +16,6 @@
       <p class="ax-modal-lead"><?= e(c('modal.text')) ?></p>
     <?php endif; ?>
 
-    <?php require ROOT . '/tpl/_form.php'; ?>
+    <?php $FORM_MODAL = true; require ROOT . '/tpl/_form.php'; unset($FORM_MODAL); ?>
   </div>
 </div>

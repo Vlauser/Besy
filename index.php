@@ -6,6 +6,7 @@ require_once __DIR__ . '/inc/design.php';
 require_once __DIR__ . '/inc/icons.php';
 require_once __DIR__ . '/inc/img.php';
 require_once __DIR__ . '/inc/view.php';
+require_once __DIR__ . '/inc/commercial.php';
 
 /* Определяем страницу по адресу.
    Query и якорь отрезаем вручную: parse_url принял бы адрес вида
@@ -62,11 +63,14 @@ if (str_starts_with($slug, 'blog/')) {
 /* Пустой блог наружу не показываем: страница со словами «статей пока нет»
    в индексе — это страница без содержания, Яндекс за такие не хвалит */
 $blogEmpty = ($slug === 'blog' && !blog_posts());
+$COMMERCIAL = commercial_page($slug);
 
 if ($PROJECT !== null) {
     $page = ['tpl' => 'project', 'meta' => 'work', 'nav' => 'work'];
 } elseif ($POST !== null) {
     $page = ['tpl' => 'post', 'meta' => 'blog', 'nav' => 'blog'];
+} elseif ($COMMERCIAL !== null) {
+    $page = ['tpl' => 'commercial', 'meta' => 'services', 'nav' => 'services'];
 } elseif (!isset($routes[$slug])) {
     http_response_code(404);
     $page = ['tpl' => '404', 'meta' => 'home', 'nav' => ''];
@@ -84,6 +88,10 @@ if ($PROJECT) {
     $PAGE_TITLE = seo_post_title($POST);
     $PAGE_DESC  = seo_post_desc($POST);
     $PAGE_IMAGE = seo_post_image($POST);
+} elseif ($COMMERCIAL) {
+    $PAGE_TITLE = (string)($COMMERCIAL['title'] ?? seo_title('services'));
+    $PAGE_DESC  = (string)($COMMERCIAL['description'] ?? seo_desc('services'));
+    $PAGE_IMAGE = seo_image('services');
 } else {
     $PAGE_TITLE = seo_title($METAKEY);
     $PAGE_DESC  = seo_desc($METAKEY);
@@ -118,7 +126,7 @@ if ($page['tpl'] === 'home' && ($heroImg = trim((string)c('hero.image'))) !== ''
 
 require __DIR__ . '/tpl/_head.php';
 require __DIR__ . '/tpl/_nav.php';
-require __DIR__ . '/tpl/_crumbs.php';
+if ($page['tpl'] !== 'commercial') require __DIR__ . '/tpl/_crumbs.php';
 
 $tplFile = __DIR__ . '/tpl/' . $page['tpl'] . '.php';
 if (is_file($tplFile)) {

@@ -19,19 +19,7 @@ $href   = $inside ? work_url($pSlug) : trim((string)($project['url'] ?? '#'));
 <article class="project-card project-card-<?= e($pSlug) ?>">
   <a href="<?= e($href) ?>"<?= $inside ? '' : ' target="_blank" rel="noreferrer"' ?>
      aria-label="<?= e(($inside ? 'Подробнее о проекте ' : 'Смотреть проект ') . $pName) ?>">
-    <div class="project-visual">
-      <?php if (!empty($project['image'])): ?>
-        <?= img_html(
-              (string)$project['image'],
-              'Сайт проекта ' . $pName . ($pCat !== '' ? ' — ' . $pCat : ''),
-              ['class' => 'project-screenshot']
-            ) ?>
-      <?php else: ?>
-        <?php if (trim((string)($project['monogram'] ?? '')) !== ''): ?>
-        <span class="project-monogram"><?= e($project['monogram']) ?></span>
-        <?php endif; ?>
-      <?php endif; ?>
-    </div>
+    <?php require ROOT . '/tpl/_project_visual.php'; ?>
     <div class="project-meta">
       <div>
         <?php if ($pCat !== ''): ?>

@@ -1,157 +1,70 @@
 <?php
-/**
- * Страница одной работы: /projects/<ключ>.
- *
- * Весь текст берётся из карточки проекта в админке. Пустые поля
- * не выводятся — если у работы заполнено только название и скриншот,
- * страница всё равно останется целой.
- *
- * @var array $PROJECT
- */
-$p = $PROJECT;
+/** @var array $PROJECT */
+$project = $PROJECT;
+$name = trim((string)($project['name'] ?? ''));
+$cat = trim((string)($project['category'] ?? ''));
+$short = trim((string)($project['short'] ?? ''));
+$desc = trim((string)($project['description'] ?? ''));
+$link = trim((string)($project['url'] ?? ''));
+$tasks = array_values(array_filter((array)($project['tasks'] ?? [])));
+$work = array_values(array_filter((array)($project['work'] ?? [])));
+$slug = trim((string)($project['slug'] ?? ''));
 
-$name  = trim((string)($p['name'] ?? ''));
-$cat   = trim((string)($p['category'] ?? ''));
-$short = trim((string)($p['short'] ?? ''));
-$desc  = trim((string)($p['description'] ?? ''));
-$link  = trim((string)($p['url'] ?? ''));
-$shot  = trim((string)($p['image'] ?? ''));
-
-$tasks = array_values(array_filter(array_map('trim', (array)($p['tasks'] ?? []))));
-$work  = array_values(array_filter(array_map('trim', (array)($p['work']  ?? []))));
-$tech  = array_values(array_filter(array_map('trim', (array)($p['tech']  ?? []))));
-
-$near = work_neighbours((int)($p['_index'] ?? 0));
+if ($slug === 'pravo-legal') {
+    $serviceHref = 'website-for-lawyers'; $serviceLabel = 'Сайты для юристов';
+} elseif ($slug === 'forma' || ($project['cat'] ?? '') === 'experts') {
+    $serviceHref = 'website-for-experts'; $serviceLabel = 'Сайты для экспертов';
+} elseif ($slug === 'mellow-coffee') {
+    $serviceHref = 'website-for-coffee-shop'; $serviceLabel = 'Сайты для кофеен';
+} else {
+    $serviceHref = 'landing'; $serviceLabel = 'Лендинги под ключ';
+}
 ?>
-<main class="project-page">
-
-  <section class="page-hero project-hero">
-    <div class="container reveal">
-      <?php if ($cat !== ''): ?>
-        <span class="section-kicker"><?= e($cat) ?></span>
-      <?php endif; ?>
-      <?php if ($name !== ''): ?>
-        <h1><?= e($name) ?></h1>
-      <?php endif; ?>
-      <?php if ($short !== ''): ?>
-        <p><?= e($short) ?></p>
-      <?php endif; ?>
-      <?php if ($link !== ''): ?>
-        <div class="project-hero-actions">
-          <a href="<?= e($link) ?>" class="button button-primary" target="_blank" rel="noopener">
-            Открыть сайт проекта
-          </a>
+<main>
+  <section class="case-hero">
+    <div class="container">
+      <a href="<?= url('projects') ?>" class="back-link">← Все проекты</a>
+      <div class="case-heading">
+        <div><span class="section-kicker"><?= e($cat) ?></span><h1 class="case-title"><?= e($name) ?></h1></div>
+        <div class="case-heading-action">
+          <p><?= e($short) ?></p>
+          <?php if ($link !== ''): ?><button type="button" class="button button-primary" data-site-preview-open>Посмотреть сайт <span aria-hidden="true">↗</span></button><?php endif; ?>
         </div>
-      <?php endif; ?>
+      </div>
+      <div class="case-banner visual-large"><?php require ROOT . '/tpl/_project_visual.php'; ?></div>
     </div>
   </section>
 
-  <?php if ($shot !== ''): ?>
-    <section class="section project-shot-section">
-      <div class="container">
-        <div class="project-shot">
-          <?= img_html($shot, 'Сайт проекта ' . $name . ($cat !== '' ? ' — ' . $cat : ''), ['lcp' => true]) ?>
+  <section class="section">
+    <div class="container">
+      <div class="case-details">
+        <div class="case-description">
+          <span class="section-kicker">О проекте</span><h2>Задача и решение.</h2>
+          <p><?= e($desc) ?> Мы собрали понятный сценарий, индивидуальный визуальный стиль и адаптивную версию, которая ведёт пользователя к целевому действию.</p>
+        </div>
+        <div class="case-facts">
+          <div class="case-fact"><span>Формат</span><strong>Лендинг под ключ</strong></div>
+          <div class="case-fact"><span>Срок</span><strong>72 часа</strong></div>
+          <div class="case-fact"><span>Команда</span><strong>Маркетолог + дизайнер + AI</strong></div>
+          <div class="case-fact"><span>Результат</span><strong>Готовый адаптивный сайт</strong></div>
         </div>
       </div>
-    </section>
-  <?php endif; ?>
-
-  <?php if ($desc !== '' || $tasks || $work || $tech): ?>
-    <section class="section project-body">
-      <div class="container project-layout">
-
-        <div class="project-main">
-          <?php if ($desc !== ''): ?>
-            <div class="project-lead">
-              <h2>О проекте</h2>
-              <p><?= nl($desc) ?></p>
-            </div>
-          <?php endif; ?>
-
-          <?php if ($tasks): ?>
-            <div class="project-block">
-              <h2>Задачи</h2>
-              <ul class="project-list">
-                <?php foreach ($tasks as $t): ?>
-                  <li><?= icon('check', 16) ?><span><?= e($t) ?></span></li>
-                <?php endforeach; ?>
-              </ul>
-            </div>
-          <?php endif; ?>
-
-          <?php if ($work): ?>
-            <div class="project-block">
-              <h2>Что сделали</h2>
-              <ul class="project-list">
-                <?php foreach ($work as $w): ?>
-                  <li><?= icon('check', 16) ?><span><?= e($w) ?></span></li>
-                <?php endforeach; ?>
-              </ul>
-            </div>
-          <?php endif; ?>
-        </div>
-
-        <aside class="project-aside">
-          <div class="project-facts">
-            <?php if ($cat !== ''): ?>
-              <div><span>Направление</span><b><?= e($cat) ?></b></div>
-            <?php endif; ?>
-            <?php if ($tech): ?>
-              <div>
-                <span>Технологии</span>
-                <div class="project-tags">
-                  <?php foreach ($tech as $t): ?>
-                    <i><?= e($t) ?></i>
-                  <?php endforeach; ?>
-                </div>
-              </div>
-            <?php endif; ?>
-            <?php if ($link !== ''): ?>
-              <div>
-                <span>Адрес</span>
-                <a href="<?= e($link) ?>" target="_blank" rel="noopener"><?= e(preg_replace('~^https?://~', '', $link)) ?></a>
-              </div>
-            <?php endif; ?>
-          </div>
-
-          <?php if (trim((string)c('site.header_cta')) !== ''): ?>
-            <div class="project-cta">
-              <p>Нужен такой же сайт?</p>
-              <?= cta_button((string)c('site.header_cta'), 'button button-primary') ?>
-            </div>
-          <?php endif; ?>
-        </aside>
-
+      <div class="case-columns">
+        <article class="case-list-card"><h3>Что нужно было решить</h3><ul><?php foreach ($tasks as $item): ?><li><?= e($item) ?></li><?php endforeach; ?></ul></article>
+        <article class="case-list-card"><h3>Что сделали</h3><ul><?php foreach ($work as $item): ?><li><?= e($item) ?></li><?php endforeach; ?></ul></article>
       </div>
-    </section>
-  <?php endif; ?>
-
-  <?php if ($near['prev'] || $near['next']): ?>
-    <section class="section project-nav-section">
-      <div class="container">
-        <nav class="project-nav" aria-label="Другие проекты">
-          <?php if ($near['prev']): ?>
-            <a href="<?= e(work_url((string)$near['prev']['slug'])) ?>" class="project-nav-item">
-              <span>Предыдущий проект</span>
-              <b><?= e((string)($near['prev']['name'] ?? '')) ?></b>
-            </a>
-          <?php endif; ?>
-          <?php if ($near['next']): ?>
-            <a href="<?= e(work_url((string)$near['next']['slug'])) ?>" class="project-nav-item project-nav-next">
-              <span>Следующий проект</span>
-              <b><?= e((string)($near['next']['name'] ?? '')) ?></b>
-            </a>
-          <?php endif; ?>
-        </nav>
-
-        <div class="section-action">
-          <a href="<?= url('projects') ?>" class="button button-secondary">Все проекты</a>
-        </div>
-      </div>
-    </section>
-  <?php endif; ?>
-
-  <?php require ROOT . '/tpl/_next.php'; ?>
+      <div class="case-actions"><a href="<?= url($serviceHref) ?>" class="button button-secondary"><?= e($serviceLabel) ?></a></div>
+    </div>
+  </section>
 
   <?php require ROOT . '/tpl/_cta.php'; ?>
+
+  <?php if ($link !== ''): ?>
+  <div class="site-preview-backdrop" data-site-preview hidden>
+    <section class="site-preview-modal" role="dialog" aria-modal="true" aria-label="Сайт проекта <?= e($name) ?>">
+      <header class="site-preview-header"><div><span class="site-preview-dots" aria-hidden="true"><i></i><i></i><i></i></span><strong><?= e($name) ?></strong></div><button type="button" data-site-preview-close aria-label="Закрыть просмотр сайта">×</button></header>
+      <div class="site-preview-frame-wrap"><div class="site-preview-loading">Загружаем сайт…</div><iframe class="site-preview-frame" data-site-preview-frame data-src="<?= e($link) ?>" title="Сайт проекта <?= e($name) ?>"></iframe></div>
+    </section>
+  </div>
+  <?php endif; ?>
 </main>
