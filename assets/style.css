@@ -3764,3 +3764,218 @@ button.text-link{border:0;background:none;padding:0;font:inherit;cursor:pointer}
 picture {
   display: contents;
 }
+
+/* ==========================================================
+   Страница проекта — /projects/<ключ>
+   ========================================================== */
+.project-hero .project-hero-actions {
+  margin-top: 34px;
+}
+
+/* Скриншот наезжает на первый экран и вплотную стыкуется
+   с описанием: две полные отбивки подряд смотрелись провалом */
+.project-shot-section {
+  padding: 0;
+}
+
+.project-body {
+  padding-top: 96px;
+}
+
+.project-shot {
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  margin-top: -60px;
+}
+
+.project-shot img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.project-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+  gap: 56px;
+  align-items: start;
+}
+
+.project-main h2 {
+  font-size: clamp(24px, 2.1vw, 30px);
+  font-weight: 620;
+  letter-spacing: -0.03em;
+  margin: 0 0 18px;
+}
+
+.project-lead p {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.project-block {
+  margin-top: 46px;
+}
+
+.project-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 13px;
+}
+
+.project-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.project-list li svg {
+  flex: none;
+  margin-top: 4px;
+  color: var(--blue);
+}
+
+/* правая колонка с фактами */
+.project-aside {
+  position: sticky;
+  top: 100px;
+  display: grid;
+  gap: 18px;
+}
+
+.project-facts {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: var(--radius);
+  padding: 26px 26px 28px;
+  display: grid;
+  gap: 20px;
+}
+
+.project-facts > div {
+  display: grid;
+  gap: 7px;
+}
+
+.project-facts span {
+  font-size: 12px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.project-facts b {
+  font-size: 17px;
+  font-weight: 560;
+}
+
+.project-facts a {
+  color: var(--blue);
+  text-decoration: none;
+  font-size: 16px;
+  word-break: break-word;
+}
+
+.project-facts a:hover {
+  text-decoration: underline;
+}
+
+.project-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.project-tags i {
+  font-style: normal;
+  font-size: 14px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  color: var(--blue-dark);
+}
+
+.project-cta {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px 26px 26px;
+  background: var(--blue-soft);
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
+.project-cta p {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 560;
+}
+
+/* переходы между проектами */
+.project-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.project-nav-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 26px;
+  background: var(--paper);
+  display: grid;
+  gap: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.project-nav-item:hover {
+  border-color: var(--blue);
+  transform: translateY(-2px);
+}
+
+.project-nav-item span {
+  font-size: 12px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.project-nav-item b {
+  font-size: 19px;
+  font-weight: 580;
+  letter-spacing: -0.02em;
+}
+
+.project-nav-next {
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .project-layout {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+
+  .project-aside {
+    position: static;
+  }
+
+  .project-shot {
+    margin-top: -30px;
+  }
+
+  .project-nav-next {
+    text-align: left;
+  }
+}

@@ -20,6 +20,51 @@ function cta_button(string $label, string $class): string
 }
 
 /**
+ * Проект портфолио по его ключу.
+ *
+ * Ключ берётся из адреса /projects/<ключ>, поэтому пустой или неизвестный
+ * ключ должен вернуть null — роутер покажет 404, а не пустую страницу.
+ */
+function work_item(string $slug): ?array
+{
+    $slug = trim($slug);
+    if ($slug === '') return null;
+
+    foreach ((array)c('work.items', []) as $i => $item) {
+        if (!is_array($item)) continue;
+        if (trim((string)($item['slug'] ?? '')) === $slug) {
+            $item['_index'] = $i;
+            return $item;
+        }
+    }
+
+    return null;
+}
+
+/** Соседние проекты — для переходов внизу страницы. */
+function work_neighbours(int $index): array
+{
+    $items = array_values(array_filter(
+        (array)c('work.items', []),
+        fn($i) => is_array($i) && trim((string)($i['slug'] ?? '')) !== ''
+    ));
+    $total = count($items);
+    if ($total < 2) return ['prev' => null, 'next' => null];
+
+    // По кругу: с последнего проекта «дальше» ведёт на первый
+    return [
+        'prev' => $items[($index - 1 + $total) % $total] ?? null,
+        'next' => $items[($index + 1) % $total] ?? null,
+    ];
+}
+
+/** Ссылка на страницу проекта внутри сайта. */
+function work_url(string $slug): string
+{
+    return url('projects/' . trim($slug, '/'));
+}
+
+/**
  * Есть ли в разделе хоть что-то заполненное.
  *
  * Правило всего сайта: очистили все поля блока в админке — блок

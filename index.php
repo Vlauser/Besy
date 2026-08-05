@@ -36,7 +36,17 @@ $routes = [
     'consent'   => ['tpl' => 'consent',  'meta' => 'consent',  'nav' => ''],
 ];
 
-if (!isset($routes[$slug])) {
+/* Отдельная страница проекта: /projects/<ключ>.
+   Каждая работа — это готовый уникальный текст, который иначе
+   лежал бы мёртвым грузом в карточке на общей странице. */
+$PROJECT = null;
+if (str_starts_with($slug, 'projects/')) {
+    $PROJECT = work_item(substr($slug, strlen('projects/')));
+}
+
+if ($PROJECT !== null) {
+    $page = ['tpl' => 'project', 'meta' => 'work', 'nav' => 'work'];
+} elseif (!isset($routes[$slug])) {
     http_response_code(404);
     $page = ['tpl' => '404', 'meta' => 'home', 'nav' => ''];
 } else {
@@ -44,14 +54,16 @@ if (!isset($routes[$slug])) {
 }
 
 $METAKEY      = $page['meta'];
-$PAGE_TITLE   = seo_title($METAKEY);
-$PAGE_DESC    = seo_desc($METAKEY);
-$PAGE_IMAGE   = seo_image($METAKEY);
-$PAGE_NOINDEX = seo_noindex($METAKEY) || $page['tpl'] === '404';
+$PAGE_TITLE   = $PROJECT ? seo_project_title($PROJECT) : seo_title($METAKEY);
+$PAGE_DESC    = $PROJECT ? seo_project_desc($PROJECT)  : seo_desc($METAKEY);
+$PAGE_IMAGE   = $PROJECT ? seo_project_image($PROJECT) : seo_image($METAKEY);
+$PAGE_NOINDEX = $PROJECT
+    ? (!empty(c('seo.noindex_all')) || !empty($PROJECT['noindex']))
+    : (seo_noindex($METAKEY) || $page['tpl'] === '404');
 $NAV          = $page['nav'];
 $CANONICAL    = seo_url($slug);
 $SLUG         = $page['tpl'] === '404' ? '' : $slug;
-$CRUMBS       = seo_crumbs($SLUG);
+$CRUMBS       = seo_crumbs($SLUG, $PROJECT);
 
 /* Самая крупная картинка первого экрана — по ней считается LCP.
    Просим браузер начать её загрузку из <head>, а не по ходу разметки. */
@@ -59,6 +71,8 @@ $LCP_IMAGE = '';
 $LCP_TYPE  = '';
 if ($page['tpl'] === 'home' && ($heroImg = trim((string)c('hero.image'))) !== '') {
     [$LCP_IMAGE, $LCP_TYPE] = img_preload_src($heroImg);
+} elseif ($PROJECT && ($shot = trim((string)($PROJECT['image'] ?? ''))) !== '') {
+    [$LCP_IMAGE, $LCP_TYPE] = img_preload_src($shot);
 }
 
 require __DIR__ . '/tpl/_head.php';

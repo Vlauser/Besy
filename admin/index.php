@@ -84,9 +84,14 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $item = [];
             $hasContent = false;
             foreach ($rep['fields'] as $fk => $fdef) {
-                $val = cast_value($row[$fk] ?? '', $fdef['type'] ?? 'text');
+                $type = $fdef['type'] ?? 'text';
+                $val  = cast_value($row[$fk] ?? '', $type);
                 $item[$fk] = $val;
-                if (!in_array($fdef['type'] ?? 'text', ['check'], true) && trim((string)$val) !== '') {
+
+                // Галочка сама по себе не делает строку заполненной,
+                // иначе пустая карточка сохранялась бы из-за одного флажка
+                if ($type === 'check') continue;
+                if (is_array($val) ? $val !== [] : trim((string)$val) !== '') {
                     $hasContent = true;
                 }
             }
@@ -107,6 +112,19 @@ function cast_value($value, string $type)
 {
     if ($type === 'check')  return !empty($value) && $value !== '0';
     if ($type === 'number') return is_numeric($value) ? (int)$value : 0;
+
+    // lines — список, который хранится массивом: задачи проекта,
+    // что сделали, технологии. Редактируется как обычный текст,
+    // каждая строка становится отдельным пунктом
+    if ($type === 'lines') {
+        $out = [];
+        foreach (preg_split('/\r\n|\r|\n/', (string)$value) as $line) {
+            $line = trim($line);
+            if ($line !== '') $out[] = $line;
+        }
+        return $out;
+    }
+
     return is_string($value) ? str_replace("\r\n", "\n", trim($value)) : '';
 }
 
@@ -741,9 +759,11 @@ function field_html(string $name, array $def, $value): string
     }
     $out .= '</label>';
 
-    if ($type === 'textarea' || $type === 'list') {
+    if ($type === 'textarea' || $type === 'list' || $type === 'lines') {
+        // Список, хранящийся массивом, показываем построчно
+        $text = is_array($value) ? implode("\n", array_map('strval', $value)) : (string)$value;
         $out .= '<textarea id="' . $id . '" name="' . e($name) . '" rows="' . $rows . '"'
-              . ($limit ? ' data-limit="' . $limit . '"' : '') . '>' . e((string)$value) . '</textarea>';
+              . ($limit ? ' data-limit="' . $limit . '"' : '') . '>' . e($text) . '</textarea>';
     } elseif ($type === 'number') {
         $out .= '<input id="' . $id . '" type="number" name="' . e($name) . '" value="' . e((string)$value) . '" min="' . e((string)$min) . '" max="' . e((string)$max) . '">';
     } elseif ($type === 'color') {

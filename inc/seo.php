@@ -161,6 +161,53 @@ function seo_noindex(string $key): bool
     return !empty(c('meta.' . $key . '_noindex'));
 }
 
+/* ==================== Страницы проектов ==================== */
+
+/**
+ * Title страницы проекта.
+ *
+ * Своё поле в админке важнее, иначе собираем из названия и категории:
+ * «RAID 38 — Спортивная школа · AXIOMANTIC». Так в выдаче видно и работу,
+ * и её тематику, и автора.
+ */
+function seo_project_title(array $p): string
+{
+    $own = trim((string)($p['meta_title'] ?? ''));
+    if ($own !== '') return $own;
+
+    $name = trim((string)($p['name'] ?? ''));
+    $cat  = trim((string)($p['category'] ?? ''));
+    $brand = trim((string)c('site.brand', 'AXIOMANTIC'));
+
+    $title = $name !== '' ? $name : 'Проект';
+    if ($cat !== '')   $title .= ' — ' . $cat;
+    if ($brand !== '') $title .= ' · ' . $brand;
+
+    return $title;
+}
+
+/** Description страницы проекта. */
+function seo_project_desc(array $p): string
+{
+    $own = trim((string)($p['meta_desc'] ?? ''));
+    if ($own !== '') return $own;
+
+    $desc = trim((string)($p['description'] ?? '')) ?: trim((string)($p['short'] ?? ''));
+
+    // Description длиннее 160 знаков в выдаче обрежется на полуслове
+    return mb_strlen($desc) > 160 ? mb_substr($desc, 0, 157) . '…' : $desc;
+}
+
+/** Картинка проекта для соцсетей. */
+function seo_project_image(array $p): string
+{
+    $img = trim((string)($p['image'] ?? ''));
+    if ($img === '') return trim((string)c('seo.og_image')) !== '' ? seo_image('work') : '';
+    if (str_starts_with($img, 'http')) return $img;
+
+    return seo_base() . '/' . ltrim($img, '/');
+}
+
 /* ==================== Хлебные крошки ==================== */
 
 /**
@@ -172,10 +219,33 @@ function seo_noindex(string $key): bool
  *
  * @return array<int, array{name: string, url: string, path: string}> пусто на главной
  */
-function seo_crumbs(string $slug): array
+function seo_crumbs(string $slug, ?array $project = null): array
 {
     $slug = trim($slug, '/');
     if ($slug === '') return [];
+
+    $home = [
+        'name' => trim((string)c('site.nav_home')) ?: 'Главная',
+        'url'  => seo_url(''),
+        'path' => url(''),
+    ];
+
+    // Страница проекта: Главная → Проекты → Название работы
+    if ($project !== null) {
+        return [
+            $home,
+            [
+                'name' => trim((string)c('site.nav_projects')) ?: 'Проекты',
+                'url'  => seo_url('projects'),
+                'path' => url('projects'),
+            ],
+            [
+                'name' => trim((string)($project['name'] ?? '')) ?: 'Проект',
+                'url'  => seo_url($slug),
+                'path' => url($slug),
+            ],
+        ];
+    }
 
     $names = [
         'projects' => trim((string)c('site.nav_projects')) ?: 'Проекты',
@@ -187,11 +257,7 @@ function seo_crumbs(string $slug): array
     if (!isset($names[$slug])) return [];
 
     return [
-        [
-            'name' => trim((string)c('site.nav_home')) ?: 'Главная',
-            'url'  => seo_url(''),
-            'path' => url(''),
-        ],
+        $home,
         [
             'name' => $names[$slug],
             'url'  => seo_url($slug),
@@ -297,23 +363,28 @@ function seo_node_website(): array
 }
 
 /** Текущая страница. */
-function seo_node_webpage(string $slug, string $key, array $crumbs): array
+function seo_node_webpage(string $slug, string $key, array $crumbs, ?array $project = null): array
 {
     $base = seo_base();
     $url  = seo_url($slug);
 
+    $type = 'WebPage';
+    if ($slug === 'contacts')  $type = 'ContactPage';
+    if ($project !== null)     $type = 'ItemPage';
+
     $node = [
-        '@type'       => $slug === 'contacts' ? 'ContactPage' : 'WebPage',
+        '@type'       => $type,
         '@id'         => $url . '#webpage',
         'url'         => $url,
-        'name'        => seo_title($key),
-        'description' => seo_desc($key),
+        'name'        => $project ? seo_project_title($project) : seo_title($key),
+        'description' => $project ? seo_project_desc($project)  : seo_desc($key),
         'inLanguage'  => 'ru-RU',
         'isPartOf'    => ['@id' => $base . '/#website'],
         'about'       => ['@id' => $base . '/#organization'],
     ];
 
-    if ($img = seo_image($key)) {
+    $img = $project ? seo_project_image($project) : seo_image($key);
+    if ($img !== '') {
         $node['primaryImageOfPage'] = ['@type' => 'ImageObject', 'url' => $img];
     }
     if ($crumbs) {
@@ -414,6 +485,32 @@ function seo_node_services(string $slug, string $path): ?array
     ];
 }
 
+/** Одна работа — для её собственной страницы. */
+function seo_node_project(string $slug, array $p): array
+{
+    $base = seo_base();
+
+    $node = [
+        '@type'   => 'CreativeWork',
+        '@id'     => seo_url($slug) . '#project',
+        'name'    => trim((string)($p['name'] ?? '')),
+        'creator' => ['@id' => $base . '/#organization'],
+        'about'   => seo_project_desc($p),
+        'mainEntityOfPage' => ['@id' => seo_url($slug) . '#webpage'],
+    ];
+
+    if ($d = trim((string)($p['description'] ?? ''))) $node['description'] = $d;
+    if ($cat = trim((string)($p['category'] ?? ''))) $node['genre'] = $cat;
+    if ($u = trim((string)($p['url'] ?? '')))        $node['url'] = $u;
+    if ($img = seo_project_image($p))                $node['image'] = $img;
+
+    // Технологии проекта: поисковику это ключевые слова работы
+    $tech = array_values(array_filter(array_map('trim', (array)($p['tech'] ?? []))));
+    if ($tech) $node['keywords'] = implode(', ', $tech);
+
+    return $node;
+}
+
 /** Портфолио: список работ студии. */
 function seo_node_portfolio(string $slug): ?array
 {
@@ -433,9 +530,17 @@ function seo_node_portfolio(string $slug): ?array
         ];
 
         $desc = trim((string)($p['description'] ?? '')) ?: trim((string)($p['short'] ?? ''));
-        if ($desc !== '')                            $work['description'] = $desc;
-        if ($u = trim((string)($p['url'] ?? '')))    $work['url'] = $u;
+        if ($desc !== '')                                $work['description'] = $desc;
         if ($cat = trim((string)($p['category'] ?? ''))) $work['genre'] = $cat;
+
+        // Ведём на страницу работы внутри сайта, а не на сам проект:
+        // так вес со списка перетекает на наши же страницы
+        if ($ps = trim((string)($p['slug'] ?? ''))) {
+            $work['url'] = seo_url('projects/' . $ps);
+        } elseif ($u = trim((string)($p['url'] ?? ''))) {
+            $work['url'] = $u;
+        }
+
         if ($img = trim((string)($p['image'] ?? ''))) {
             $work['image'] = $base . '/' . ltrim($img, '/');
         }
@@ -459,17 +564,27 @@ function seo_node_portfolio(string $slug): ?array
  * через @id, поэтому поисковик понимает: это одна и та же компания,
  * вот её сайт, вот конкретная страница и её место в структуре.
  */
-function seo_jsonld(string $slug = '', string $key = 'home'): string
+function seo_jsonld(string $slug = '', string $key = 'home', ?array $project = null): string
 {
-    $crumbs = seo_crumbs($slug);
+    $crumbs = seo_crumbs($slug, $project);
 
     $graph = [
         seo_node_org(),
         seo_node_website(),
-        seo_node_webpage($slug, $key, $crumbs),
+        seo_node_webpage($slug, $key, $crumbs, $project),
     ];
 
     if ($crumbs) $graph[] = seo_node_breadcrumb($slug, $crumbs);
+
+    // Страница одной работы: описываем саму работу, списки тут не нужны
+    if ($project !== null) {
+        $graph[] = seo_node_project($slug, $project);
+
+        return json_encode(
+            ['@context' => 'https://schema.org', '@graph' => $graph],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+    }
 
     // Вопросы выводятся на главной и в контактах — размечаем их там же
     if ($slug === '' || $slug === 'contacts') {
@@ -560,6 +675,31 @@ function seo_render_sitemap(): never
         }
 
         echo "  </url>\n";
+
+        // Сразу за списком работ идут их собственные страницы
+        if ($slug === 'projects') {
+            foreach ((array)c('work.items', []) as $p) {
+                $ps = trim((string)($p['slug'] ?? ''));
+                if ($ps === '' || !empty($p['noindex'])) continue;
+
+                echo "  <url>\n";
+                echo '    <loc>' . e(seo_url('projects/' . $ps)) . "</loc>\n";
+                echo '    <lastmod>' . $lastmod . "</lastmod>\n";
+                echo "    <changefreq>monthly</changefreq>\n";
+                echo "    <priority>0.7</priority>\n";
+
+                if ($img = trim((string)($p['image'] ?? ''))) {
+                    echo "    <image:image>\n";
+                    echo '      <image:loc>' . e(seo_base() . '/' . ltrim($img, '/')) . "</image:loc>\n";
+                    if ($t = trim((string)($p['name'] ?? ''))) {
+                        echo '      <image:title>' . e($t) . "</image:title>\n";
+                    }
+                    echo "    </image:image>\n";
+                }
+
+                echo "  </url>\n";
+            }
+        }
     }
 
     echo '</urlset>';
