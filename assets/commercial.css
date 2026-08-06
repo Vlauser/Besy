@@ -4460,7 +4460,8 @@ body.modal-open {
   line-height: 1.65;
 }
 
-.not-found-grid > img {
+.not-found-grid > img,
+.not-found-grid > picture > img {
   align-self: end;
   width: 100%;
   max-height: 610px;
@@ -5215,7 +5216,8 @@ body.modal-open {
     gap: 30px;
   }
 
-  .not-found-grid > img {
+  .not-found-grid > img,
+.not-found-grid > picture > img {
     max-height: 390px;
   }
 
@@ -5325,3 +5327,22 @@ body.modal-open {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ==========================================================
+   Планшет 761–1024 px: подвал не помещался в экран
+   ==========================================================
+   Раскладка «в строку» с четырьмя колонками по 110 px и
+   отступами 68 px требует 644 px только под меню — плюс блок
+   с логотипом. На планшете это не влезало, и страница ехала
+   вбок. Переносим подвал в колонку раньше, чем на телефоне. */
+@media (max-width: 1024px) {
+  .footer-top { flex-direction: column; gap: 42px; }
+  .footer-nav { flex-wrap: wrap; gap: 34px 40px; }
+  .footer-nav > div { flex: 1 1 150px; min-width: 0; }
+}
+
+/* Карточка услуги: две кнопки в подвале карточки стояли в строку
+   и не сжимались (flex:0 0 auto). Когда карточек две в ряд —
+   а это ширины примерно от 760 до 1100 px — вторая кнопка вылезала
+   за карточку и тянула страницу вбок. Разрешаем перенос. */
+.home-service-footer > .home-service-actions { flex-wrap: wrap; }

@@ -3,3 +3,11 @@ _dev-router.php
 
 # Резервные копии, которые CMS кладёт рядом при каждом сохранении
 data/*.bak.json
+
+# Рабочие файлы, которые сайт создаёт сам на сервере.
+# В репозитории и в архиве их быть не должно: users.json хранит
+# логины администраторов, leads.json — заявки клиентов.
+data/users.json
+data/leads.json
+data/ratelimit.json
+data/throttle.json
