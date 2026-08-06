@@ -296,6 +296,7 @@ switch ($action) {
     case 'users':    render_users($user, $notice, $error); break;
     case 'password': render_password($notice, $error); break;
     case 'health':   render_health(); break;
+    case 'seoindex': render_seo_index(); break;
     case 'backup':   render_backup($notice, $error); break;
     case 'search':   render_search(); break;
     default:         render_dashboard($user);
@@ -400,6 +401,7 @@ function render_header(array $user, string $action): void
           <?php if (is_admin()): ?>
             <a href="<?= url('admin/?action=users') ?>" class="<?= $action === 'users' ? 'on' : '' ?>" data-find="пользователи доступ роли">Пользователи</a>
           <?php endif; ?>
+          <a href="<?= url('admin/?action=seoindex') ?>" class="<?= $action === 'seoindex' ? 'on' : '' ?>" data-find="индексация seo сео поиск яндекс выдача title description заголовки">Индексация</a>
           <a href="<?= url('admin/?action=health') ?>" class="<?= $action === 'health' ? 'on' : '' ?>" data-find="проверка сайта диагностика">Проверка сайта</a>
           <a href="<?= url('admin/?action=search') ?>" class="<?= $action === 'search' ? 'on' : '' ?>" data-find="поиск по сайту текст">Поиск по сайту</a>
           <?php if (is_admin()): ?>

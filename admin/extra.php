@@ -2,9 +2,16 @@
 declare(strict_types=1);
 
 /**
- * Дополнительные разделы админки: проверка сайта, резервные копии,
- * поиск по контенту. Вынесено отдельно, чтобы не раздувать index.php.
+ * Дополнительные разделы админки: индексация, проверка сайта,
+ * резервные копии, поиск по контенту. Вынесено отдельно,
+ * чтобы не раздувать index.php.
  */
+
+/* Странице «Индексация» нужны те же функции, что и сайту: список статей,
+   коммерческие посадочные и вся кухня SEO. Админка их сама не подключает. */
+require_once dirname(__DIR__) . '/inc/view.php';
+require_once dirname(__DIR__) . '/inc/commercial.php';
+require_once dirname(__DIR__) . '/inc/seo.php';
 
 /* ============================================================
    Какой раздел схемы отвечает за ключ контента
@@ -246,6 +253,109 @@ function render_search(): void
       <?php if (count($found) > 60): ?>
         <p class="sub" style="margin-top:12px">Показаны первые 60 совпадений.</p>
       <?php endif; ?>
+    </div>
+    <?php
+}
+
+/* ============================================================
+   ИНДЕКСАЦИЯ — что именно уходит в поиск
+   ============================================================ */
+function render_seo_index(): void
+{
+    $rows = seo_index_table();
+    $open = 0;
+    foreach ($rows as $r) if ($r['index']) $open++;
+    $noTitle = $noDesc = $longTitle = $longDesc = 0;
+    foreach ($rows as $r) {
+        if (trim($r['title']) === '') $noTitle++;
+        if (trim($r['desc'])  === '') $noDesc++;
+        if (mb_strlen($r['title']) > 65) $longTitle++;
+        if (mb_strlen($r['desc'])  > 170) $longDesc++;
+    }
+    $host = trim((string)c('seo.canonical_host'));
+    ?>
+    <h1 class="h1">Индексация</h1>
+    <p class="sub">Что поисковик видит на каждой странице сайта. Синяя строка — это заголовок, по которому
+       вас находят и на который кликают в Яндексе. Серая под ним — описание в выдаче. Список собирается сам.</p>
+
+    <div class="note">
+      <b>Как это читать</b>
+      <span>«Заголовок в выдаче» (title) и «Описание в выдаче» (description) — это НЕ то, что написано на самой
+      странице. Это отдельные поля, они видны только в поиске и в ссылке, которую вы отправляете в мессенджер.
+      Заголовок на странице (H1) показан справа — он для посетителя. Правятся они в разных местах,
+      поэтому в таблице есть кнопки «Изменить» к каждой строке.</span>
+    </div>
+
+    <div class="cards">
+      <div class="card"><div class="card-num"><?= count($rows) ?></div><div class="card-lbl">страниц всего</div></div>
+      <div class="card"><div class="card-num"><?= $open ?></div><div class="card-lbl">открыто для Яндекса</div></div>
+      <div class="card"><div class="card-num"><?= count($rows) - $open ?></div><div class="card-lbl">закрыто от индексации</div></div>
+      <div class="card"><div class="card-num"><?= $noTitle + $noDesc ?></div><div class="card-lbl">незаполненных полей выдачи</div></div>
+    </div>
+
+    <?php if ($noTitle || $noDesc || $longTitle || $longDesc): ?>
+      <div class="msg msg--warn">
+        <?php
+        $w = [];
+        if ($noTitle)   $w[] = 'без заголовка выдачи: ' . $noTitle;
+        if ($noDesc)    $w[] = 'без описания выдачи: ' . $noDesc;
+        if ($longTitle) $w[] = 'заголовок длиннее 65 знаков: ' . $longTitle;
+        if ($longDesc)  $w[] = 'описание длиннее 170 знаков: ' . $longDesc;
+        echo e(implode(' · ', $w));
+        ?>
+        — Яндекс обрежет длинное и придумает своё вместо пустого.
+      </div>
+    <?php endif; ?>
+
+    <?php foreach ($rows as $r): ?>
+      <div class="box seo-row">
+        <div class="seo-row-head">
+          <span class="badge<?= $r['index'] ? '' : ' badge--off' ?>"><?= $r['index'] ? 'в поиске' : 'закрыта' ?></span>
+          <code class="seo-path"><?= e('/' . ltrim($r['path'], '/')) ?></code>
+          <span class="count"><?= e($r['name']) ?></span>
+          <a class="mini" href="<?= url('admin/?action=edit&s=' . urlencode($r['edit'])) ?>">Изменить</a>
+          <?php if ($host !== ''): ?>
+            <a class="mini" href="<?= e($host . '/' . ltrim($r['path'], '/')) ?>" target="_blank" rel="noopener">Открыть ↗</a>
+          <?php endif; ?>
+        </div>
+
+        <div class="serp">
+          <div class="serp-url"><?= e(preg_replace('~^https?://~', '', $r['url'])) ?></div>
+          <?php if (trim($r['title']) !== ''): ?>
+            <div class="serp-title"><?= e($r['title']) ?></div>
+          <?php else: ?>
+            <div class="serp-title serp-empty">Заголовок не заполнен — Яндекс придумает свой</div>
+          <?php endif; ?>
+          <?php if (trim($r['desc']) !== ''): ?>
+            <div class="serp-desc"><?= e($r['desc']) ?></div>
+          <?php else: ?>
+            <div class="serp-desc serp-empty">Описание не заполнено — Яндекс возьмёт кусок текста со страницы</div>
+          <?php endif; ?>
+          <div class="serp-meta">
+            заголовок <?= mb_strlen($r['title']) ?>/60 · описание <?= mb_strlen($r['desc']) ?>/160
+            <?php if (!$r['index'] && $r['why'] !== ''): ?>
+              · <b>не индексируется:</b> <?= e($r['why']) ?>
+            <?php endif; ?>
+          </div>
+        </div>
+
+        <?php if (trim($r['h1']) !== ''): ?>
+          <div class="seo-h1"><span>Заголовок на самой странице (H1)</span><b><?= e($r['h1']) ?></b></div>
+        <?php else: ?>
+          <div class="seo-h1 seo-h1--bad"><span>Заголовок на странице (H1)</span><b>не заполнен — поисковику непонятно, о чём страница</b></div>
+        <?php endif; ?>
+      </div>
+    <?php endforeach; ?>
+
+    <div class="box">
+      <div class="h2">Куда смотреть дальше</div>
+      <div class="link-row">
+        <a class="mini" href="<?= url('admin/?action=edit&s=meta') ?>">Заголовки и описания страниц</a>
+        <a class="mini" href="<?= url('admin/?action=edit&s=seo') ?>">Общие настройки SEO</a>
+        <a class="mini" href="<?= e(($host ?: '') . '/sitemap.xml') ?>" target="_blank" rel="noopener">Карта сайта ↗</a>
+        <a class="mini" href="<?= e(($host ?: '') . '/robots.txt') ?>" target="_blank" rel="noopener">robots.txt ↗</a>
+        <a class="mini" href="https://webmaster.yandex.ru/" target="_blank" rel="noopener">Яндекс.Вебмастер ↗</a>
+      </div>
     </div>
     <?php
 }

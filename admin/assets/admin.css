@@ -316,3 +316,32 @@ input[type=file]{max-width:100%}
   .row-title{white-space:normal;overflow:visible;line-height:1.35}
   .row-acts{width:100%;justify-content:flex-start}
 }
+
+/* ==========================================================
+   Индексация: как страница выглядит в поиске
+   ========================================================== */
+.seo-row{padding:0;overflow:hidden}
+.seo-row-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:13px 18px;border-bottom:1px solid var(--rule-2);background:#FAFAF9}
+.seo-path{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;color:var(--ink)}
+.seo-row-head .count{margin-right:auto}
+.badge--off{background:#F1F1EE;color:var(--mut)}
+
+/* Похоже на то, как это выглядит в выдаче Яндекса */
+.serp{padding:16px 18px;max-width:640px}
+.serp-url{color:#3B7A3B;font-size:12.5px;margin-bottom:3px}
+.serp-title{color:#1a0dab;font-size:18px;line-height:1.3}
+.serp-desc{color:#3c4043;font-size:13.5px;line-height:1.5;margin-top:4px}
+.serp-empty{color:var(--err);font-style:italic;font-size:13.5px}
+.serp-meta{margin-top:9px;color:var(--mut);font-size:12px}
+
+.seo-h1{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;
+  padding:12px 18px;border-top:1px solid var(--rule-2);background:#FCFCFB}
+.seo-h1 span{color:var(--mut);font-size:11.5px;letter-spacing:.05em;text-transform:uppercase}
+.seo-h1 b{font-weight:550;font-size:14.5px}
+.seo-h1--bad b{color:var(--err);font-weight:400}
+@media(max-width:560px){
+  .serp{padding:14px}
+  .serp-title{font-size:16px}
+  .seo-row-head{padding:11px 14px}
+}

@@ -1130,3 +1130,88 @@ function seo_render_robots(): never
     }
     exit;
 }
+
+/* ==================== Таблица индексации для админки ==================== */
+
+/**
+ * Всё, что видит поисковик, одним списком: адрес, заголовок в выдаче,
+ * описание, H1 на самой странице, открыта ли она для индексации и
+ * попадает ли в карту сайта.
+ *
+ * Нужна админке, чтобы владелец видел картину целиком, а не собирал её
+ * из десятка полей в разных разделах.
+ *
+ * @return array<int, array{url:string,path:string,name:string,title:string,desc:string,h1:string,index:bool,sitemap:bool,edit:string,why:string}>
+ */
+function seo_index_table(): array
+{
+    $all = !empty(c('seo.noindex_all'));
+    $rows = [];
+
+    $add = function (string $path, string $name, string $title, string $desc, string $h1,
+                     bool $index, bool $sitemap, string $edit, string $why = '') use (&$rows) {
+        $rows[] = compact('path', 'name', 'title', 'desc', 'h1', 'index', 'sitemap', 'edit', 'why')
+                + ['url' => seo_url($path)];
+    };
+
+    /* Обычные страницы */
+    $simple = [
+        ['',         'home',     'Главная',   'hero.title_1', 'hero'],
+        ['projects', 'work',     'Проекты',   'work.title',   'work'],
+        ['services', 'services', 'Услуги',    'services.title', 'services'],
+        ['about',    'about',    'О студии',  'about.title',  'about'],
+        ['blog',     'blog',     'Блог',      'blog.title',   'blog'],
+        ['contacts', 'contacts', 'Контакты',  'contacts.title', 'contacts'],
+        ['privacy',  'privacy',  'Политика обработки данных', 'legal.privacy_title', 'legal'],
+        ['consent',  'consent',  'Согласие на обработку',     'legal.consent_title', 'legal'],
+    ];
+    foreach ($simple as [$path, $key, $name, $h1key, $edit]) {
+        $index = !$all && !seo_noindex($key);
+        $why = '';
+        if ($all)                       $why = 'весь сайт закрыт в разделе «SEO — общие»';
+        elseif (seo_noindex($key))      $why = 'стоит галочка «Закрыть от индексации»';
+        if ($path === 'blog' && !blog_posts()) {
+            $index = false;
+            $why = 'нет ни одной опубликованной статьи';
+        }
+        $h1 = trim((string)c($h1key));
+        if ($path === '') {
+            $h1 = trim(trim((string)c('hero.title_1')) . ' ' . trim((string)c('hero.title_2'))
+                     . ' ' . trim((string)c('hero.title_accent')));
+        }
+        $add($path, $name, seo_title($key), seo_desc($key), $h1, $index, $index, $edit, $why);
+    }
+
+    /* Коммерческие посадочные */
+    if (function_exists('commercial_pages')) {
+        foreach (commercial_pages() as $slug => $cfg) {
+            $index = !$all && !seo_noindex('services');
+            $add((string)$slug, 'Услуга: ' . trim((string)($cfg['h1'] ?? $slug)),
+                trim((string)($cfg['title'] ?? '')), trim((string)($cfg['description'] ?? '')),
+                trim((string)($cfg['h1'] ?? '')), $index, $index, 'commercial',
+                $all ? 'весь сайт закрыт в разделе «SEO — общие»' : '');
+        }
+    }
+
+    /* Страницы работ */
+    foreach ((array)c('work.items', []) as $item) {
+        $slug = trim((string)($item['slug'] ?? ''));
+        if ($slug === '') continue;
+        $index = !$all && empty($item['noindex']);
+        $add('projects/' . $slug, 'Кейс: ' . trim((string)($item['name'] ?? $slug)),
+            seo_project_title($item), seo_project_desc($item), trim((string)($item['name'] ?? '')),
+            $index, $index, 'work',
+            !empty($item['noindex']) ? 'у проекта стоит галочка «Закрыть от индексации»' : ($all ? 'весь сайт закрыт' : ''));
+    }
+
+    /* Статьи блога */
+    foreach (blog_posts() as $post) {
+        $index = !$all && !seo_noindex('blog') && empty($post['noindex']);
+        $add('blog/' . trim((string)$post['slug']), 'Статья: ' . trim((string)($post['title'] ?? '')),
+            seo_post_title($post), seo_post_desc($post), trim((string)($post['title'] ?? '')),
+            $index, $index, 'blog',
+            !empty($post['noindex']) ? 'у статьи стоит галочка «Закрыть от индексации»' : ($all ? 'весь сайт закрыт' : ''));
+    }
+
+    return $rows;
+}
