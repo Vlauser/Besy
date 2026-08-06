@@ -53,16 +53,25 @@ $aboutBody  = trim((string)c('about.body'));
       <div class="section-heading split-heading"><div><span class="section-kicker">Кто работает над сайтом</span><h2><?= e(c('about.team_title')) ?></h2></div><p><?= e(c('about.team_lede')) ?></p></div>
       <div class="about-role-grid">
         <?php foreach (array_slice((array)c('about.team', []), 0, 3) as $i => $role): ?>
+          <?php
+          /* Раньше в поле «role» лежало имя иконки (compass, layers…), а не
+             должность. На уже работающих сайтах эти значения остались в
+             content.json, поэтому старые названия иконок мы не печатаем
+             текстом, а используем по назначению — как иконку. */
+          $roleText = trim((string)($role['role'] ?? ''));
+          $roleIcon = icon_is_known($roleText) ? $roleText : '';
+          if ($roleIcon !== '') $roleText = '';
+          ?>
           <article class="about-role-card">
             <?php /* Загружено фото — показываем его, иначе иконка по кругу, как в макете */ ?>
             <?php if (trim((string)($role['photo'] ?? '')) !== ''): ?>
               <span class="about-role-photo"><?= img_html((string)$role['photo'], trim((string)($role['name'] ?? 'Участник команды')), ['width' => 96, 'height' => 96]) ?></span>
             <?php else: ?>
-              <span class="icon-box"><?= icon_cycle((int)$i, 22) ?></span>
+              <span class="icon-box"><?= $roleIcon !== '' ? icon($roleIcon, 22) : icon_cycle((int)$i, 22) ?></span>
             <?php endif; ?>
             <h3><?= e($role['name'] ?? '') ?></h3>
-            <?php if (trim((string)($role['role'] ?? '')) !== ''): ?>
-              <p class="about-role-title"><?= e($role['role']) ?></p>
+            <?php if ($roleText !== ''): ?>
+              <p class="about-role-title"><?= e($roleText) ?></p>
             <?php endif; ?>
             <?php if (trim((string)($role['bio'] ?? '')) !== ''): ?>
               <p><?= e($role['bio']) ?></p>

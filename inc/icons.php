@@ -32,6 +32,13 @@ function icon(string $name, int $size = 20, string $class = ''): string
         . $cls . ' aria-hidden="true">' . $body . '</svg>';
 }
 
+/** Есть ли такая иконка. Нужно, чтобы отличить имя иконки от обычного текста. */
+function icon_is_known(string $name): bool
+{
+    return in_array($name, ['check', 'arrow', 'back', 'plus', 'clock', 'compass',
+                            'layers', 'spark', 'phone', 'chat', 'menu', 'close'], true);
+}
+
 /** Иконка по номеру шага или карточки — чтобы чередовались, как в макете. */
 function icon_cycle(int $i, int $size = 21): string
 {
