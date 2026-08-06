@@ -45,6 +45,18 @@
     </IfModule>
 </FilesMatch>
 
+# ---------- Документация и примеры конфигов ----------
+# Лежат в корне для владельца сайта, посетителю их отдавать незачем
+<FilesMatch "\.(md|example|bak|json)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
 # ---------- Заголовки безопасности ----------
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"

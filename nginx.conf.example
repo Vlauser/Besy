@@ -39,6 +39,12 @@ server {
         return 404;
     }
 
+    # Документация и примеры конфигов — для владельца, не для посетителей
+    location ~* \.(md|example|bak|json)$ {
+        deny all;
+        return 404;
+    }
+
     # В загрузках ничего не исполняется
     location ^~ /uploads/ {
         location ~ \.(php|phps|phtml|phar|php[0-9])$ {
