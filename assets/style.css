@@ -3698,17 +3698,39 @@ body.ax-modal-open {
    Модальное окно заявки
    ========================================================== */
 .ax-backdrop[hidden]{display:none}
-.ax-backdrop{position:fixed;inset:0;z-index:9999;padding:24px;display:grid;place-items:center;
+.ax-backdrop{position:fixed;inset:0;z-index:9999;padding:clamp(10px,2vh,24px);display:grid;place-items:center;
   background:rgba(15,27,52,.48);backdrop-filter:blur(9px);
   animation:axFade .22s ease}
 @keyframes axFade{from{opacity:0}to{opacity:1}}
 
-.ax-modal{position:relative;width:min(100%,520px);max-height:calc(100vh - 48px);overflow-y:auto;
-  padding:40px;border-radius:28px;background:linear-gradient(150deg,#fff,#f6f9ff);
+/* Окно подстраивается под высоту экрана: отступы, кегль и поля считаются
+   от vh, поэтому на ноутбуке 720px форма помещается целиком, без прокрутки
+   внутри окна. Прокрутка остаётся страховкой для совсем низких экранов. */
+.ax-modal{position:relative;width:min(100%,520px);
+  max-height:100%;overflow-y:auto;   /* высоту ограничивает сама подложка с её отступами */
+  padding:clamp(19px,3.2vh,38px);border-radius:clamp(20px,2.6vh,28px);
+  background:linear-gradient(150deg,#fff,#f6f9ff);
   box-shadow:0 35px 90px rgba(11,26,57,.25)}
-.ax-modal h2{margin:8px 0 0;font-size:clamp(26px,4vw,34px);line-height:1.1;letter-spacing:-.03em}
-.ax-modal-lead{margin:12px 0 24px;color:var(--muted);line-height:1.5}
-.ax-modal .contact-form{gap:16px}
+.ax-modal .section-kicker{margin-bottom:clamp(6px,1.5vh,14px)}
+.ax-modal h2{margin:clamp(2px,.7vh,8px) 0 0;font-size:clamp(22px,3.2vh,33px);
+  line-height:1.1;letter-spacing:-.03em}
+.ax-modal-lead{margin:clamp(5px,1.2vh,12px) 0 clamp(9px,2.4vh,24px);
+  color:var(--muted);font-size:clamp(13.5px,1.75vh,16px);line-height:1.45}
+.ax-modal .contact-form{gap:clamp(8px,1.5vh,15px)}
+.ax-modal .contact-form label{gap:clamp(3px,.8vh,7px)}
+/* только текстовые поля: галочки и скрытая ловушка от роботов
+   не должны получать минимальную высоту */
+.ax-modal .contact-form input:not([type=checkbox]):not(.hp){min-height:clamp(40px,5.4vh,52px)}
+.ax-modal .contact-form textarea{min-height:clamp(44px,7.5vh,96px)}
+.ax-modal .contact-tabs{padding:clamp(3px,.6vh,5px)}
+.ax-modal .contact-tabs button{min-height:clamp(36px,4.9vh,47px)}
+.ax-modal .contact-form > button[type]{min-height:clamp(42px,5.6vh,54px)}
+.ax-modal .marketing-consent{padding:clamp(7px,1.3vh,13px) clamp(9px,1.4vh,14px)}
+.ax-modal .form-policy{margin:0;font-size:clamp(11px,1.4vh,13px);line-height:1.35}
+/* На низком экране вступление уступает место полям формы */
+/* Чем ниже экран, тем меньше вспомогательного текста: сначала уходит
+   вступление, затем ссылка на политику (она есть в тексте галочки
+   согласия), затем надпись над заголовком. Поля формы остаются всегда. */
 
 .ax-close{position:absolute;top:14px;right:14px;width:38px;height:38px;
   display:flex;align-items:center;justify-content:center;
@@ -3743,7 +3765,7 @@ body.ax-modal-open{overflow:hidden}
 
 @media(max-width:600px){
   .ax-backdrop{padding:14px}
-  .ax-modal{padding:30px 18px 22px;border-radius:22px}
+  .ax-modal{padding:clamp(18px,3vh,30px) clamp(14px,4vw,18px) clamp(16px,2.6vh,22px);border-radius:22px}
 
   .site-preview-backdrop{padding:8px}
   .site-preview-modal{width:100%;height:calc(100dvh - 16px);grid-template-rows:56px 1fr;border-radius:18px}
@@ -3752,6 +3774,7 @@ body.ax-modal-open{overflow:hidden}
   .site-preview-header strong{max-width:160px;overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
   .site-preview-header>button{width:36px;height:36px}
 }
+
 @media(prefers-reduced-motion:reduce){
   .ax-backdrop{animation:none}
 }
@@ -4671,4 +4694,52 @@ h1, h2, h3, h4,
 .next-card b,
 .project-nav-item b {
   overflow-wrap: break-word;
+}
+
+
+/* ==========================================================
+   Окно заявки: подгонка под высоту экрана
+   ==========================================================
+   Правила стоят в конце файла намеренно: они должны перебивать
+   и общие стили окна, и мобильный блок max-width:600px.
+   Чем ниже экран, тем меньше вспомогательного текста — сначала
+   уходит вступление, затем ссылка на политику (она есть в тексте
+   галочки согласия), затем надпись над заголовком. Поля формы
+   и обе галочки остаются всегда. */
+@media(max-height:940px){ .ax-modal-lead{display:none} }
+@media(max-height:830px){ .ax-modal .form-policy{display:none} }
+@media(max-height:730px){
+  .ax-modal .section-kicker{display:none}
+  .ax-close{top:8px;right:8px;width:32px;height:32px}
+}
+@media(max-height:700px){
+  .ax-modal .contact-form textarea{min-height:40px}
+  .ax-modal .contact-form label{gap:3px}
+  .ax-modal .contact-form input:not([type=checkbox]):not(.hp){min-height:38px}
+  .ax-modal .contact-tabs button{min-height:38px}
+}
+@media(max-height:700px){ .ax-backdrop{padding:8px} }
+@media(max-height:660px){ .ax-modal{padding-top:16px;padding-bottom:14px} }
+@media(max-height:650px){
+  .ax-modal .marketing-consent small{display:none}
+  .ax-modal .contact-tabs button{min-height:34px}
+  .ax-modal .contact-form > button[type]{min-height:40px}
+  .ax-modal .contact-form{gap:7px}
+}
+
+/* Самые низкие экраны (старые iPhone SE и т.п.) — предельно плотно,
+   но ни одно поле не убираем: человек должен видеть форму целиком */
+@media(max-height:600px){
+  .ax-modal{padding:11px 14px 11px}
+  .ax-modal h2{font-size:20px}
+  .ax-modal .contact-form{gap:6px}
+  .ax-modal .contact-form input:not([type=checkbox]):not(.hp){min-height:34px}
+  .ax-modal .contact-form textarea{min-height:32px}
+  .ax-modal .contact-tabs{padding:3px}
+  .ax-modal .contact-tabs button{min-height:32px}
+  .ax-modal .contact-form > button[type]{min-height:38px}
+  .ax-modal .marketing-consent{padding:6px 9px}
+  .ax-modal .consent-row > span{font-size:12.5px;line-height:1.3}
+  .ax-modal .contact-form label > span{font-size:11.5px}
+  .ax-close{top:5px;right:5px;width:28px;height:28px}
 }
