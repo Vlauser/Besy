@@ -4713,7 +4713,9 @@ h1, h2, h3, h4,
   .ax-close{top:8px;right:8px;width:32px;height:32px}
 }
 @media(max-height:700px){
-  .ax-modal .contact-form textarea{min-height:40px}
+  /* rows="3" задаёт высоту сам, поэтому одного min-height мало —
+     ставим height, иначе поле «Задача» съедает 120 px */
+  .ax-modal .contact-form textarea{min-height:0;height:52px}
   .ax-modal .contact-form label{gap:3px}
   .ax-modal .contact-form input:not([type=checkbox]):not(.hp){min-height:38px}
   .ax-modal .contact-tabs button{min-height:38px}
@@ -4734,7 +4736,7 @@ h1, h2, h3, h4,
   .ax-modal h2{font-size:20px}
   .ax-modal .contact-form{gap:6px}
   .ax-modal .contact-form input:not([type=checkbox]):not(.hp){min-height:34px}
-  .ax-modal .contact-form textarea{min-height:32px}
+  .ax-modal .contact-form textarea{min-height:0;height:44px}
   .ax-modal .contact-tabs{padding:3px}
   .ax-modal .contact-tabs button{min-height:32px}
   .ax-modal .contact-form > button[type]{min-height:38px}
@@ -4742,6 +4744,31 @@ h1, h2, h3, h4,
   .ax-modal .consent-row > span{font-size:12.5px;line-height:1.3}
   .ax-modal .contact-form label > span{font-size:11.5px}
   .ax-close{top:5px;right:5px;width:28px;height:28px}
+}
+
+/* Телефон, повёрнутый набок: места по высоте почти нет, зато много
+   по ширине. Раскладываем форму в две колонки — тогда всё окно
+   помещается на экран и внутренней прокрутки не остаётся. */
+@media(max-height:540px) and (min-width:660px){
+  .ax-modal{width:min(100%,820px)}
+  /* у карточки формы свои 38 px внутренних отступов — в альбомной
+     ориентации это почти четверть экрана, поджимаем */
+  .ax-modal .contact-form{flex-flow:row wrap;align-items:flex-start;align-content:flex-start;
+    gap:6px 16px;padding:10px 14px}
+  .ax-modal .contact-form > *{flex:1 1 100%}
+  .ax-modal .contact-form > label{flex:1 1 calc(50% - 8px);min-width:0}
+  .ax-modal .contact-form > .consent-row:not(.marketing-consent){flex:1 1 calc(50% - 8px)}
+  .ax-modal .contact-form textarea{height:44px}
+  .ax-modal .marketing-consent{padding:6px 10px}
+}
+@media(max-height:400px) and (min-width:660px){
+  .ax-modal{padding-top:9px;padding-bottom:9px}
+  .ax-modal .contact-form{gap:5px 16px}
+  .ax-modal h2{font-size:18px}
+  .ax-modal .contact-tabs button{min-height:30px}
+  .ax-modal .contact-form > button[type]{min-height:34px}
+  .ax-modal .contact-form textarea{height:36px}
+  .ax-modal .contact-form input:not([type=checkbox]):not(.hp){min-height:32px}
 }
 
 /* ==========================================================
@@ -4757,6 +4784,10 @@ h1, h2, h3, h4,
 .about-body h2{margin-top:34px}
 .about-body h2:first-child{margin-top:0}
 .about-role-photo img{width:96px;height:96px;border-radius:50%;object-fit:cover}
+.about-role-title{margin:0 0 8px!important;color:var(--blue)!important;
+  font-size:14px;font-weight:600;letter-spacing:.01em}
+.about-role-link{display:inline-block;margin-top:14px;color:var(--blue);
+  font-size:14px;font-weight:600;text-decoration:underline}
 @media(max-width:900px){
   .about-hero-grid{grid-template-columns:1fr;gap:34px}
   .about-hero-art{order:-1;max-width:420px}

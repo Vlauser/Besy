@@ -339,10 +339,10 @@ function schema(): array
                 [
                     'path' => 'about.team', 'label' => 'Человек', 'title_field' => 'name', 'max' => 12,
                     'fields' => [
-                        'name'   => ['label' => 'Имя и фамилия', 'type' => 'text', 'w' => 'm'],
-                        'role'   => ['label' => 'Чем занимается', 'type' => 'text', 'w' => 'm'],
+                        'name'   => ['label' => 'Имя или название роли', 'type' => 'text', 'w' => 'm'],
+                        'role'   => ['label' => 'Должность', 'type' => 'text', 'w' => 'm', 'hides' => 'строку с должностью', 'hint' => 'Синяя строка под именем. Пусто — строки не будет.'],
                         'bio'    => ['label' => 'Пара слов о человеке', 'type' => 'textarea', 'rows' => 2],
-                        'photo'  => ['label' => 'Фото', 'type' => 'image'],
+                        'photo'  => ['label' => 'Фото', 'type' => 'image', 'hint' => 'Пусто — вместо фото будет иконка, как в макете.'],
                         'link'   => ['label' => 'Ссылка на профиль', 'type' => 'text', 'hint' => 'Telegram, Behance, GitHub — если человек не против.'],
                     ],
                 ],

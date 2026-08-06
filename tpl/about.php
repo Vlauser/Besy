@@ -52,15 +52,24 @@ $aboutBody  = trim((string)c('about.body'));
     <div class="container">
       <div class="section-heading split-heading"><div><span class="section-kicker">Кто работает над сайтом</span><h2><?= e(c('about.team_title')) ?></h2></div><p><?= e(c('about.team_lede')) ?></p></div>
       <div class="about-role-grid">
-        <?php foreach (array_slice((array)c('about.team', []), 0, 3) as $role): ?>
+        <?php foreach (array_slice((array)c('about.team', []), 0, 3) as $i => $role): ?>
           <article class="about-role-card">
+            <?php /* Загружено фото — показываем его, иначе иконка по кругу, как в макете */ ?>
             <?php if (trim((string)($role['photo'] ?? '')) !== ''): ?>
               <span class="about-role-photo"><?= img_html((string)$role['photo'], trim((string)($role['name'] ?? 'Участник команды')), ['width' => 96, 'height' => 96]) ?></span>
             <?php else: ?>
-              <span class="icon-box"><?= icon((string)($role['role'] ?? 'check'), 22) ?></span>
+              <span class="icon-box"><?= icon_cycle((int)$i, 22) ?></span>
             <?php endif; ?>
             <h3><?= e($role['name'] ?? '') ?></h3>
-            <p><?= e($role['bio'] ?? '') ?></p>
+            <?php if (trim((string)($role['role'] ?? '')) !== ''): ?>
+              <p class="about-role-title"><?= e($role['role']) ?></p>
+            <?php endif; ?>
+            <?php if (trim((string)($role['bio'] ?? '')) !== ''): ?>
+              <p><?= e($role['bio']) ?></p>
+            <?php endif; ?>
+            <?php if (trim((string)($role['link'] ?? '')) !== ''): ?>
+              <a class="about-role-link" href="<?= e($role['link']) ?>" target="_blank" rel="noreferrer">Профиль</a>
+            <?php endif; ?>
           </article>
         <?php endforeach; ?>
       </div>
