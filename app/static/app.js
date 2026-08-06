@@ -14,6 +14,8 @@ const ISSUE_LABELS = {
 const WARNING_LABELS = {
   touches_frame_edge: "деталь упирается в край кадра",
   debris_removed: "убран мусор с фона",
+  shadow_trimmed: "срезана тень",
+  weak_segmentation: "слабый контраст с фоном",
   tiny_object: "деталь очень мелкая в кадре",
   huge_object: "деталь занимает почти весь кадр",
   upscaled: "результат растянут — исходник мелкий",

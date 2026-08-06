@@ -76,9 +76,6 @@ class Job:
     def out_path(self, item_id: str) -> Path:
         return self.dir / "out" / f"{item_id}.jpg"
 
-    def cut_path(self, item_id: str) -> Path:
-        return self.dir / "cut" / f"{item_id}.png"
-
     def counts(self) -> dict[str, int]:
         totals = {"total": len(self.items), "queued": 0, "processing": 0, "done": 0, "error": 0}
         for item in self.items:
@@ -137,7 +134,7 @@ class JobStore:
 
     def create(self, options: ProcessOptions) -> Job:
         job = Job(id=uuid.uuid4().hex[:12], created_at=time.time(), options=options)
-        for sub in ("src", "out", "cut"):
+        for sub in ("src", "out"):
             (job.dir / sub).mkdir(parents=True, exist_ok=True)
         self._jobs[job.id] = job
         return job
@@ -208,7 +205,6 @@ class JobStore:
         result = process_image(data, item.options or job.options)
 
         job.out_path(item.id).write_bytes(result.jpeg)
-        job.cut_path(item.id).write_bytes(result.cutout_png)
         item.metrics = result.metrics
         item.warnings = result.warnings
 
