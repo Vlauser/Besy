@@ -99,14 +99,14 @@
       var io = new IntersectionObserver(function (entries) {
         entries.forEach(function (en) {
           if (en.isIntersecting) {
-            en.target.classList.add('is-visible');
+            en.target.classList.add('visible');
             io.unobserve(en.target);
           }
         });
       }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
       reveals.forEach(function (el) { io.observe(el); });
     } else {
-      reveals.forEach(function (el) { el.classList.add('is-visible'); });
+      reveals.forEach(function (el) { el.classList.add('visible'); });
     }
   }
 
@@ -180,10 +180,11 @@
 
       var f = b.getAttribute('data-f');
       var shown = 0;
-      grid.querySelectorAll('.project-slot').forEach(function (slot) {
+      // Прячем сами карточки: обёртки нет, иначе она стала бы ячейкой сетки
+      grid.querySelectorAll('[data-c]').forEach(function (card) {
         // «Лендинги» показываем целиком: все проекты сделаны как лендинги
-        var ok = f === 'all' || f === 'landing' || slot.getAttribute('data-c') === f;
-        slot.hidden = !ok;
+        var ok = f === 'all' || f === 'landing' || card.getAttribute('data-c') === f;
+        card.hidden = !ok;
         if (ok) shown++;
       });
       if (empty) empty.hidden = shown > 0;
@@ -199,7 +200,8 @@
       form.setAttribute('data-mode', mode);
       modeBtns.forEach(function (b) {
         var on = b.getAttribute('data-mode-btn') === mode;
-        b.classList.toggle('is-active', on);
+        // Класс активной вкладки в макете называется active
+        b.classList.toggle('active', on);
         b.setAttribute('aria-pressed', on ? 'true' : 'false');
         b.setAttribute('aria-selected', on ? 'true' : 'false');
       });

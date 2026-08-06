@@ -1,26 +1,25 @@
 <?php
 /**
- * Хлебные крошки. Разметка BreadcrumbList отдаётся отдельно, в JSON-LD,
- * поэтому здесь только видимая часть — без дублирующих микроформатов.
+ * Хлебные крошки — разметка из макета дизайнера.
  *
- * @var array<int, array{name: string, url: string}> $CRUMBS
+ * Разметка BreadcrumbList отдаётся отдельно, в JSON-LD, и остаётся на
+ * всех страницах: поисковику она нужна везде. Видимую строку по макету
+ * показываем на коммерческих страницах и в статьях блога, где она
+ * стоит внутри первого экрана.
+ *
+ * @var array<int, array{name: string, path?: string, url: string}> $CRUMBS
  */
-if (empty($CRUMBS)) return;
+if (empty($CRUMBS) || count($CRUMBS) < 2) return;
 
 $last = count($CRUMBS) - 1;
 ?>
-<nav class="crumbs" aria-label="Вы находитесь здесь">
-  <div class="container">
-    <ol>
-      <?php foreach ($CRUMBS as $i => $cr): ?>
-        <li>
-          <?php if ($i === $last): ?>
-            <span aria-current="page"><?= e($cr['name']) ?></span>
-          <?php else: ?>
-            <a href="<?= e($cr['path'] ?? $cr['url']) ?>"><?= e($cr['name']) ?></a>
-          <?php endif; ?>
-        </li>
-      <?php endforeach; ?>
-    </ol>
-  </div>
+<nav class="breadcrumbs" aria-label="Хлебные крошки">
+  <?php foreach ($CRUMBS as $i => $cr): ?>
+    <?php if ($i > 0): ?><span aria-hidden="true">/</span><?php endif; ?>
+    <?php if ($i === $last): ?>
+      <span aria-current="page"><?= e($cr['name']) ?></span>
+    <?php else: ?>
+      <a href="<?= e($cr['path'] ?? $cr['url']) ?>"><?= e($cr['name']) ?></a>
+    <?php endif; ?>
+  <?php endforeach; ?>
 </nav>

@@ -46,8 +46,15 @@
           <?php endif; ?>
           <?php foreach ((array)c('site.channels', []) as $ch): ?>
             <?php if (!empty($ch['url'])): ?>
-              <?php /* В подвале показываем сам контакт; подпись — если контакт не заполнен */ ?>
-              <a href="<?= e($ch['url']) ?>"<?= str_starts_with((string)$ch['url'], 'http') ? ' target="_blank" rel="noreferrer"' : '' ?>><?= e(trim((string)($ch['value'] ?? '')) !== '' ? $ch['value'] : ($ch['label'] ?? '')) ?></a>
+              <?php
+              /* По макету у телефона в подвале стоит сам номер, а у мессенджеров —
+                 название: «Telegram», а не ник. Отличаем по виду ссылки. */
+              $isPhone = str_starts_with((string)$ch['url'], 'tel:');
+              $chText  = $isPhone
+                  ? (trim((string)($ch['value'] ?? '')) ?: (string)($ch['label'] ?? ''))
+                  : (trim((string)($ch['label'] ?? '')) ?: (string)($ch['value'] ?? ''));
+              ?>
+              <a href="<?= e($ch['url']) ?>"<?= str_starts_with((string)$ch['url'], 'http') ? ' target="_blank" rel="noreferrer"' : '' ?>><?= e($chText) ?></a>
             <?php endif; ?>
           <?php endforeach; ?>
         </div>

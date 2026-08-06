@@ -9,11 +9,7 @@ foreach ((array)($cfg['projectSlugs'] ?? []) as $projectSlug) {
 <main>
   <section class="page-hero commercial-hero">
     <div class="container">
-      <nav class="breadcrumbs" aria-label="Хлебные крошки">
-        <a href="<?= url('') ?>">Главная</a><span aria-hidden="true">/</span>
-        <a href="<?= url('services') ?>">Услуги</a><span aria-hidden="true">/</span>
-        <span aria-current="page"><?= e($cfg['h1'] ?? '') ?></span>
-      </nav>
+      <?php require ROOT . '/tpl/_crumbs.php'; ?>
       <div class="commercial-hero-grid">
         <div class="commercial-hero-copy reveal">
           <span class="section-kicker"><?= e($cfg['kicker'] ?? '') ?></span>
@@ -79,7 +75,7 @@ foreach ((array)($cfg['projectSlugs'] ?? []) as $projectSlug) {
   <section class="section commercial-cases-section">
     <div class="container">
       <div class="section-heading split-heading"><div><span class="section-kicker">Реальные проекты</span><h2>Показываем работу на примерах.</h2></div><p>В кейсах — задача, решения и конкретный состав работы без выдуманных показателей.</p></div>
-      <div class="project-grid commercial-case-grid">
+      <div class="proof-grid commercial-case-grid">
         <?php foreach ($selectedProjects as $project): ?><?php require ROOT . '/tpl/_project_card.php'; ?><?php endforeach; ?>
       </div>
     </div>

@@ -93,9 +93,6 @@
           <?php if (trim((string)c('benefits.title')) !== ''): ?>
           <h2><?= e(c('benefits.title')) ?></h2>
           <?php endif; ?>
-          <?php if (trim((string)c('benefits.cta')) !== ''): ?>
-          <?= cta_button((string)c('benefits.cta'), 'button button-primary benefits-cta') ?>
-          <?php endif; ?>
         </div>
         <div class="benefit-grid">
           <?php foreach ((array)c('benefits.items', []) as $n => $b): ?>
@@ -111,7 +108,7 @@
           <?php endforeach; ?>
         </div>
         <?php if (trim((string)c('benefits.cta')) !== ''): ?>
-        <?= cta_button((string)c('benefits.cta'), 'button button-primary benefits-cta benefits-cta-mobile') ?>
+        <?= cta_button((string)c('benefits.cta'), 'button button-primary benefits-cta') ?>
         <?php endif; ?>
       </div>
     </div>
@@ -170,7 +167,7 @@
   <?php require ROOT . '/tpl/_cta.php'; ?>
 
   <?php if (has_any('projects_home.kicker', 'projects_home.title', 'work.items')): ?>
-  <section class="section projects-section" id="projects">
+  <section class="section proof-section" id="projects">
     <div class="container">
       <div class="section-heading split-heading">
         <div>
@@ -185,7 +182,7 @@
         <p><?= e(c('projects_home.lede')) ?></p>
         <?php endif; ?>
       </div>
-      <div class="project-grid home-project-grid">
+      <div class="proof-grid">
         <?php
         $homeProjects = [];
         foreach ((array)c('projects_home.slugs', []) as $homeSlug) {
@@ -197,7 +194,7 @@
           <?php require ROOT . '/tpl/_project_card.php'; ?>
         <?php endforeach; ?>
       </div>
-      <div class="section-action">
+      <div class="section-action proof-action">
         <?php if (trim((string)c('projects_home.button')) !== ''): ?>
         <a href="<?= url('projects') ?>" class="button button-secondary"><?= e(c('projects_home.button')) ?></a>
         <?php endif; ?>

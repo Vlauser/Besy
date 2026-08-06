@@ -124,7 +124,9 @@ if ($page['tpl'] === 'home' && ($heroImg = trim((string)c('hero.image'))) !== ''
 
 require __DIR__ . '/tpl/_head.php';
 require __DIR__ . '/tpl/_nav.php';
-if ($page['tpl'] !== 'commercial') require __DIR__ . '/tpl/_crumbs.php';
+/* Видимые крошки по макету стоят внутри первого экрана: коммерческие
+   страницы и статьи рисуют их сами. На остальных страницах их в макете
+   нет — но BreadcrumbList в JSON-LD отдаётся везде. */
 
 $tplFile = __DIR__ . '/tpl/' . $page['tpl'] . '.php';
 if (is_file($tplFile)) {

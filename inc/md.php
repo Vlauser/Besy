@@ -166,3 +166,43 @@ function agree_html(string $text, string $href): string
             . '" target="_blank" rel="noopener" onclick="event.stopPropagation()">' . $m[1] . '</a>';
     }, $safe) ?? $safe;
 }
+
+/**
+ * Готовит текст статьи под макет дизайнера.
+ *
+ * В макете статья устроена так: слева карточка «короткий ответ», справа
+ * текст, разбитый заголовками на секции, а пункты списков идут с галочкой.
+ * Автору в админке ничего этого знать не нужно — он пишет обычный текст,
+ * а раскладку собираем здесь:
+ *   · первая цитата (строка со знаком «>») уходит в карточку слева;
+ *   · каждый заголовок второго уровня начинает новую секцию;
+ *   · пункты списков получают галочку, как в макете.
+ *
+ * @return array{summary:string, body:string} summary пуст, если цитаты не было
+ */
+function article_layout(string $html): array
+{
+    $summary = '';
+
+    // Первая цитата — это и есть «короткий ответ»
+    if (preg_match('~<blockquote>\s*<p>(.*?)</p>\s*</blockquote>~su', $html, $m)) {
+        $summary = trim($m[1]);
+        $html = str_replace($m[0], '', $html);
+    }
+
+    // Пункты списков — с галочкой
+    $html = preg_replace_callback('~<li>(.*?)</li>~su', function ($m) {
+        return '<li>' . icon('check', 15) . '<span>' . trim($m[1]) . '</span></li>';
+    }, $html) ?? $html;
+
+    // Разбиваем на секции по заголовкам второго уровня
+    $parts = preg_split('~(?=<h2>)~u', $html) ?: [];
+    $out = '';
+    foreach ($parts as $part) {
+        $part = trim($part);
+        if ($part === '') continue;
+        $out .= '<section>' . $part . '</section>';
+    }
+
+    return ['summary' => $summary, 'body' => $out !== '' ? $out : $html];
+}

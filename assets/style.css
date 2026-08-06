@@ -131,6 +131,11 @@
 
 html {
   scroll-behavior: smooth;
+  /* Базовый межстрочный интервал из макета. Без него весь текст, у которого
+     line-height не задан отдельно, вставал плотнее, чем у дизайнера */
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
 }
 
 body {
@@ -275,10 +280,6 @@ a {
 .benefits-cta {
   width: fit-content;
   margin-top: 28px;
-}
-
-.benefits-cta-mobile {
-  display: none;
 }
 
 .mobile-nav-button,
@@ -2879,15 +2880,6 @@ a {
 }
 
 @media (max-width: 760px) {
-  .benefits-heading .benefits-cta {
-    display: none;
-  }
-
-  .benefits-cta-mobile {
-    display: inline-flex;
-    margin-top: 4px;
-  }
-
   .contacts-hero {
     display: none;
   }
@@ -3427,25 +3419,21 @@ a {
   font-family:var(--font-geist-mono);font-size:34px;letter-spacing:.04em;opacity:.5}
 
 /* страница политики */
-.legal{max-width:74ch;margin:0 auto}
-.legal h2{margin:40px 0 14px;font-size:clamp(20px,2.4vw,27px);line-height:1.2}
-.legal h2:first-child{margin-top:0}
-.legal h3{margin:28px 0 10px;font-size:18px}
-.legal p{margin-bottom:14px;line-height:1.65}
-.legal ul{list-style:none;margin:0 0 16px;padding:0}
-.legal li{position:relative;padding:5px 0 5px 22px;line-height:1.6}
-.legal li::before{content:"";position:absolute;left:0;top:15px;width:10px;height:1px;background:currentColor;opacity:.4}
-.legal hr{border:0;border-top:1px solid rgba(0,0,0,.1);margin:32px 0}
-.legal a{text-decoration:underline;text-underline-offset:2px}
-.legal-foot{max-width:74ch;margin:44px auto 0;padding-top:24px;border-top:1px solid rgba(0,0,0,.1);
+/* Правовые страницы оформлены классами дизайнера (legal-page / legal-content).
+   Здесь только то, чего в макете нет: списки, разделители и подвал документа. */
+.legal-content ul{list-style:none;margin:0 0 16px;padding:0}
+.legal-content li{position:relative;padding:5px 0 5px 22px;line-height:1.6;color:var(--muted);font-size:15px}
+.legal-content li::before{content:"";position:absolute;left:0;top:15px;width:10px;height:1px;background:currentColor;opacity:.4}
+.legal-content hr{border:0;border-top:1px solid rgba(0,0,0,.1);margin:32px 0}
+.legal-content a{text-decoration:underline;text-underline-offset:2px}
+.legal-content h3{margin:28px 0 10px;font-size:18px}
+.legal-foot{margin:44px 0 0;padding-top:24px;border-top:1px solid rgba(0,0,0,.1);
   display:flex;gap:20px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 
-/* появление блоков */
-.reveal{opacity:0;transform:translateY(20px);transition:opacity .7s ease,transform .7s ease}
-.reveal.is-visible{opacity:1;transform:none}
-.reveal-delay{transition-delay:.12s}
+/* Появление блоков рисует CSS дизайнера (анимация reveal в commercial.css).
+   Свой вариант с opacity:0 убран: он глушил анимацию из макета. */
 @media(prefers-reduced-motion:reduce){
-  .reveal{opacity:1;transform:none;transition:none}
+  .reveal{animation:none}
   .cookie-notice{opacity:1;transform:none;transition:none}
 }
 
@@ -3696,26 +3684,13 @@ body.ax-modal-open {
 /* ==========================================================
    Выбор способа связи в форме заявки
    ========================================================== */
-.ax-choice{display:flex;flex-direction:column;gap:10px}
-.ax-label{display:block;margin:0 0 8px;color:#4e596d;font-size:14px;font-weight:600}
-.ax-label small{margin-left:6px;color:#98a2b3;font-size:12px;font-weight:400}
-.ax-field{display:block}
-.ax-field + .ax-field{margin-top:4px}
-
-.ax-mode{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;
-  border:1px solid var(--line);border-radius:16px;background:#f3f6fb}
-.ax-mode button{min-height:46px;display:flex;align-items:center;justify-content:center;gap:7px;
-  border:0;border-radius:12px;background:transparent;color:#7a8597;
-  font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;transition:.2s}
-.ax-mode button:hover{color:var(--ink)}
-.ax-mode button.is-active{background:#fff;color:var(--blue);box-shadow:0 4px 14px rgba(28,62,127,.11)}
-.ax-mode svg{flex:0 0 auto}
-
-.ax-pane[hidden]{display:none}
+/* Кнопки выбора мессенджера — единственное, чего нет в макете дизайнера:
+   там у формы одна вкладка «Написать» без выбора между Telegram и MAX.
+   Оформляем их как вкладки способа связи, чтобы форма выглядела цельно. */
 .ax-messengers{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
 .ax-messengers button{min-height:44px;display:flex;align-items:center;justify-content:center;gap:8px;
-  border:1px solid var(--line);border-radius:12px;background:#fff;color:#7a8597;
-  font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:.2s}
+  border:1px solid var(--line);border-radius:12px;background:#fff;color:#5b6170;
+  font-size:13.5px;font-weight:600;cursor:pointer;transition:.18s}
 .ax-messengers button:hover{border-color:#aac3fb;color:var(--ink)}
 .ax-messengers button.is-active{border-color:#7ba5f8;background:var(--blue-soft);color:var(--blue)}
 
@@ -3769,7 +3744,6 @@ body.ax-modal-open{overflow:hidden}
 @media(max-width:600px){
   .ax-backdrop{padding:14px}
   .ax-modal{padding:30px 18px 22px;border-radius:22px}
-  .ax-mode button{font-size:14px}
 
   .site-preview-backdrop{padding:8px}
   .site-preview-modal{width:100%;height:calc(100dvh - 16px);grid-template-rows:56px 1fr;border-radius:18px}
@@ -4155,19 +4129,6 @@ picture {
 }
 
 .price-case,
-.review-case {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--blue);
-  text-decoration: none;
-  font-size: 15px;
-}
-
-.price-case:hover,
-.review-case:hover {
-  text-decoration: underline;
-}
 
 /* из чего складывается цена */
 .factor-grid {
@@ -4250,117 +4211,9 @@ picture {
 /* ==========================================================
    Отзывы
    ========================================================== */
-.reviews-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 18px;
-}
+/* Отзывы оформляет CSS дизайнера (testimonials-*). Свои правила убраны:
+   они добавляли карточке лишний отступ и ломали высоту блока. */
 
-.review-card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--paper);
-  padding: 30px 28px;
-  display: grid;
-  gap: 18px;
-  align-content: start;
-}
-.testimonial-draft{display:inline-flex;margin-bottom:18px;padding:6px 9px;border-radius:999px;background:#eef3ff;color:var(--blue);font-size:10px;font-weight:700}
-
-.review-stars {
-  display: flex;
-  gap: 3px;
-  font-size: 17px;
-  color: var(--line);
-}
-
-.review-stars .on {
-  color: #f5a623;
-}
-
-.review-card blockquote {
-  margin: 0;
-  font-size: 17px;
-  line-height: 1.6;
-}
-
-.review-author {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-}
-
-.review-avatar img {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.review-author b {
-  display: block;
-  font-weight: 570;
-  font-size: 16px;
-}
-
-.review-author i {
-  display: block;
-  font-style: normal;
-  color: var(--muted);
-  font-size: 14px;
-  margin-top: 2px;
-}
-
-/* ==========================================================
-   «Что дальше» — перелинковка
-   ========================================================== */
-.next-section {
-  padding-top: 0;
-}
-
-.next-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
-}
-
-.next-card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--paper);
-  padding: 26px 26px 24px;
-  display: grid;
-  gap: 7px;
-  text-decoration: none;
-  color: inherit;
-  position: relative;
-  transition: border-color 0.2s ease, transform 0.2s ease;
-}
-
-.next-card:hover {
-  border-color: var(--blue);
-  transform: translateY(-2px);
-}
-
-.next-card b {
-  font-size: 19px;
-  font-weight: 580;
-  letter-spacing: -0.02em;
-}
-
-.next-card span {
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.5;
-  max-width: 30ch;
-}
-
-.next-card i {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  color: var(--blue);
-}
 
 @media (max-width: 700px) {
   .price-extras {

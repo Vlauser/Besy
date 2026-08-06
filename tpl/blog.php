@@ -11,7 +11,7 @@ $posts = blog_posts();
 <main>
 
   <?php if (has_any('blog.kicker', 'blog.title', 'blog.lede')): ?>
-  <section class="page-hero">
+  <section class="page-hero blog-hero">
     <div class="container reveal">
       <?php if (trim((string)c('blog.kicker')) !== ''): ?>
         <span class="section-kicker"><?= e(c('blog.kicker')) ?></span>
@@ -26,7 +26,7 @@ $posts = blog_posts();
   </section>
   <?php endif; ?>
 
-  <section class="section">
+  <section class="section blog-index-section">
     <div class="container">
       <?php if (!$posts): ?>
         <p class="blog-empty"><?= e(trim((string)c('blog.empty')) ?: 'Статей пока нет.') ?></p>
@@ -40,8 +40,6 @@ $posts = blog_posts();
       <?php endif; ?>
     </div>
   </section>
-
-  <?php require ROOT . '/tpl/_next.php'; ?>
 
   <?php require ROOT . '/tpl/_cta.php'; ?>
 </main>

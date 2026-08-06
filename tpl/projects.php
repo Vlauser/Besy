@@ -26,18 +26,16 @@
       </div>
       <?php endif; ?>
 
-      <div class="project-grid" id="projectGrid">
+      <div class="proof-grid projects-proof-grid" id="projectGrid">
+        <?php $PROJECT_FILTERABLE = true; ?>
         <?php foreach ((array)c('work.items', []) as $project): ?>
-          <div class="project-slot" data-c="<?= e($project['cat'] ?? '') ?>">
-            <?php require ROOT . '/tpl/_project_card.php'; ?>
-          </div>
+          <?php require ROOT . '/tpl/_project_card.php'; ?>
         <?php endforeach; ?>
+        <?php unset($PROJECT_FILTERABLE); ?>
       </div>
       <p class="projects-empty" id="projectsEmpty" hidden>В этой категории пока нет проектов.</p>
     </div>
   </section>
-
-  <?php require ROOT . '/tpl/_next.php'; ?>
 
   <?php require ROOT . '/tpl/_cta.php'; ?>
 </main>

@@ -284,7 +284,9 @@ function seo_crumbs(string $slug, ?array $project = null, ?array $post = null): 
                 'path' => url('blog'),
             ],
             [
-                'name' => trim((string)($post['title'] ?? '')) ?: 'Статья',
+                // В крошках стоит короткое название статьи — длинный заголовок
+                // переносится на вторую строку и ломает первый экран
+                'name' => trim((string)($post['card_title'] ?? '')) ?: (trim((string)($post['title'] ?? '')) ?: 'Статья'),
                 'url'  => seo_url($slug),
                 'path' => url($slug),
             ],
@@ -317,8 +319,21 @@ function seo_crumbs(string $slug, ?array $project = null, ?array $post = null): 
         'privacy'  => trim((string)c('legal.privacy_title')) ?: 'Политика обработки данных',
         'consent'  => trim((string)c('legal.consent_title')) ?: 'Согласие на обработку данных',
     ];
+    // Коммерческая страница лежит под услугами: Главная → Услуги → Название
     if (function_exists('commercial_page') && ($commercial = commercial_page($slug))) {
-        $names[$slug] = trim((string)($commercial['h1'] ?? '')) ?: 'Услуга';
+        return [
+            $home,
+            [
+                'name' => $names['services'],
+                'url'  => seo_url('services'),
+                'path' => url('services'),
+            ],
+            [
+                'name' => trim((string)($commercial['h1'] ?? '')) ?: 'Услуга',
+                'url'  => seo_url($slug),
+                'path' => url($slug),
+            ],
+        ];
     }
     if (!isset($names[$slug])) return [];
 

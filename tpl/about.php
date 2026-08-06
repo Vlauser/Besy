@@ -21,7 +21,7 @@
 
   <section class="section about-principles-section">
     <div class="container about-principles">
-      <div><span class="section-kicker"><?= e(c('about.values_lede')) ?></span><h2><?= e(c('about.values_title')) ?></h2></div>
+      <div><span class="section-kicker"><?= e(c('about.values_lede')) ?></span><h2><?= nl(c('about.values_title')) ?></h2></div>
       <div class="about-principle-list">
         <?php foreach (array_slice((array)c('about.values', []), 0, 3) as $value): ?>
           <div><?= icon('spark', 18) ?><span><b><?= e($value['title'] ?? '') ?></b><small><?= e($value['text'] ?? '') ?></small></span></div>
