@@ -55,6 +55,11 @@
 <meta name="theme-color" content="<?= e(trim((string)c('design.color_accent')) ?: '#0a5cff') ?>">
 
 <link rel="icon" href="<?= url(trim((string)c('seo.favicon')) ?: 'assets/img/favicon.svg') ?>">
+<?php /* Значок для домашнего экрана телефона. iOS не понимает SVG и не умеет
+         прозрачность — поэтому отдельный PNG 180×180, а не общий фавикон. */ ?>
+<?php if ($ai = trim((string)c('seo.apple_icon'))): ?>
+<link rel="apple-touch-icon" sizes="180x180" href="<?= url($ai) ?>">
+<?php endif; ?>
 <?php if ($yv = trim((string)c('seo.yandex_verify'))): ?>
 <meta name="yandex-verification" content="<?= e($yv) ?>">
 <?php endif; ?>
