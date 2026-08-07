@@ -4820,3 +4820,23 @@ h1, h2, h3, h4,
 @media (max-width:640px){
   .ax-success-art > picture{height:108%;bottom:-6%}
 }
+
+/* Телефон набок: по высоте всего ~400 px, а у окна «Заявка отправлена»
+   заложена минимальная высота 420. Снимаем её и поджимаем отступы —
+   двух колонок при такой ширине как раз хватает. */
+@media (max-height: 540px) and (min-width: 641px) {
+  .ax-success-modal{padding:10px}
+  .ax-success-dialog{min-height:0;border-radius:24px}
+  .ax-success-art{min-height:0}
+  .ax-success-art::before{width:180px;height:180px;top:18px}
+  .ax-success-content{padding:26px 32px 24px}
+  .ax-success-mark{margin-bottom:12px}
+  .ax-success-content h2{font-size:27px}
+  .ax-success-content p{margin-bottom:18px;font-size:15px}
+}
+/* Совсем низкий экран — прячем галочку, она чисто декоративная */
+@media (max-height: 420px) and (min-width: 641px) {
+  .ax-success-mark{display:none}
+  .ax-success-content{padding:18px 26px 18px}
+  .ax-success-content h2{font-size:23px}
+}
