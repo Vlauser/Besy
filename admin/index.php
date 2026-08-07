@@ -418,6 +418,34 @@ function render_header(array $user, string $action): void
           <a href="<?= url('admin/?action=logout') ?>" class="danger" data-find="выйти выход">Выйти</a>
         </nav>
       </aside>
+      <?php /* Меню — свой блок с прокруткой, и при переходе на раздел
+               оно начиналось бы сверху. Скрипт стоит сразу за меню, а не
+               в общем файле внизу страницы: так позиция восстанавливается
+               до отрисовки и глаз не ловит прыжок. */ ?>
+      <script>
+      (function () {
+        var s = document.getElementById('side');
+        if (!s) return;
+        var KEY = 'axm-side-scroll';
+        try {
+          var y = sessionStorage.getItem(KEY);
+          if (y !== null) {
+            s.scrollTop = +y;
+          } else {
+            // Первый заход: показываем текущий раздел, а не начало списка
+            var on = s.querySelector('.side-nav a.on');
+            if (on) s.scrollTop = on.offsetTop - s.clientHeight / 2 + on.offsetHeight / 2;
+          }
+        } catch (e) {}
+        var t;
+        s.addEventListener('scroll', function () {
+          clearTimeout(t);
+          t = setTimeout(function () {
+            try { sessionStorage.setItem(KEY, s.scrollTop); } catch (e) {}
+          }, 100);
+        }, { passive: true });
+      })();
+      </script>
 
       <button class="side-toggle" id="sideToggle" aria-label="Меню">☰</button>
       <main class="main">
