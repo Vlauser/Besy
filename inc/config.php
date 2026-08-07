@@ -23,8 +23,8 @@ define('ROOT', dirname(__DIR__));
  */
 if (is_file(ROOT . '/config.local.php')) require ROOT . '/config.local.php';
 
-if (!defined('DATA_DIR'))   define('DATA_DIR', ROOT . '/data');
-if (!defined('UPLOAD_DIR')) define('UPLOAD_DIR', ROOT . '/uploads');
+defined('DATA_DIR')   or define('DATA_DIR', ROOT . '/data');
+defined('UPLOAD_DIR') or define('UPLOAD_DIR', ROOT . '/uploads');
 
 // Базовый URL сайта без слэша в конце (например, https://axiomantic.ru)
 define('SITE_URL', (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
