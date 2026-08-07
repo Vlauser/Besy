@@ -3631,6 +3631,11 @@ a {
 body.ax-modal-open {
         overflow: hidden;
       }
+/* Мобильный вид окна «Заявка отправлена». В исходниках дизайнера этот
+   блок остался без обёртки @media, поэтому одноколоночная раскладка и
+   ограничение 420px применялись и на десктопе: окно превращалось в
+   узкую полосу с растянутым персонажем. */
+@media (max-width: 640px) {
 .ax-success-modal {
           padding: 14px;
         }
@@ -3674,12 +3679,16 @@ body.ax-modal-open {
           top: 14px;
           right: 14px;
         }
+}
+
+@media (prefers-reduced-motion: reduce) {
 .ax-success-modal,
         .ax-success-dialog,
         .ax-success-ok,
         .ax-success-close {
           transition: none;
         }
+}
 
 /* ==========================================================
    Выбор способа связи в форме заявки
@@ -4791,4 +4800,23 @@ h1, h2, h3, h4,
 @media(max-width:900px){
   .about-hero-grid{grid-template-columns:1fr;gap:34px}
   .about-hero-art{order:-1;max-width:420px}
+}
+
+/* ==========================================================
+   Окно «Заявка отправлена»: посадка персонажа
+   ==========================================================
+   В макете у картинки width:118% — проценты считались от самой
+   панели. У нас картинка обёрнута в <picture> (нужен для webp),
+   и процент стал считаться от обёртки: персонаж 887×1774 растягивал
+   окно до 1700 px в высоту. Поэтому задаём высоту, а не ширину, и
+   выводим обёртку из потока — тогда картинка не может растянуть
+   строку сетки, а панель живёт по своему min-height. */
+.ax-success-art > picture{
+  position:absolute;left:50%;bottom:-4%;transform:translateX(-50%);
+  z-index:1;display:block;height:112%;width:auto;pointer-events:none}
+.ax-success-art > picture > img{
+  display:block;height:100%;width:auto;max-width:none;margin:0;
+  filter:drop-shadow(0 18px 24px rgba(0,70,140,.12))}
+@media (max-width:640px){
+  .ax-success-art > picture{height:108%;bottom:-6%}
 }
