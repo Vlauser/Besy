@@ -45,6 +45,18 @@
     </IfModule>
 </FilesMatch>
 
+# ---------- Локальная настройка путей ----------
+# Файл исполняется движком, но по прямой ссылке отдаваться не должен
+<Files "config.local.php">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</Files>
+
 # ---------- Документация и примеры конфигов ----------
 # Лежат в корне для владельца сайта, посетителю их отдавать незачем
 <FilesMatch "\.(md|example|bak|json)$">

@@ -28,6 +28,9 @@ server {
 
     client_max_body_size 12M;   # запас под картинки (лимит в config.php — 8 МБ)
 
+    # Локальная настройка путей — исполняется, но наружу не отдаётся
+    location = /config.local.php { deny all; return 404; }
+
     # ---------- 1. Запреты. Строго перед блоком PHP ----------
     location ~ ^/(data|inc|tools)/ {
         deny all;
