@@ -8,8 +8,23 @@ declare(strict_types=1);
 
 // Абсолютный путь к корню проекта
 define('ROOT', dirname(__DIR__));
-define('DATA_DIR', ROOT . '/data');
-define('UPLOAD_DIR', ROOT . '/uploads');
+
+/**
+ * Папку с данными можно вынести за пределы сайта — тогда до заявок
+ * и паролей нельзя добраться по адресу в браузере даже при ошибке
+ * в настройках веб-сервера. Для этого положите рядом с index.php
+ * файл config.local.php:
+ *
+ *     <?php
+ *     define('DATA_DIR', '/var/www/axiomantic-data');
+ *
+ * Папка загрузок так вынесена быть не может: картинки из неё
+ * отдаются посетителям по прямым ссылкам.
+ */
+if (is_file(ROOT . '/config.local.php')) require ROOT . '/config.local.php';
+
+if (!defined('DATA_DIR'))   define('DATA_DIR', ROOT . '/data');
+if (!defined('UPLOAD_DIR')) define('UPLOAD_DIR', ROOT . '/uploads');
 
 // Базовый URL сайта без слэша в конце (например, https://axiomantic.ru)
 define('SITE_URL', (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')

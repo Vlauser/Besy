@@ -11,3 +11,7 @@ data/users.json
 data/leads.json
 data/ratelimit.json
 data/throttle.json
+
+# Локальная настройка путей на конкретном сервере.
+# Не попадает в архив, поэтому переживает обновление сайта.
+config.local.php
