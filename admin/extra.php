@@ -148,10 +148,27 @@ function render_health(): void
 /* ============================================================
    РЕЗЕРВНЫЕ КОПИИ
    ============================================================ */
+/**
+ * Все файлы содержимого в папке data, кроме рабочего content.json.
+ * Сюда попадает и автокопия content.bak.json, и всё, что владелец
+ * сайта отложил руками — например content-2026-08-06.json.
+ */
+function backup_files(): array
+{
+    $out = [];
+    foreach (glob(DATA_DIR . '/content*.json') ?: [] as $path) {
+        $base = basename($path);
+        if ($base === 'content.json' || $base === 'content.default.json') continue;
+        $out[$base] = ['time' => (int)@filemtime($path), 'size' => (int)@filesize($path)];
+    }
+    uasort($out, fn($a, $b) => $b['time'] <=> $a['time']);
+    return $out;
+}
+
 function render_backup(string $notice, string $error): void
 {
-    $bak = DATA_DIR . '/content.json.bak.json';
-    $cur = DATA_DIR . '/content.json';
+    $cur   = DATA_DIR . '/content.json';
+    $files = backup_files();
     ?>
     <h1 class="h1">Резервные копии</h1>
     <p class="sub">Копия предыдущей версии создаётся автоматически при каждом сохранении. Здесь её можно вернуть или сохранить себе.</p>
@@ -167,17 +184,35 @@ function render_backup(string $notice, string $error): void
     </div>
 
     <div class="box">
-      <div class="h2">Предыдущая версия</div>
-      <?php if (is_file($bak)): ?>
-        <p class="sub">Сохранена <?= date('d.m.Y в H:i', (int)filemtime($bak)) ?>.
-           Восстановление заменит весь текущий контент.</p>
-        <form method="post">
-          <?= csrf_field() ?>
-          <input type="hidden" name="mode" value="restore">
-          <button class="btn btn--gh" data-confirm="Вернуть предыдущую версию? Текущий контент будет заменён.">Вернуть предыдущую версию</button>
-        </form>
+      <div class="h2">Копии на сервере</div>
+      <?php if ($files): ?>
+        <p class="sub">Лежат в папке <code>data</code>. Перед заменой текущая версия
+           сохраняется в <code>content.bak.json</code>, так что откатиться можно и назад.</p>
+        <table class="bak-table">
+          <?php foreach ($files as $name => $f): ?>
+            <tr>
+              <td>
+                <b><?= e($name) ?></b>
+                <?php if ($name === 'content.bak.json'): ?>
+                  <span class="bak-tag">копия перед последним сохранением</span>
+                <?php endif; ?>
+              </td>
+              <td class="bak-meta"><?= $f['time'] ? date('d.m.Y в H:i', $f['time']) : '—' ?></td>
+              <td class="bak-meta"><?= round($f['size'] / 1024) ?> КБ</td>
+              <td>
+                <form method="post">
+                  <?= csrf_field() ?>
+                  <input type="hidden" name="mode" value="restore">
+                  <input type="hidden" name="file" value="<?= e($name) ?>">
+                  <button class="btn btn--gh" data-confirm="Вернуть версию из «<?= e($name) ?>»? Текущий контент будет заменён.">Вернуть эту версию</button>
+                </form>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </table>
       <?php else: ?>
-        <p class="sub">Копии пока нет — она появится после первого сохранения.</p>
+        <p class="sub">Копий пока нет — <code>content.bak.json</code> появится после первого
+           сохранения в админке.</p>
       <?php endif; ?>
     </div>
 

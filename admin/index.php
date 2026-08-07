@@ -256,13 +256,19 @@ if ($action === 'backup') {
         $mode = (string)($_POST['mode'] ?? '');
 
         if ($mode === 'restore') {
-            $bak = DATA_DIR . '/content.json.bak.json';
-            $raw = is_file($bak) ? (string)file_get_contents($bak) : '';
-            $data = json_decode($raw, true);
-            if (is_array($data) && content_save($data)) {
-                $notice = 'Предыдущая версия восстановлена';
+            /* Берём только те файлы, которые сами же и показали в списке —
+               так в имя нельзя подсунуть путь наружу из папки data */
+            require_once __DIR__ . '/extra.php';
+            $name = basename((string)($_POST['file'] ?? 'content.bak.json'));
+            $data = null;
+            if (array_key_exists($name, backup_files())) {
+                $raw  = (string)@file_get_contents(DATA_DIR . '/' . $name);
+                $data = json_decode($raw, true);
+            }
+            if (is_array($data) && isset($data['site']) && content_save($data)) {
+                $notice = 'Восстановлено из «' . $name . '»';
             } else {
-                $error = 'Не удалось восстановить копию';
+                $error = 'Не удалось восстановить копию из «' . $name . '»';
             }
         }
 
