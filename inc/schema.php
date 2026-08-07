@@ -706,7 +706,7 @@ function schema(): array
             'group' => 'Настройки',
             'title' => 'SEO — общие',
             'admin_only' => true,
-            'desc'  => 'Домен, robots.txt и подтверждение прав в поисковиках. Карта сайта собирается сама: /sitemap.xml',
+            'desc'  => 'Домен, robots.txt и данные организации для микроразметки. Карта сайта собирается сама: /sitemap.xml. Коды Вебмастера и Метрики — в разделе «Подключения и аналитика».',
             'fields' => [
                 'seo.canonical_host' => ['label' => 'Основной адрес сайта', 'type' => 'text', 'hint' => 'Со схемой и без слэша: https://axiomantic.ru'],
                 'seo.force_host'     => ['label' => 'Уводить на основной адрес', 'type' => 'check', 'hint' => 'Открыли www.axiomantic.ru или http — перебросит на адрес выше. Иначе поисковик считает их разными сайтами и делит вес пополам. Выключите, если сайт открывается ещё и по тестовому домену.'],
@@ -714,9 +714,7 @@ function schema(): array
                 'seo.title_fallback' => ['label' => 'Title по умолчанию', 'type' => 'text'],
                 'seo.noindex_all'    => ['label' => 'Закрыть ВЕСЬ сайт от индексации', 'type' => 'check', 'hint' => 'Только на время разработки. Не забудьте выключить.'],
                 'seo.sitemap_on'     => ['label' => 'Отдавать /sitemap.xml', 'type' => 'check'],
-                'seo.robots_txt'     => ['label' => 'Содержимое robots.txt', 'type' => 'textarea', 'rows' => 6],
-                'seo.yandex_verify'  => ['label' => 'Яндекс.Вебмастер — код', 'type' => 'text', 'w' => 'm'],
-                'seo.google_verify'  => ['label' => 'Google Search Console — код', 'type' => 'text', 'w' => 'm'],
+                'seo.robots_txt'     => ['label' => 'Содержимое robots.txt', 'type' => 'textarea', 'rows' => 6, 'hint' => 'Пусто — движок соберёт сам, с Clean-param для меток Директа. Заполняйте, только если точно знаете, что меняете.'],
                 'seo.org_name'       => ['label' => 'Организация — название', 'type' => 'text', 'w' => 'm'],
                 'seo.org_city'       => ['label' => 'Организация — город', 'type' => 'text', 'w' => 'm'],
                 'seo.org_price'      => ['label' => 'Ценовой диапазон', 'type' => 'text', 'w' => 'm'],
@@ -748,13 +746,34 @@ function schema(): array
 
         'integrations' => [
             'group' => 'Настройки',
-            'title' => 'Уведомления и аналитика',
+            'title' => 'Подключения и аналитика',
             'admin_only' => true,
+            'desc'  => 'Все коды от внешних сервисов в одном месте: бот, почта, Метрика, Вебмастер.',
+            'fieldsets' => [
+                [
+                    'title'  => 'Куда приходят заявки',
+                    'desc'   => 'Заявка в любом случае сохраняется в разделе «Заявки». Бот и почта — чтобы узнать о ней сразу.',
+                    'fields' => ['integrations.telegram_token', 'integrations.telegram_chat_id',
+                                 'integrations.notify_email'],
+                ],
+                [
+                    'title'  => 'Яндекс: счётчик и права на сайт',
+                    'desc'   => 'Метрика считает посетителей, Вебмастер показывает, как сайт видит поиск. Оба подключаются кодом из личного кабинета.',
+                    'fields' => ['integrations.metrika_id', 'seo.yandex_verify', 'seo.google_verify'],
+                ],
+                [
+                    'title'  => 'Свой код на страницах',
+                    'desc'   => 'Для чужих виджетов и счётчиков. Вставляется на все страницы как есть — ошибка в коде сломает сайт.',
+                    'fields' => ['integrations.head_code', 'integrations.body_code'],
+                ],
+            ],
             'fields' => [
                 'integrations.telegram_token' => ['label' => 'Telegram — токен бота', 'type' => 'text', 'hint' => 'Создать бота у @BotFather.'],
-                'integrations.telegram_chat_id' => ['label' => 'Telegram — chat_id', 'type' => 'text', 'w' => 'm', 'hint' => 'Свой id узнаете у @userinfobot.'],
+                'integrations.telegram_chat_id' => ['label' => 'Telegram — chat_id', 'type' => 'text', 'w' => 'm', 'hint' => 'Свой id узнаете у @userinfobot. Боту нужно написать хотя бы одно сообщение — первым он писать не умеет.'],
                 'integrations.notify_email'   => ['label' => 'Почта для заявок', 'type' => 'text', 'w' => 'm'],
-                'integrations.metrika_id'     => ['label' => 'ID Яндекс.Метрики', 'type' => 'text', 'w' => 'm', 'hint' => 'Счётчик запускается только после согласия на cookie. Все цели — тип «JavaScript-событие». Идентификаторы: lead — заявка отправлена, form_open — открыта форма, form_start — начал заполнять, click_telegram, click_email, click_phone — клики по контактам, project_click — клик по кейсу, faq_open — раскрыт вопрос, scroll_25/50/75/100 — глубина прокрутки.'],
+                'integrations.metrika_id'     => ['label' => 'ID Яндекс.Метрики', 'type' => 'text', 'w' => 'm', 'hint' => 'Только цифры номера счётчика. Счётчик запускается после согласия на cookie. Все цели — тип «JavaScript-событие». Идентификаторы: lead — заявка отправлена, form_open — открыта форма, form_start — начал заполнять, click_telegram, click_email, click_phone — клики по контактам, project_click — клик по кейсу, faq_open — раскрыт вопрос, scroll_25/50/75/100 — глубина прокрутки.'],
+                'seo.yandex_verify'  => ['label' => 'Яндекс.Вебмастер — код', 'type' => 'text', 'w' => 'm', 'hint' => 'В Вебмастере выберите способ «Мета-тег» и возьмите из него только содержимое content — сам тег движок соберёт.'],
+                'seo.google_verify'  => ['label' => 'Google Search Console — код', 'type' => 'text', 'w' => 'm', 'hint' => 'Так же: только содержимое content из мета-тега.'],
                 'integrations.head_code'      => ['label' => 'Произвольный код в head', 'type' => 'textarea', 'rows' => 4],
                 'integrations.body_code'      => ['label' => 'Произвольный код перед </body>', 'type' => 'textarea', 'rows' => 4],
             ],
