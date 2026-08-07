@@ -55,11 +55,24 @@ function health_checks(): array
 
     /* --- Заявки доходят --- */
     $g = 'Заявки доходят до вас';
-    $tg  = trim((string)c('integrations.telegram_token')) !== '' && trim((string)c('integrations.telegram_chat_id')) !== '';
-    $add($g, 'Telegram-бот подключён', $tg,
-        'Без него вы узнаёте о заявке, только если сами зайдёте в панель.', 'integrations');
-    $add($g, 'Почта для уведомлений указана', trim((string)c('integrations.notify_email')) !== '',
-        'Запасной канал на случай, если бот отвалится.', 'integrations');
+    /* Сама заявка всегда пишется в раздел «Заявки» — бот и почта только
+       уведомляют. Поэтому достаточно любого одного канала: требовать оба
+       незачем, иначе проверка вечно горит красным без всякой причины. */
+    $tg    = trim((string)c('integrations.telegram_token')) !== '' && trim((string)c('integrations.telegram_chat_id')) !== '';
+    $mail  = trim((string)c('integrations.notify_email')) !== '';
+    $chans = array_filter(['Telegram' => $tg, 'почта' => $mail]);
+
+    $add($g, $chans
+            ? 'Уведомления о заявке приходят: ' . implode(' и ', array_keys($chans))
+            : 'Уведомления о заявке не приходят',
+        $tg || $mail,
+        'Заявка всё равно сохранится в разделе «Заявки», но вы узнаете о ней, '
+        . 'только если сами зайдёте в панель. Подключите бота или укажите почту.', 'integrations');
+
+    if ($tg && !$mail) {
+        $add($g, 'Запасной канал: почта не указана — не обязательно', true,
+            '', 'integrations');
+    }
     $add($g, 'Каналов связи на сайте: ' . count((array)c('site.channels', [])), count((array)c('site.channels', [])) > 0,
         'Добавьте хотя бы один способ связи.', 'site');
 
