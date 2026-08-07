@@ -1,8 +1,22 @@
 <?php
-$visualSlug = trim((string)($project['slug'] ?? ''));
-$visualName = trim((string)($project['name'] ?? ''));
+$visualSlug  = trim((string)($project['slug'] ?? ''));
+$visualName  = trim((string)($project['name'] ?? ''));
+$visualShot  = trim((string)($project['image'] ?? ''));
+/**
+ * Порядок такой: загруженный скриншот важнее заготовки.
+ *
+ * У восьми демонстрационных проектов дизайнер нарисовал красивые
+ * заглушки — логотип на цветной подложке вместо снимка экрана.
+ * Раньше они стояли жёстко, и загруженный через админку скриншот
+ * не показывался вообще: поле «Скриншот» есть, а толку нет.
+ * Теперь заглушка — это запасной вариант, когда снимка ещё нет.
+ */
 ?>
-<?php if ($visualSlug === 'pottery-studio'): ?>
+<?php if ($visualShot !== ''): ?>
+  <div class="project-visual">
+    <?= img_html($visualShot, 'Главная страница проекта ' . $visualName, ['class' => 'project-screenshot']) ?>
+  </div>
+<?php elseif ($visualSlug === 'pottery-studio'): ?>
   <div class="project-visual project-visual-pottery">
     <div class="pottery-preview-brand"><div class="pottery-preview-logo">КРУГ</div><span>студия керамики</span></div>
     <div class="pottery-preview-photo"><?= img_html('assets/img/projects/pottery-preview.png', 'Яркая керамика ручной работы') ?></div>
