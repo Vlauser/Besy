@@ -19,14 +19,14 @@ WEB_USER="${WEB_USER:-www-data}"
 EMAIL="${EMAIL:-}"                      # для certbot, если ещё не зарегистрирован
 
 PROJECTS="
-raid-38|https://irkutsk-enduro-school.polinaperevoznikova1.chatgpt.site
-besy-esim|https://besy-vpn.polinaperevoznikova1.chatgpt.site
+raid38|https://irkutsk-enduro-school.polinaperevoznikova1.chatgpt.site
+besy|https://besy-vpn.polinaperevoznikova1.chatgpt.site
 forma|https://forma-clinic.polinaperevoznikova1.chatgpt.site
-pravo-legal|https://pravo-legal.polinaperevoznikova1.chatgpt.site
-mellow-coffee|https://mellow-coffee.polinaperevoznikova1.chatgpt.site
+pravo|https://pravo-legal.polinaperevoznikova1.chatgpt.site
+mellow|https://mellow-coffee.polinaperevoznikova1.chatgpt.site
 rewind|https://rewind-film-festival.polinaperevoznikova1.chatgpt.site
-pottery-studio|https://keramika-studio.polinaperevoznikova1.chatgpt.site
-cupcake-studio|https://cupcake-studio.polinaperevoznikova1.chatgpt.site
+keramika|https://keramika-studio.polinaperevoznikova1.chatgpt.site
+cupcake|https://cupcake-studio.polinaperevoznikova1.chatgpt.site
 "
 
 slugs() { echo "$PROJECTS" | grep -v '^$' | cut -d'|' -f1; }
