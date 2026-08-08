@@ -1,15 +1,17 @@
 #!/bin/bash
 # Поднять поддомены под проекты портфолио.
 #
+#   bash proekty-podomeny.sh deploy <архив.zip>
+#                                     — разложить готовые сборки от
+#                                       дизайнера по папкам поддоменов
 #   bash proekty-podomeny.sh mirror   — снять копии сайтов с площадки,
-#                                       где они сейчас живут
+#                                       где они сейчас живут (запасной путь,
+#                                       работает не со всеми сайтами)
 #   bash proekty-podomeny.sh nginx    — создать конфиги и включить их
 #   bash proekty-podomeny.sh cert     — выпустить сертификат на все поддомены
-#   bash proekty-podomeny.sh all      — всё подряд
 #
-# Домен и список проектов правятся ниже. Слева — поддомен, справа —
-# адрес, откуда снимать копию. Адреса взяты из админки, раздел
-# «Портфолио», поле «Ссылка на сайт».
+# Домен и список проектов правятся ниже. Слева — поддомен, дальше —
+# папка в архиве дизайнера и адрес, откуда можно снять копию.
 
 set -u
 
@@ -18,23 +20,62 @@ ROOT="${ROOT:-/var/www/projects}"
 WEB_USER="${WEB_USER:-www-data}"
 EMAIL="${EMAIL:-}"                      # для certbot, если ещё не зарегистрирован
 
+# поддомен | папка в архиве дизайнера | адрес для запасного зеркала
 PROJECTS="
-raid38|https://irkutsk-enduro-school.polinaperevoznikova1.chatgpt.site
-besy|https://besy-vpn.polinaperevoznikova1.chatgpt.site
-forma|https://forma-clinic.polinaperevoznikova1.chatgpt.site
-pravo|https://pravo-legal.polinaperevoznikova1.chatgpt.site
-mellow|https://mellow-coffee.polinaperevoznikova1.chatgpt.site
-rewind|https://rewind-film-festival.polinaperevoznikova1.chatgpt.site
-keramika|https://keramika-studio.polinaperevoznikova1.chatgpt.site
-cupcake|https://cupcake-studio.polinaperevoznikova1.chatgpt.site
+raid38|irkutsk-enduro-school|https://irkutsk-enduro-school.polinaperevoznikova1.chatgpt.site
+besy|besy-vpn|https://besy-vpn.polinaperevoznikova1.chatgpt.site
+forma|forma-clinic|https://forma-clinic.polinaperevoznikova1.chatgpt.site
+pravo|pravo-legal|https://pravo-legal.polinaperevoznikova1.chatgpt.site
+mellow|mellow-coffee|https://mellow-coffee.polinaperevoznikova1.chatgpt.site
+rewind|rewind-film-festival|https://rewind-film-festival.polinaperevoznikova1.chatgpt.site
+keramika|keramika-studio|https://keramika-studio.polinaperevoznikova1.chatgpt.site
+cupcake|cupcake-studio|https://cupcake-studio.polinaperevoznikova1.chatgpt.site
 "
 
-slugs() { echo "$PROJECTS" | grep -v '^$' | cut -d'|' -f1; }
+rows()  { echo "$PROJECTS" | grep -v '^$' | grep -v '^#'; }
+slugs() { rows | cut -d'|' -f1; }
+
+# ---------- 0. Разложить сборки от дизайнера ----------
+do_deploy() {
+  ARC="${1:-}"
+  [ -f "$ARC" ] || { echo "Укажите архив: bash $0 deploy /root/arhiv.zip"; exit 1; }
+  command -v unzip >/dev/null || { echo "Нет unzip: apt install -y unzip"; exit 1; }
+
+  TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+  unzip -q "$ARC" -d "$TMP" || { echo "Архив не распаковался"; exit 1; }
+  echo "Распаковано во временную папку, раскладываю."
+  echo
+
+  mkdir -p "$ROOT"
+  ok=0; bad=0
+  while IFS='|' read -r slug dir _; do
+    # папка может лежать как в корне архива, так и внутри одной общей
+    src=$(find "$TMP" -maxdepth 3 -type d -name "$dir" | head -1)
+    if [ -z "$src" ]; then
+      echo "  ✕ $slug — папки «$dir» в архиве нет"; bad=$((bad+1)); continue
+    fi
+    if [ ! -f "$src/index.html" ]; then
+      echo "  ✕ $slug — в «$dir» нет index.html"; bad=$((bad+1)); continue
+    fi
+    rm -rf "${ROOT:?}/$slug"
+    mkdir -p "$ROOT/$slug"
+    cp -a "$src"/. "$ROOT/$slug"/
+    printf '  ✓ %-10s ← %-24s %s, файлов: %s\n' \
+      "$slug" "$dir" "$(du -sh "$ROOT/$slug" | cut -f1)" "$(find "$ROOT/$slug" -type f | wc -l)"
+    ok=$((ok+1))
+  done <<< "$(rows)"
+
+  chown -R "$WEB_USER:$WEB_USER" "$ROOT"
+  find "$ROOT" -type d -exec chmod 755 {} \; ; find "$ROOT" -type f -exec chmod 644 {} \;
+  echo
+  echo "Разложено: $ok, не получилось: $bad"
+  [ "$bad" = 0 ] || echo "Проверьте имена папок внутри архива и список PROJECTS в этом файле."
+}
 
 # ---------- 1. Копии сайтов ----------
 do_mirror() {
   command -v wget >/dev/null || { echo "Нет wget: apt install -y wget"; exit 1; }
-  echo "$PROJECTS" | grep -v '^$' | while IFS='|' read -r slug src; do
+  rows | while IFS='|' read -r slug _dir src; do
     echo
     echo "=== $slug  ←  $src"
     mkdir -p "$ROOT/$slug"
@@ -105,9 +146,9 @@ do_cert() {
 }
 
 case "${1:-}" in
+  deploy) do_deploy "${2:-}" ;;
   mirror) do_mirror ;;
   nginx)  do_nginx ;;
   cert)   do_cert ;;
-  all)    do_mirror; do_nginx; do_cert ;;
-  *) echo "Что делать: mirror | nginx | cert | all"; exit 1 ;;
+  *) echo "Что делать: deploy <архив.zip> | mirror | nginx | cert"; exit 1 ;;
 esac
