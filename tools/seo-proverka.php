@@ -154,10 +154,14 @@ foreach ($urls as $url) {
 
     $h1 = preg_match_all('~<h1[\s>]~', $html);
 
-    preg_match_all('~<img\b[^>]*>~', $html, $imgs);
+    // Считаем только картинки совсем без alt. Пустой alt="" — не ошибка,
+    // а пометка «картинка декоративная»: читалка экрана её пропустит,
+    // вместо того чтобы зачитывать адрес файла. Так помечены пиксели
+    // счётчиков и фоновые украшения.
+    preg_match_all('~<img\b[^>]*>~i', $html, $imgs);
     $noalt = 0;
     foreach ($imgs[0] as $tag) {
-        if (!preg_match('~\balt="[^"]+"~', $tag)) $noalt++;
+        if (!preg_match('~\salt\s*=~i', $tag)) $noalt++;
     }
 
     $notes = [];
