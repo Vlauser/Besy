@@ -28,7 +28,10 @@ $base = $argv[1] ?? '';
 if ($base === '') {
     require $root . '/inc/config.php';
     require $root . '/inc/store.php';
-    $base = trim((string)c('site.url'));
+    // «Основной адрес сайта» из раздела SEO — общие. Если не заполнен,
+    // движок подставляет адрес текущего запроса, но из командной строки
+    // запроса нет, поэтому там окажется localhost.
+    $base = trim((string)c('seo.canonical_host'));
 }
 $base = rtrim($base, '/');
 if ($base === '') {
