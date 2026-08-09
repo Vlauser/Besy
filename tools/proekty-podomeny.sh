@@ -9,6 +9,9 @@
 #                                       работает не со всеми сайтами)
 #   bash proekty-podomeny.sh nginx    — создать конфиги и включить их
 #   bash proekty-podomeny.sh cert     — выпустить сертификат на все поддомены
+#   bash proekty-podomeny.sh pochistit
+#                                     — убрать поддомены со старыми именами
+#                                       (список STARYE ниже)
 #
 # Домен и список проектов правятся ниже. Слева — поддомен, дальше —
 # папка в архиве дизайнера и адрес, откуда можно снять копию.
@@ -25,12 +28,16 @@ PROJECTS="
 raid38|irkutsk-enduro-school|https://irkutsk-enduro-school.polinaperevoznikova1.chatgpt.site
 besy|besy-vpn|https://besy-vpn.polinaperevoznikova1.chatgpt.site
 forma|forma-clinic|https://forma-clinic.polinaperevoznikova1.chatgpt.site
-pravo|pravo-legal|https://pravo-legal.polinaperevoznikova1.chatgpt.site
+dovod|pravo-legal|https://pravo-legal.polinaperevoznikova1.chatgpt.site
 mellow|mellow-coffee|https://mellow-coffee.polinaperevoznikova1.chatgpt.site
 rewind|rewind-film-festival|https://rewind-film-festival.polinaperevoznikova1.chatgpt.site
-keramika|keramika-studio|https://keramika-studio.polinaperevoznikova1.chatgpt.site
-cupcake|cupcake-studio|https://cupcake-studio.polinaperevoznikova1.chatgpt.site
+krug|keramika-studio|https://keramika-studio.polinaperevoznikova1.chatgpt.site
+krem-kroshka|cupcake-studio|https://cupcake-studio.polinaperevoznikova1.chatgpt.site
 "
+
+# Поддомены, которые когда-то были, а теперь называются иначе.
+# Режим «pochistit» убирает их конфиги и папки, чтобы не мешались.
+STARYE="pravo keramika cupcake"
 
 rows()  { echo "$PROJECTS" | grep -v '^$' | grep -v '^#'; }
 slugs() { rows | cut -d'|' -f1; }
@@ -136,19 +143,47 @@ CONF
 do_cert() {
   args=""
   for slug in $(slugs); do args="$args -d $slug.$DOMAIN"; done
-  echo "certbot --nginx$args"
+
+  # Сертификат живёт под именем первого поддомена. Указываем его явно:
+  # иначе при смене списка имён certbot не поймёт, обновлять старый
+  # сертификат или заводить рядом второй, и остановится с вопросом.
+  name="$(slugs | head -1).$DOMAIN"
+
+  echo "certbot --nginx --cert-name $name$args"
   # shellcheck disable=SC2086
   if [ -n "$EMAIL" ]; then
-    certbot --nginx $args --non-interactive --agree-tos -m "$EMAIL" --redirect
+    certbot --nginx --cert-name "$name" $args --non-interactive --agree-tos -m "$EMAIL" --redirect
   else
-    certbot --nginx $args --redirect
+    certbot --nginx --cert-name "$name" $args --redirect
   fi
 }
 
+# ---------- 4. Убрать поддомены со старыми именами ----------
+do_pochistit() {
+  n=0
+  for slug in $STARYE; do
+    found=""
+    for p in "/etc/nginx/sites-enabled/$slug.$DOMAIN" \
+             "/etc/nginx/sites-available/$slug.$DOMAIN" \
+             "$ROOT/$slug"; do
+      [ -e "$p" ] || continue
+      rm -rf "$p"
+      found=1
+    done
+    if [ -n "$found" ]; then
+      echo "  убран $slug.$DOMAIN"
+      n=$((n+1))
+    fi
+  done
+  echo "Убрано старых поддоменов: $n"
+  [ "$n" = 0 ] || { nginx -t && systemctl reload nginx && echo "nginx перечитал конфиги"; }
+}
+
 case "${1:-}" in
-  deploy) do_deploy "${2:-}" ;;
-  mirror) do_mirror ;;
-  nginx)  do_nginx ;;
-  cert)   do_cert ;;
-  *) echo "Что делать: deploy <архив.zip> | mirror | nginx | cert"; exit 1 ;;
+  deploy)    do_deploy "${2:-}" ;;
+  mirror)    do_mirror ;;
+  nginx)     do_nginx ;;
+  cert)      do_cert ;;
+  pochistit) do_pochistit ;;
+  *) echo "Что делать: deploy <архив.zip> | mirror | nginx | cert | pochistit"; exit 1 ;;
 esac
