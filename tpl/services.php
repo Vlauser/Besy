@@ -19,9 +19,12 @@
   <section class="section">
     <div class="container">
       <div class="home-services-grid">
+        <?php /* Сетка идёт сразу за заголовком страницы, поэтому карточки — второй уровень */ ?>
+        <?php $CARD_H = 'h2'; ?>
         <?php foreach ((array)c('services.items', []) as $n => $s): ?>
           <?php require ROOT . '/tpl/_service_card.php'; ?>
         <?php endforeach; ?>
+        <?php unset($CARD_H); ?>
       </div>
     </div>
   </section>

@@ -33,9 +33,12 @@ $posts = blog_posts();
       <?php else: ?>
         <div class="blog-index-intro"><span>Разбираем реальные задачи бизнеса</span><p>Каждый материал отвечает на один вопрос и ведёт к полезной странице, а не к ещё одной статье ради трафика.</p></div>
         <div class="blog-grid">
+          <?php /* Сетка идёт сразу за заголовком страницы, поэтому карточки — второй уровень */ ?>
+          <?php $CARD_H = 'h2'; ?>
           <?php foreach ($posts as $i => $p): ?>
             <?php $BLOG_FIRST = $i === 0; require ROOT . '/tpl/_blog_card.php'; unset($BLOG_FIRST); ?>
           <?php endforeach; ?>
+          <?php unset($CARD_H); ?>
         </div>
       <?php endif; ?>
     </div>

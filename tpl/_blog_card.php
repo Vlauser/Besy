@@ -10,6 +10,11 @@
 $postUrl   = blog_url((string)$p['slug']);
 $postDate  = blog_date((string)($p['date'] ?? ''));
 $postTitle = trim((string)($p['card_title'] ?? '')) ?: (string)($p['title'] ?? '');
+
+/* Уровень заголовка карточки: на главной и в конце статьи над сеткой
+   есть заголовок раздела, поэтому третий. На /blog сетка идёт сразу за
+   заголовком страницы, там нужен второй — иначе уровни прыгают. */
+$cardH = $CARD_H ?? 'h3';
 $postCat   = trim((string)($p['category'] ?? ''));
 $postRead  = trim((string)($p['read_time'] ?? ''));
 ?>
@@ -27,7 +32,7 @@ $postRead  = trim((string)($p['read_time'] ?? ''));
         <?php if ($postRead !== ''): ?><span><?= e($postRead) ?></span><?php endif; ?>
       </div>
       <?php endif; ?>
-      <h3><?= e($postTitle) ?></h3>
+      <<?= $cardH ?>><?= e($postTitle) ?></<?= $cardH ?>>
       <?php if (trim((string)($p['excerpt'] ?? '')) !== ''): ?><p><?= e($p['excerpt']) ?></p><?php endif; ?>
       <strong class="blog-card-link"><?= e(trim((string)c('blog.card_link')) ?: 'Читать') ?> <?= icon('arrow', 16) ?></strong>
     </div>
