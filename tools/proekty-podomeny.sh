@@ -149,12 +149,18 @@ do_cert() {
   # сертификат или заводить рядом второй, и остановится с вопросом.
   name="$(slugs | head -1).$DOMAIN"
 
+  # --expand разрешает менять набор имён молча. Без него certbot
+  # спрашивает подтверждение, а ответ читает из общего потока ввода —
+  # если команда была вставлена вместе со следующими, он подхватывает
+  # их остаток и падает на первом же русском символе.
   echo "certbot --nginx --cert-name $name$args"
   # shellcheck disable=SC2086
   if [ -n "$EMAIL" ]; then
-    certbot --nginx --cert-name "$name" $args --non-interactive --agree-tos -m "$EMAIL" --redirect
+    certbot --nginx --cert-name "$name" $args \
+            --redirect --expand --non-interactive --agree-tos -m "$EMAIL"
   else
-    certbot --nginx --cert-name "$name" $args --redirect
+    certbot --nginx --cert-name "$name" $args \
+            --redirect --expand --non-interactive
   fi
 }
 
