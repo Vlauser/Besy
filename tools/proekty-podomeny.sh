@@ -127,7 +127,14 @@ server {
     }
 
     add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
+
+    # Основной сайт показывает проект в рамке на его странице кейса.
+    # Поддомен и axiomantic.ru — разные источники, поэтому SAMEORIGIN
+    # здесь не подходит: браузер заблокирует рамку с ERR_BLOCKED_BY_RESPONSE.
+    # frame-ancestors разрешает встраивание одному нашему домену и
+    # запрещает всем остальным; X-Frame-Options так не умеет —
+    # ALLOW-FROM браузеры не поддерживают.
+    add_header Content-Security-Policy "frame-ancestors https://$DOMAIN https://www.$DOMAIN" always;
 
     access_log /var/log/nginx/$slug.access.log;
     error_log  /var/log/nginx/$slug.error.log;
