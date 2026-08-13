@@ -46,18 +46,48 @@ function describe(payload, status) {
   return `Ошибка ${status}`;
 }
 
-async function request(method, path, { body, formData, signal } = {}) {
+/** Сколько ждать ответа. Без этого зависший сервер оборачивается вечным
+ *  спиннером: `fetch` сам по себе не истекает никогда, промис не завершается,
+ *  и экран так и остаётся в загрузке — ни ошибки, ни возможности повторить.
+ *  Загрузка фотографии идёт дольше остальных запросов, ей срок отдельный. */
+const TIMEOUT_MS = 15000;
+const UPLOAD_TIMEOUT_MS = 60000;
+
+async function request(method, path, { body, formData, signal, timeout } = {}) {
   const headers = {};
   const hadToken = Boolean(token);
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
-  const response = await fetch(BASE + path, {
-    method,
-    headers,
-    body: formData ?? (body !== undefined ? JSON.stringify(body) : undefined),
-    signal,
-  });
+  const limit = timeout ?? (formData ? UPLOAD_TIMEOUT_MS : TIMEOUT_MS);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), limit);
+  // Отмена снаружи должна работать наравне с таймаутом.
+  const relay = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener("abort", relay, { once: true });
+  }
+
+  let response;
+  try {
+    response = await fetch(BASE + path, {
+      method,
+      headers,
+      body: formData ?? (body !== undefined ? JSON.stringify(body) : undefined),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    // Отмену вызывающим пробрасываем как есть — это не сбой.
+    if (signal?.aborted) throw error;
+    if (error.name === "AbortError") {
+      throw new ApiError(0, "Сервер не отвечает — попробуйте ещё раз");
+    }
+    throw new ApiError(0, "Нет связи с сервером");
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", relay);
+  }
 
   if (response.status === 401) {
     setToken(null);
