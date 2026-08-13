@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -303,19 +304,29 @@ async def sync_location(
 
     Целиком, а не с места обрыва: номер страницы зависит от её размера, и
     продолжать с прежнего номера значило бы пропустить часть событий.
+
+    Страниц при этом берём во столько же раз больше: иначе город, которому
+    уменьшили страницу, получал бы меньше всего событий — то есть ровно
+    наоборот тому, что нужно. Уменьшают её как раз самым большим городам.
     """
     page_size = max(MIN_PAGE_SIZE, settings.kudago_page_size)
+    # Сколько событий хотим забрать. Дробление страниц эту цифру не меняет.
+    budget = pages * page_size
     created = updated = skipped = 0
     failed = True
 
     while True:
+        page_count = math.ceil(budget / page_size)
         created, updated, skipped, failed = await _walk_pages(
-            session, client, location, pages, since, page_size
+            session, client, location, page_count, since, page_size
         )
         if not failed or page_size <= MIN_PAGE_SIZE:
             break
         page_size = max(MIN_PAGE_SIZE, page_size // 2)
-        logger.warning("KudaGo: %s — пробую заново по %s событий на страницу", location, page_size)
+        logger.warning(
+            "KudaGo: %s — пробую заново: по %s событий на страницу, страниц %s",
+            location, page_size, math.ceil(budget / page_size),
+        )
 
     return {
         "location": location,

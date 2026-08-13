@@ -568,3 +568,43 @@ async def test_a_broken_city_does_not_take_the_others_with_it(monkeypatch):
     assert by_city["Москва"]["failed"] is True
     assert by_city["Екатеринбург"]["created"] == 3
     assert report["created"] == 3
+
+
+async def test_smaller_pages_do_not_mean_fewer_events(monkeypatch):
+    """Страницу уменьшают самым большим городам.
+
+    Если оставить прежнее число страниц, они получат меньше всех событий —
+    ровно наоборот тому, что нужно.
+    """
+    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
+    monkeypatch.setattr(settings, "kudago_page_size", 100)
+    asked: list[tuple[int, int]] = []
+
+    async def picky(self, *args, **kwargs):
+        size = int(kwargs["params"]["page_size"])
+        page = int(kwargs["params"]["page"])
+        asked.append((page, size))
+        if size > 50:
+            return httpx.Response(502, text="", request=httpx.Request("GET", "http://x"))
+        return httpx.Response(
+            200,
+            json={
+                "count": 99,
+                "next": "дальше есть",
+                # Своё событие на каждой странице, иначе обход остановится.
+                "results": [raw_event(id=1000 + page)],
+            },
+            request=httpx.Request("GET", "http://x"),
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", picky)
+    async with SessionLocal() as session:
+        async with httpx.AsyncClient() as client:
+            await kudago.sync_location(session, client, "msk", 4, NOW)
+        await session.commit()
+
+    # Просили 4 страницы по 100; после отказа — 8 страниц по 50.
+    big = [page for page, size in asked if size == 100]
+    small = [page for page, size in asked if size == 50]
+    assert max(big) == 1  # сорвалось на первой же
+    assert max(small) == 8
