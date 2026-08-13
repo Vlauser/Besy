@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -12,7 +13,7 @@ from ..deps import current_user
 from ..models import DeckCard, ModerationStatus, Photo, User
 from ..schemas import ConsentIn, MeOut, MeUpdate, PhotoOut, TestAnswersIn
 from ..serializers import me_out, photo_out
-from ..services import media
+from ..services import media, moderation
 from ..services.matching import normalize_answers, rebuild_deck
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -119,13 +120,15 @@ async def upload_photo(
     except media.PhotoError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    moderation_status, reason = media.screen_photo(raw)
+    # Inference is CPU-bound; keep it off the event loop.
+    verdict = await asyncio.to_thread(moderation.screen, str(media.absolute_path(stored["file_path"])))
     position = max((p.position for p in user.photos), default=-1) + 1
     photo = Photo(
         user_id=user.id,
         position=position,
-        moderation_status=moderation_status,
-        moderation_reason=reason,
+        moderation_status=verdict.status,
+        moderation_reason=verdict.reason,
+        moderation_scores=verdict.scores,
         **stored,
     )
     session.add(photo)

@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Camera, LogOut, Sparkles, Star, Trash2 } from "lucide-react";
+import { BadgeCheck, Camera, LogOut, Sparkles, Star, Trash2 } from "lucide-react";
 
 import { endpoints, mediaUrl, setToken } from "../api/client";
 import { Avatar, Button, Pill, Sheet } from "../components/ui";
+import { Verification } from "./Verification";
 import { haptic, openInvoice, showConfirm } from "../lib/telegram";
 import { FALLBACK_GRADIENT, T, gradient } from "../theme";
 
@@ -10,6 +11,7 @@ export function Profile({ me, config, testCards, onUpdated, onGoTest, onError })
   const [products, setProducts] = useState([]);
   const [premiumOpen, setPremiumOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [verifyOpen, setVerifyOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef(null);
 
@@ -155,6 +157,24 @@ export function Profile({ me, config, testCards, onUpdated, onGoTest, onError })
         </div>
       </button>
 
+      <button
+        onClick={() => setVerifyOpen(true)}
+        className="w-full flex items-center gap-3 rounded-2xl p-4 active:scale-95 transition-transform text-left"
+        style={{ background: T.surface, border: `1px solid ${T.line}` }}
+      >
+        <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: T.surfaceSoft }}>
+          <BadgeCheck size={18} color={me.is_verified ? T.success : T.coral} />
+        </span>
+        <div className="flex-1">
+          <p className="text-sm font-semibold" style={{ color: T.ink }}>
+            {me.is_verified ? "Анкета подтверждена" : "Подтвердить анкету"}
+          </p>
+          <p className="text-xs" style={{ color: T.muted }}>
+            {me.is_verified ? "Галочка видна в колоде" : "Селфи с жестом — чтобы вам доверяли"}
+          </p>
+        </div>
+      </button>
+
       {!me.is_premium && (
         <button
           onClick={() => setPremiumOpen(true)}
@@ -197,6 +217,14 @@ export function Profile({ me, config, testCards, onUpdated, onGoTest, onError })
             Оплата в Telegram Stars — так требуют правила магазинов для цифровых покупок.
           </p>
         </div>
+      </Sheet>
+
+      <Sheet open={verifyOpen} onClose={() => setVerifyOpen(false)} title="Верификация">
+        <Verification
+          isVerified={me.is_verified}
+          onError={onError}
+          onDone={async () => onUpdated(await endpoints.me())}
+        />
       </Sheet>
 
       <FiltersSheet

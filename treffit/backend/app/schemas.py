@@ -40,6 +40,7 @@ class PhotoOut(ORMModel):
     url: str | None = None
     locked: bool = False
     moderation_status: str
+    moderation_reason: str | None = None
 
 
 class MeOut(ORMModel):
@@ -275,6 +276,72 @@ class InvoiceOut(BaseModel):
     amount: int
     currency: str = "XTR"
     invoice_link: str | None = None
+
+
+# --------------------------- verification ---------------------------
+
+
+class VerificationOut(BaseModel):
+    status: str
+    gesture: str | None = None
+    instruction: str | None = None
+    reason: str | None = None
+    expires_at: datetime | None = None
+    is_verified: bool = False
+
+
+# --------------------------- admin ---------------------------
+
+
+class AdminPhotoOut(BaseModel):
+    id: int
+    user_id: int
+    user_name: str
+    telegram_id: int
+    url: str
+    moderation_status: str
+    moderation_reason: str | None
+    moderation_scores: dict[str, float]
+    created_at: datetime
+
+
+class AdminVerificationOut(BaseModel):
+    id: int
+    user_id: int
+    user_name: str
+    gesture: str
+    instruction: str
+    selfie_url: str | None
+    profile_photo_url: str | None
+    status: str
+    created_at: datetime
+
+
+class AdminReportOut(BaseModel):
+    id: int
+    reporter_id: int
+    target_id: int
+    target_name: str
+    target_banned: bool
+    reason: str
+    details: str | None
+    created_at: datetime
+
+
+class ReviewIn(BaseModel):
+    approve: bool
+    reason: str | None = Field(default=None, max_length=255)
+
+
+class AdminStatsOut(BaseModel):
+    users_total: int
+    users_active: int
+    users_banned: int
+    photos_pending: int
+    verifications_pending: int
+    reports_open: int
+    matches_total: int
+    messages_total: int
 
 
 class ConfigOut(BaseModel):

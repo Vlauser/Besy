@@ -13,10 +13,21 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build: ./backend
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     environment:
       TREFFIT_DATABASE_URL: postgresql+asyncpg://treffit:${POSTGRES_PASSWORD:-treffit}@db:5432/treffit
@@ -24,12 +35,16 @@ services:
       TREFFIT_BOT_TOKEN: ${TREFFIT_BOT_TOKEN:?set TREFFIT_BOT_TOKEN}
       TREFFIT_BLIND_MODE: ${TREFFIT_BLIND_MODE:-true}
       TREFFIT_CORS_ORIGINS: ${TREFFIT_CORS_ORIGINS:-*}
+      TREFFIT_REDIS_URL: redis://redis:6379/0
+      TREFFIT_ADMIN_TELEGRAM_IDS: ${TREFFIT_ADMIN_TELEGRAM_IDS:-}
+      TREFFIT_MINI_APP_URL: ${TREFFIT_MINI_APP_URL:-}
+      TREFFIT_KUDAGO_LOCATION: ${TREFFIT_KUDAGO_LOCATION:-ekb}
     volumes:
       - media:/var/lib/treffit/media
     # Apply migrations before serving; the image's CMD is the fallback.
     command: >
       sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${TREFFIT_WORKERS:-2}"
     ports:
       - "127.0.0.1:8000:8000"
 

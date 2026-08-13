@@ -4,15 +4,32 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import auth, chats, discover, events, me, media, payments, realtime, safety
+from .routers import (
+    admin,
+    auth,
+    chats,
+    discover,
+    events,
+    me,
+    media,
+    payments,
+    realtime,
+    safety,
+    verification,
+)
 from .schemas import ConfigOut, TestCardOut
 from .services.matching import TEST_CARDS
+from .ws import manager
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.media_root.mkdir(parents=True, exist_ok=True)
-    yield
+    await manager.startup()
+    try:
+        yield
+    finally:
+        await manager.shutdown()
 
 
 app = FastAPI(
@@ -33,12 +50,14 @@ app.add_middleware(
 for router in (
     auth.router,
     me.router,
+    verification.router,
     discover.router,
     chats.router,
     events.router,
     media.router,
     safety.router,
     payments.router,
+    admin.router,
     realtime.router,
 ):
     app.include_router(router)

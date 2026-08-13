@@ -34,12 +34,15 @@ async def realtime(websocket: WebSocket, token: str = Query(default="")) -> None
             return
 
     await manager.connect(user_id, websocket)
+    await manager.mark_online(user_id)
     await websocket.send_json({"type": "ready", "user_id": user_id})
     try:
         while True:
             event = await websocket.receive_json()
             kind = event.get("type")
             if kind == "ping":
+                # The heartbeat doubles as the presence TTL refresh.
+                await manager.refresh_presence(user_id)
                 await websocket.send_json({"type": "pong"})
             elif kind == "typing":
                 await _relay_typing(user_id, event)
@@ -50,6 +53,7 @@ async def realtime(websocket: WebSocket, token: str = Query(default="")) -> None
         pass
     finally:
         await manager.disconnect(user_id, websocket)
+        await manager.mark_offline(user_id)
 
 
 async def _relay_typing(user_id: int, event: dict) -> None:

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from .config import settings
 from .db import get_session
 from .models import User
 from .security import decode_access_token
@@ -48,6 +49,14 @@ async def current_user(
 
     user.last_active_at = datetime.now(timezone.utc)
     await session.commit()
+    return user
+
+
+async def admin_user(user: User = Depends(current_user)) -> User:
+    """Admins are named by telegram_id in settings, not by a DB flag —
+    a compromised account cannot grant itself moderation powers."""
+    if user.telegram_id not in settings.admin_ids:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
     return user
 
 

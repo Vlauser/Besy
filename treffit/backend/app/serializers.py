@@ -29,6 +29,9 @@ def photo_out(photo: Photo, *, unlocked: bool) -> PhotoOut:
         url=photo_url(photo.id) if unlocked else None,
         locked=not unlocked,
         moderation_status=photo.moderation_status,
+        # Only meaningful to the owner; other viewers get it on locked
+        # photos too, but it says nothing about the person.
+        moderation_reason=photo.moderation_reason,
     )
 
 
@@ -122,7 +125,7 @@ async def candidate_out(
         shared_flags=list(shared_flags or []),
         event=event_out(event),
         is_verified=user.is_verified,
-        is_online=manager.is_online(user.id),
+        is_online=await manager.is_online_anywhere(user.id),
         photos=[photo_out(p, unlocked=unlocked) for p in photos],
         photos_locked=not unlocked,
     )

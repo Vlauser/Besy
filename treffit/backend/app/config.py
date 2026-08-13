@@ -38,6 +38,31 @@ class Settings(BaseSettings):
     daily_like_limit_premium: int = 500
     deck_page_size: int = 20
 
+    # --- moderation ---
+    # Photos run through NudeNet locally; only borderline ones reach a human.
+    moderation_enabled: bool = True
+    moderation_reject_score: float = 0.5
+    moderation_review_score: float = 0.35
+    # A dating photo with no detectable face is not auto-approved.
+    moderation_require_face: bool = True
+    admin_telegram_ids: str = ""
+
+    # --- realtime ---
+    # Empty = in-process hub (single worker). Set a redis:// URL to fan out
+    # across workers and hosts.
+    redis_url: str = ""
+    realtime_channel: str = "treffit:events"
+
+    # --- push notifications ---
+    push_enabled: bool = True
+    # Do not ping someone about every line of a fast conversation.
+    push_cooldown_seconds: int = 180
+    mini_app_url: str = ""
+
+    # --- events sync ---
+    kudago_location: str = "ekb"
+    kudago_page_size: int = 100
+
     # --- media ---
     media_root: Path = Path("var/media")
     max_photo_bytes: int = 8 * 1024 * 1024
@@ -51,6 +76,15 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def admin_ids(self) -> set[int]:
+        ids = set()
+        for chunk in self.admin_telegram_ids.replace(";", ",").split(","):
+            chunk = chunk.strip()
+            if chunk.isdigit():
+                ids.add(int(chunk))
+        return ids
 
 
 @lru_cache

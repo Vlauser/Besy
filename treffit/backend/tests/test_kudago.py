@@ -1,0 +1,189 @@
+"""KudaGo parsing, plus a sync run against a local stub HTTP server."""
+
+import json
+import threading
+from datetime import datetime, timedelta, timezone
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+import pytest
+from sqlalchemy import select
+
+from app.db import SessionLocal
+from app.models import Event
+from app.services import kudago
+
+NOW = datetime(2026, 8, 13, 12, 0, tzinfo=timezone.utc)
+
+
+def ts(dt: datetime) -> int:
+    return int(dt.timestamp())
+
+
+def raw_event(**overrides) -> dict:
+    payload = {
+        "id": 4242,
+        "title": "джаз-вечер в tele-club",
+        "short_title": "Джаз-вечер",
+        "place": {"title": "Tele-Club", "coords": {"lat": 56.836, "lon": 60.61}},
+        "dates": [{"start": ts(NOW + timedelta(hours=5)), "end": ts(NOW + timedelta(hours=9))}],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_parses_a_normal_event():
+    parsed = kudago.parse_event(raw_event(), "ekb", NOW)
+    assert parsed["external_id"] == "4242"
+    assert parsed["title"] == "Джаз-вечер"
+    assert parsed["venue"] == "Tele-Club"
+    assert parsed["city"] == "Екатеринбург"
+    assert parsed["lat"] == 56.836 and parsed["lng"] == 60.61
+    assert parsed["starts_at"] == NOW + timedelta(hours=5)
+    assert parsed["ends_at"] == NOW + timedelta(hours=9)
+
+
+def test_falls_back_to_the_long_title():
+    parsed = kudago.parse_event(raw_event(short_title=None), "ekb", NOW)
+    assert parsed["title"] == "джаз-вечер в tele-club"
+
+
+def test_event_far_in_the_past_is_skipped():
+    old = raw_event(dates=[{"start": ts(NOW - timedelta(days=3))}])
+    assert kudago.parse_event(old, "ekb", NOW) is None
+
+
+def test_event_that_started_an_hour_ago_is_kept():
+    """People check in during an event, not only before it."""
+    running = raw_event(dates=[{"start": ts(NOW - timedelta(hours=1))}])
+    assert kudago.parse_event(running, "ekb", NOW) is not None
+
+
+def test_earliest_upcoming_slot_wins():
+    parsed = kudago.parse_event(
+        raw_event(
+            dates=[
+                {"start": ts(NOW + timedelta(days=4))},
+                {"start": ts(NOW + timedelta(hours=2))},
+                {"start": ts(NOW + timedelta(days=1))},
+            ]
+        ),
+        "ekb",
+        NOW,
+    )
+    assert parsed["starts_at"] == NOW + timedelta(hours=2)
+
+
+def test_open_ended_schedule_drops_the_end():
+    """KudaGo uses far-future sentinels for permanent exhibitions; keeping
+    them would leave the Live window open forever."""
+    parsed = kudago.parse_event(
+        raw_event(
+            dates=[{"start": ts(NOW + timedelta(hours=3)), "end": ts(NOW + timedelta(days=400))}]
+        ),
+        "ekb",
+        NOW,
+    )
+    assert parsed["ends_at"] is None
+
+
+def test_garbage_timestamps_are_ignored():
+    for dates in ([{"start": 0}], [{"start": -5}], [{"start": "soon"}], [], None):
+        assert kudago.parse_event(raw_event(dates=dates), "ekb", NOW) is None
+
+
+def test_event_without_a_title_is_skipped():
+    assert kudago.parse_event(raw_event(title=None, short_title="  "), "ekb", NOW) is None
+
+
+def test_missing_place_is_tolerated():
+    parsed = kudago.parse_event(raw_event(place={}), "ekb", NOW)
+    assert parsed["venue"] is None
+    assert parsed["lat"] is None
+
+
+def test_unknown_location_keeps_its_slug():
+    assert kudago.city_for("ekb") == "Екатеринбург"
+    assert kudago.city_for("atlantis") == "atlantis"
+
+
+def test_long_title_is_truncated_to_the_column():
+    parsed = kudago.parse_event(raw_event(short_title="я" * 400), "ekb", NOW)
+    assert len(parsed["title"]) == 255
+
+
+# --------------------------- real HTTP + real upsert ---------------------------
+
+
+def stub_payload(now: datetime) -> dict:
+    return {
+        "count": 2,
+        "next": None,
+        "results": [
+            raw_event(id=1, short_title="Джаз", dates=[{"start": ts(now + timedelta(hours=4))}]),
+            raw_event(
+                id=2,
+                short_title="Выставка",
+                place={"title": "Ельцин Центр", "coords": {"lat": 56.8447, "lon": 60.5878}},
+                dates=[{"start": ts(now + timedelta(days=1))}],
+            ),
+        ],
+    }
+
+
+class StubHandler(BaseHTTPRequestHandler):
+    payload: dict = {}
+
+    def do_GET(self):  # noqa: N802 - BaseHTTPRequestHandler API
+        body = json.dumps(self.payload).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture
+def kudago_stub():
+    """A real HTTP server, so the client, params and parsing are all exercised."""
+    StubHandler.payload = stub_payload(datetime.now(timezone.utc))
+    server = HTTPServer(("127.0.0.1", 0), StubHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield f"http://127.0.0.1:{server.server_port}"
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.mark.asyncio
+async def test_sync_stores_events_and_is_idempotent(kudago_stub, monkeypatch):
+    monkeypatch.setattr(kudago, "API_ROOT", kudago_stub)
+
+    async with SessionLocal() as session:
+        first = await kudago.sync(session, location="ekb", pages=1)
+        assert first["created"] == 2
+        assert first["updated"] == 0
+
+        stored = (await session.execute(select(Event).order_by(Event.external_id))).scalars().all()
+        assert [event.title for event in stored] == ["Джаз", "Выставка"]
+        assert stored[1].venue == "Ельцин Центр"
+        assert stored[1].city == "Екатеринбург"
+
+    # Re-running must update in place, never duplicate.
+    async with SessionLocal() as session:
+        second = await kudago.sync(session, location="ekb", pages=1)
+        assert second["created"] == 0
+        assert second["updated"] == 2
+        total = (await session.execute(select(Event))).scalars().all()
+        assert len(total) == 2
+
+
+@pytest.mark.asyncio
+async def test_sync_survives_an_unreachable_api(monkeypatch):
+    """A KudaGo outage must not break the request or the database."""
+    monkeypatch.setattr(kudago, "API_ROOT", "http://127.0.0.1:9")  # discard port
+    async with SessionLocal() as session:
+        report = await kudago.sync(session, location="ekb", pages=1)
+    assert report == {"location": "ekb", "created": 0, "updated": 0, "skipped": 0}

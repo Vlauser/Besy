@@ -122,6 +122,10 @@ export const endpoints = {
   makePrimary: (id) => api.post(`/me/photos/${id}/primary`),
   deactivate: () => api.delete("/me"),
 
+  verification: () => api.get("/me/verification"),
+  startVerification: () => api.post("/me/verification/start"),
+  submitVerification: (file) => api.upload("/me/verification/photo", file),
+
   discover: (limit = 10) => api.get(`/discover?limit=${limit}`),
   swipe: (userId, action) => api.post(`/discover/${userId}/swipe`, { action }),
   incomingLikes: () => api.get("/discover/likes"),

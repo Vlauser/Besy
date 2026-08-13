@@ -22,6 +22,7 @@ Twinby-подобному продукту нужны обе сущности с
 | — | `photos` | несколько фото на анкету + статус модерации |
 | — | `blocks`, `reports` | блокировки и жалобы |
 | — | `purchases` | покупки за Telegram Stars |
+| — | `verifications` | селфи-жест для подтверждения анкеты |
 
 Остальные таблицы (`users`, `events`, `user_events`, `live_sessions`,
 `chats`, `messages`) сохранили исходный смысл и обросли полями.
@@ -46,7 +47,9 @@ Twinby-подобному продукту нужны обе сущности с
 
 ### `photos`
 `user_id`, `position` (unique вместе с `user_id`), `file_path`, `thumb_path`,
-`blur_gradient`, `moderation_status` (`pending`/`approved`/`rejected`).
+`blur_gradient`, `moderation_status` (`pending`/`approved`/`rejected`),
+`moderation_reason`, `moderation_scores` (jsonb — сырой вывод детектора для
+разбора спорных решений), `reviewed_by_id`, `reviewed_at`.
 
 Файл никогда не отдаётся статикой — только через `/media/photos/{id}`,
 где проверяются права. `blur_gradient` — двухцветный CSS-градиент, снятый с
@@ -70,7 +73,7 @@ unique по паре. Взаимный `like`/`superlike` создаёт `matche
 ### `chats`
 `match_id` (unique), `user_a_id`, `user_b_id`, **`msg_count_a` /
 `msg_count_b`**, `revealed_a` / `revealed_b`, `unread_a` / `unread_b`,
-`last_message_at`.
+`last_message_at`, `last_push_a` / `last_push_b` (кулдаун уведомлений).
 
 Счётчики раздельные: reveal зарабатывает каждый сам за себя.
 `revealed_a = true` означает «A заслужил увидеть фото B».
@@ -82,6 +85,12 @@ unique по паре. Взаимный `like`/`superlike` создаёт `matche
 ### `events`, `user_events`, `live_sessions`
 Как в исходной схеме. Гео считается формулой гаверсинуса в Python —
 PostGIS ради одного радиуса не нужен.
+
+### `verifications`
+`user_id`, `gesture`, `file_path`, `status`
+(`requested`/`submitted`/`approved`/`rejected`), `reason`, `reviewed_by_id`,
+`expires_at`. Файл селфи удаляется сразу после проверки — он нужен только
+чтобы модератор убедился в живом человеке, хранить его дальше незачем.
 
 ### `blocks`, `reports`
 Блокировка скрывает обоих друг от друга и деактивирует общий матч.
@@ -147,6 +156,30 @@ remaining_to_reveal, system_message}`.
 Чек-ин отклоняется вне радиуса (`TREFFIT_LIVE_RADIUS_METERS`) и вне окна
 события — иначе Live перестаёт означать «человек действительно здесь».
 
+### Верификация анкеты
+| Метод | Путь | |
+|---|---|---|
+| GET | `/me/verification` | текущее состояние заявки |
+| POST | `/me/verification/start` | получить случайный жест (повторный вызов возвращает тот же — иначе жест можно было бы перевыбирать) |
+| POST | `/me/verification/photo` | загрузить селфи с жестом |
+
+### Админка (`TREFFIT_ADMIN_TELEGRAM_IDS`)
+| Метод | Путь | |
+|---|---|---|
+| GET | `/admin/stats` | сводка по очередям |
+| GET | `/admin/photos?status=pending` | очередь фото со скорами детектора |
+| GET | `/admin/photos/{id}/file` | сам файл для просмотра модератором |
+| POST | `/admin/photos/{id}/review` | `{approve, reason}` |
+| POST | `/admin/photos/{id}/rescan` | перепроверить после смены порогов |
+| GET | `/admin/verifications` | очередь селфи |
+| POST | `/admin/verifications/{id}/review` | approve ставит галочку и удаляет селфи |
+| GET | `/admin/reports` · POST `/admin/reports/{id}/resolve` | жалобы |
+| POST | `/admin/users/{id}/ban` · `/unban` | баны |
+| POST | `/admin/events/sync` | ручной синк KudaGo |
+
+`/admin/photos/{id}/file` намеренно отдельный от `/media/photos/{id}`:
+правило reveal там остаётся абсолютным, без ветки «а если админ».
+
 ### Безопасность и платежи
 `POST /safety/block` · `DELETE /safety/block/{id}` · `GET /safety/blocks` ·
 `POST /safety/report` · `GET /safety/reports/mine`
@@ -162,12 +195,31 @@ remaining_to_reveal, system_message}`.
 `reveal`. Клиент шлёт только `ping` и `typing` — отправка сообщений идёт
 по HTTP, чтобы счётчик reveal имел ровно один путь исполнения.
 
-Хаб внутрипроцессный (`app/ws.py`), поэтому сервис запускается **в один
-воркер**. Для горизонтального масштабирования нужен Redis pub/sub.
+Хаб (`app/ws.py`) работает в двух режимах. Без `TREFFIT_REDIS_URL` он
+внутрипроцессный и требует одного воркера. С Redis события идут через
+pub/sub, присутствие хранится ключами с TTL, и воркеров может быть сколько
+угодно. Недоступный Redis не роняет сервис — он логирует ошибку и
+откатывается на локальный хаб.
 
 ---
 
-## 3. Критичный момент безопасности
+## 3. Модерация и верификация
+
+Фото проходят NudeNet локально (`services/moderation.py`); модель лежит
+внутри пакета, так что в проде нет ни сетевого запроса, ни оплаты за
+проверку. Решение принимает чистая функция `decide()`, поэтому политику
+можно тестировать без запуска модели:
+
+- явное обнажение выше `TREFFIT_MODERATION_REJECT_SCORE` — отказ;
+- слабее — `pending`, то есть в очередь к человеку;
+- фото без распознанного лица тоже уходит человеку;
+- любая ошибка модели — `pending`, но не пропуск.
+
+Верификация — селфи со случайным жестом, назначенным сервером. Проверяется
+живость, а не личность: под сегодняшний жест нужен живой человек, украденный
+набор фото не поможет.
+
+## 4. Критичный момент безопасности
 
 **Фото не попадает на фронт до reveal — ни в каком виде.**
 
@@ -185,3 +237,9 @@ remaining_to_reveal, system_message}`.
 `test_photo_is_withheld_until_the_reveal_is_earned`,
 `test_photo_bytes_are_refused_before_reveal`,
 `test_candidate_payload_never_carries_a_locked_url`.
+
+## 5. Уведомления
+
+`services/push.py` пишет через бота тем, кто сейчас не подключён ни к
+одному воркеру (`is_online_anywhere`). В пределах чата действует кулдаун
+`TREFFIT_PUSH_COOLDOWN_SECONDS`, поэтому серия сообщений даёт один пинг.

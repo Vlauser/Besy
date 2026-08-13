@@ -11,6 +11,11 @@ pyjwt==2.10.1
 pillow==11.0.0
 httpx==0.28.1
 greenlet==3.1.1
+redis==8.1.0
+
+# Local NSFW screening. The ONNX weights ship inside the wheel, so there is
+# no model download at runtime and no network dependency in production.
+nudenet==3.4.2
 
 # dev / tests
 pytest==8.3.4

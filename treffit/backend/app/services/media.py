@@ -105,14 +105,3 @@ def delete_files(*relatives: str | None) -> None:
         except PhotoError:
             continue
 
-
-def screen_photo(raw: bytes) -> tuple[str, str | None]:
-    """Placeholder NSFW gate.
-
-    Returns (status, reason). Real deployments should call a moderation
-    provider here; until one is wired in, photos land as `pending` and an
-    operator approves them. `moderation.auto_approve` flips this for dev.
-    """
-    if settings.debug:
-        return "approved", None
-    return "pending", None

@@ -119,8 +119,12 @@ class User(Base, TimestampMixin):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
+    # reviewed_by_id is a second FK to users, so the join has to be named.
     photos: Mapped[list["Photo"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan", order_by="Photo.position"
+        back_populates="user",
+        cascade="all, delete-orphan",
+        order_by="Photo.position",
+        foreign_keys="Photo.user_id",
     )
 
     __table_args__ = (
@@ -164,11 +168,44 @@ class Photo(Base):
         String(16), default=ModerationStatus.pending.value, nullable=False
     )
     moderation_reason: Mapped[str | None] = mapped_column(String(255))
+    moderation_scores: Mapped[dict] = mapped_column(JsonCol, default=dict, nullable=False)
+    reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    user: Mapped[User] = relationship(back_populates="photos")
+    user: Mapped[User] = relationship(back_populates="photos", foreign_keys=[user_id])
 
     __table_args__ = (UniqueConstraint("user_id", "position", name="uq_photos_user_position"),)
+
+
+class Verification(Base):
+    """Selfie-with-gesture check.
+
+    The selfie is never shown to other users — it exists only so a moderator
+    can confirm the profile photos are of the same, real person.
+    """
+
+    __tablename__ = "verifications"
+
+    id: Mapped[int] = mapped_column(PkType, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    gesture: Mapped[str] = mapped_column(String(32), nullable=False)
+    file_path: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(16), default="requested", nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(255))
+    reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (Index("ix_verifications_status", "status", "created_at"),)
+
+
+class VerificationStatus(StrEnum):
+    requested = "requested"
+    submitted = "submitted"
+    approved = "approved"
+    rejected = "rejected"
 
 
 class Event(Base):
@@ -275,6 +312,8 @@ class Chat(Base):
 
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_push_a: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_push_b: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     match: Mapped[Match] = relationship(back_populates="chat")
     messages: Mapped[list["Message"]] = relationship(

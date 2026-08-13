@@ -14,7 +14,7 @@ from ..models import Block, DeckCard, Event, Swipe, SwipeAction, User
 from ..schemas import CandidateOut, DeckCardOut, SwipeIn, SwipeOut
 from ..serializers import candidate_out
 from ..services import chats as chat_service
-from ..services import matching
+from ..services import matching, push
 from ..ws import manager
 
 router = APIRouter(tags=["discover"])
@@ -134,6 +134,7 @@ async def swipe(
                     "user": {"id": other.id, "first_name": other.first_name},
                 },
             )
+        await push.notify_match(target, user)
     elif payload.action == SwipeAction.superlike:
         await manager.send(target_id, {"type": "superlike", "from_user_id": user.id})
 

@@ -27,6 +27,7 @@ from ..serializers import (
     visible_photos,
 )
 from ..services import chats as chat_service
+from ..services import push
 from ..ws import manager
 
 router = APIRouter(tags=["chats"])
@@ -156,6 +157,10 @@ async def send_message(
         await manager.send(other_id, {"type": "message", "chat_id": chat.id, "message": payload_sys})
     if reveal_unlocked:
         await manager.send(user.id, {"type": "reveal", "chat_id": chat.id})
+
+    # Wake them in Telegram only if no socket of theirs is listening.
+    if await push.notify_new_message(chat, user, other, payload.body):
+        await session.commit()
 
     return SendMessageOut(
         message=message_out(message, user.id),
