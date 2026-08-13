@@ -307,6 +307,17 @@ gunzip -c /srv/treffit/backups/treffit-*.sql.gz | psql -U treffit treffit_restor
 Бэкапы лежат на том же диске, что и БД, — от потери сервера это не
 спасает. Настройте копирование в другое место (`rclone`, S3, второй VPS).
 
+**Управление из командной строки** — `scripts/admin.py`, если не хочется
+ходить в API:
+
+```bash
+cd /srv/treffit/src/treffit/backend
+RUN="sudo -u treffit env $(grep -v '^#' .env | grep -v '^$' | xargs -d '\n') .venv/bin/python"
+$RUN -m scripts.admin status            # что настроено и что в очередях
+$RUN -m scripts.admin photos            # последние фото и вердикт детектора
+$RUN -m scripts.admin premium 123456789 # выдать Premium по telegram_id
+```
+
 **Модерация** — очереди на `https://ВАШ.ДОМЕН/api/docs`, раздел admin.
 Смотреть `photos_pending` в `/api/admin/stats` хотя бы раз в день: пока
 фото `pending`, его никто, кроме владельца, не видит.
