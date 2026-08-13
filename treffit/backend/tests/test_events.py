@@ -19,7 +19,11 @@ VENUE = (56.8447, 60.5878)
 
 
 async def add_event(
-    title: str, starts_in: timedelta, ends_in: timedelta | None, city: str = "Екатеринбург"
+    title: str,
+    starts_in: timedelta,
+    ends_in: timedelta | None,
+    city: str = "Екатеринбург",
+    permanent: bool = False,
 ) -> int:
     now = datetime.now(timezone.utc)
     async with SessionLocal() as session:
@@ -33,6 +37,7 @@ async def add_event(
             lng=VENUE[1],
             city=city,
             source="test",
+            is_permanent=permanent,
         )
         session.add(event)
         await session.commit()
@@ -145,3 +150,37 @@ async def test_unsupported_city_is_refused_with_an_explanation(user_factory):
     response = await actor.patch("/me", json={"city": "Урюпинск"})
     assert response.status_code == 422
     assert "город" in response.text.lower()
+
+
+# --------------------------- постоянные экспозиции ---------------------------
+
+
+async def test_permanent_exhibition_is_listed_and_goes_last(user_factory):
+    """Работает всегда — но повода торопиться нет, поэтому после датированных."""
+    actor = await user_factory(700300)
+    # Открылась десять лет назад: датой её не отсортируешь.
+    await add_event("Постоянная экспозиция", timedelta(days=-3650), None, permanent=True)
+    await add_event("Концерт завтра", timedelta(days=1), None)
+
+    assert await titles(actor) == ["Концерт завтра", "Постоянная экспозиция"]
+
+
+async def test_live_works_at_a_permanent_exhibition(user_factory):
+    """Окно Live считается от дат события, а у постоянной их нет.
+
+    Без отдельной проверки оно оказалось бы закрыто навсегда.
+    """
+    actor = await user_factory(700301)
+    event_id = await add_event("Музей", timedelta(days=-3650), None, permanent=True)
+    response = await actor.post(
+        "/live/checkin", json={"event_id": event_id, "lat": VENUE[0], "lng": VENUE[1]}
+    )
+    assert response.status_code == 200, response.text
+
+
+async def test_client_is_told_the_event_has_no_date(user_factory):
+    """Иначе интерфейс покажет день открытия десятилетней давности."""
+    actor = await user_factory(700302)
+    await add_event("Музей", timedelta(days=-3650), None, permanent=True)
+    body = (await actor.get("/events")).json()
+    assert body[0]["is_permanent"] is True

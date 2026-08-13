@@ -256,6 +256,9 @@ class EventOut(ORMModel):
     lng: float | None = None
     image_url: str | None = None
     site_url: str | None = None
+    # У постоянной экспозиции даты нет; starts_at у неё — день открытия,
+    # и показывать его человеку незачем.
+    is_permanent: bool = False
     attending: bool = False
 
 

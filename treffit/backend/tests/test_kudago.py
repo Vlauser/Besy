@@ -376,3 +376,75 @@ async def test_a_bad_response_is_not_retried(monkeypatch):
         with pytest.raises(httpx.HTTPStatusError):
             await kudago.fetch_page(client, "нетакого", 1, NOW)
     assert calls["n"] == 1
+
+
+# --------------------------- постоянные экспозиции ---------------------------
+#
+# Именно они оставляли целые города с пустой афишей: у музейной выставки два
+# слота — протухшая дата открытия и служебный «идёт бессрочно», и оба
+# выглядели прошедшими. Данные ниже сняты с настоящего ответа КудаGo.
+
+
+PERMANENT_DATES = [
+    {
+        "start_date": "2013-04-23",
+        "start_time": "11:00:00",
+        "start": 1366693200,
+        "end": 1366693200,
+        "is_endless": False,
+        "is_startless": False,
+    },
+    {
+        "start_date": None,
+        "start": -62135433000,
+        "end": 253370754000,
+        "is_endless": True,
+        "is_startless": True,
+        "use_place_schedule": True,
+    },
+]
+
+
+def test_permanent_exhibition_is_not_dropped():
+    """«Кабинет редкостей» в музее природы работает и сегодня."""
+    parsed = kudago.parse_event(
+        raw_event(title="выставка «Кабинет редкостей»", short_title=None, dates=PERMANENT_DATES),
+        "ekb",
+        NOW,
+    )
+    assert parsed is not None
+    assert parsed["is_permanent"] is True
+    # Конца нет: по нему считалось бы окно Live, а его тут попросту не бывает.
+    assert parsed["ends_at"] is None
+    # Начало — настоящий день открытия, для порядка в списке, а не для показа.
+    assert parsed["starts_at"] == datetime(2013, 4, 23, 5, 0, tzinfo=timezone.utc)
+
+
+def test_a_dated_event_is_never_called_permanent():
+    parsed = kudago.parse_event(raw_event(), "ekb", NOW)
+    assert parsed["is_permanent"] is False
+
+
+def test_a_real_date_wins_over_the_endless_slot():
+    """Если у выставки есть и живая дата, и бессрочный слот — берём дату."""
+    parsed = kudago.parse_event(
+        raw_event(
+            dates=[
+                {"start": ts(NOW + timedelta(days=3)), "end": ts(NOW + timedelta(days=4))},
+                {"start": -62135433000, "end": 253370754000, "is_endless": True},
+            ]
+        ),
+        "ekb",
+        NOW,
+    )
+    assert parsed["is_permanent"] is False
+    assert parsed["starts_at"] == NOW + timedelta(days=3)
+
+
+def test_endless_without_any_real_date_still_works():
+    parsed = kudago.parse_event(
+        raw_event(dates=[{"start": -62135433000, "end": 253370754000, "is_endless": True}]),
+        "ekb",
+        NOW,
+    )
+    assert parsed is not None and parsed["is_permanent"] is True

@@ -6,10 +6,14 @@ import { EmptyState, Spinner } from "../components/ui";
 import { haptic, requestLocation } from "../lib/telegram";
 import { T } from "../theme";
 
-function whenLabel(iso) {
-  const date = new Date(iso);
-  const now = new Date();
-  const hours = (date - now) / 36e5;
+function whenLabel(event) {
+  // У постоянной экспозиции starts_at — исторический день открытия,
+  // иногда десятилетней давности. «13 апреля 2013» тут сказало бы человеку
+  // ровно противоположное тому, что есть на самом деле.
+  if (event.is_permanent) return "работает постоянно";
+
+  const date = new Date(event.starts_at);
+  const hours = (date - new Date()) / 36e5;
   if (hours < 0) return "идёт сейчас";
   if (hours < 24) return `сегодня в ${date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}`;
   return date.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
@@ -110,7 +114,7 @@ export function Events({ onError }) {
                   <div className="flex items-center gap-1 mt-0.5">
                     <MapPin size={11} color={T.muted} className="flex-shrink-0" />
                     <span className="text-xs truncate" style={{ color: T.muted }}>
-                      {[event.venue, whenLabel(event.starts_at)].filter(Boolean).join(" · ")}
+                      {[event.venue, whenLabel(event)].filter(Boolean).join(" · ")}
                     </span>
                   </div>
                 </div>

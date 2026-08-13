@@ -27,15 +27,23 @@ async def list_events(
     Событие показываем, пока оно не закончилось: выставка, открывшаяся в
     прошлом месяце, сегодня так же доступна, как завтрашний концерт. По
     одному только `starts_at` такие события выпадали из списка.
+
+    Постоянные экспозиции доступны всегда, но идут после датированных: у
+    них нет ни даты, ни повода поторопиться, а `starts_at` у них —
+    исторический день открытия, иногда десятилетней давности.
     """
     now = datetime.now(timezone.utc)
     rows = await session.execute(
         select(Event)
         .where(
             Event.city == user.city,
-            or_(Event.ends_at >= now, Event.starts_at >= now - timedelta(hours=6)),
+            or_(
+                Event.is_permanent.is_(True),
+                Event.ends_at >= now,
+                Event.starts_at >= now - timedelta(hours=6),
+            ),
         )
-        .order_by(Event.starts_at.asc())
+        .order_by(Event.is_permanent.asc(), Event.starts_at.asc())
         .limit(50)
     )
     events = list(rows.scalars())
@@ -99,7 +107,10 @@ async def live_checkin(
     window = timedelta(hours=settings.live_window_hours)
     starts_at = as_utc(event.starts_at)
     ends_at = as_utc(event.ends_at) or (starts_at + window)
-    if not (starts_at - window <= now <= ends_at + window):
+    # Постоянная экспозиция открыта всегда, и её `starts_at` — исторический
+    # день открытия. Сверять с ним время визита бессмысленно: окно
+    # оказалось бы закрыто навсегда.
+    if not event.is_permanent and not (starts_at - window <= now <= ends_at + window):
         raise HTTPException(status_code=409, detail="Окно Live для этого события закрыто")
 
     distance = haversine_meters(payload.lat, payload.lng, event.lat, event.lng)

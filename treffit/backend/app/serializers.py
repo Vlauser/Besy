@@ -99,6 +99,7 @@ def event_out(event: Event | None, *, attending: bool = False) -> EventOut | Non
         lng=event.lng,
         image_url=event.image_url,
         site_url=event.site_url,
+        is_permanent=event.is_permanent,
         attending=attending,
     )
 

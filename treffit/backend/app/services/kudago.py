@@ -63,24 +63,42 @@ def _moment(value: object) -> datetime | None:
         return None
 
 
-def _pick_start(dates: list[dict], now: datetime) -> tuple[datetime, datetime | None] | None:
-    """Ближайший подходящий слот события.
+def _schedule(dates: list[dict], now: datetime) -> tuple[datetime, datetime | None, bool] | None:
+    """Когда на событие можно попасть: (начало, конец, постоянное).
 
-    Подходит не только тот, что ещё не начался, но и тот, что ещё не
-    закончился: выставка, открывшаяся неделю назад и идущая до сентября, —
-    это событие, на которое можно пойти сегодня. Раньше брались только
-    будущие начала, и вся афиша длительных событий отсеивалась целиком —
-    а КудаGo по actual_since отдаёт как раз идущие сейчас.
+    У КудаGo три разных случая, и все три встречаются вперемешку:
+
+    • обычный слот с датами — концерт, лекция, вечеринка;
+    • длительный слот: выставка открылась неделю назад и идёт до сентября.
+      Она подходит, хотя началась в прошлом, — пойти можно сегодня;
+    • слот с `is_endless`: постоянная музейная экспозиция. Даты в нём
+      служебные (первый год и десятитысячный), а рядом обычно лежит вторая
+      запись с датой открытия десятилетней давности.
+
+    Последний случай и оставлял целые города без афиши: обе даты выглядели
+    прошедшими, и разбор отвергал всё. Между тем «Кабинет редкостей» в
+    музее природы работает и сегодня — на такую выставку сходить можно.
     """
     horizon = now - timedelta(hours=6)
     best: tuple[datetime, datetime | None] | None = None
+    endless = False
+    opened_at: datetime | None = None
 
     for slot in dates or []:
         if not isinstance(slot, dict):
             continue
+        if slot.get("is_endless") or slot.get("is_startless"):
+            # Даты такого слота ничего не значат, брать из него нечего.
+            endless = True
+            continue
+
         start = _moment(slot.get("start"))
         if start is None:
             continue
+        # Пригодится, если у события нет ни одной живой даты: пусть у
+        # постоянной экспозиции будет её настоящий день открытия.
+        if opened_at is None or start < opened_at:
+            opened_at = start
 
         end = _moment(slot.get("end"))
         if end is not None and (end <= start or end - start > MAX_RUN):
@@ -93,7 +111,12 @@ def _pick_start(dates: list[dict], now: datetime) -> tuple[datetime, datetime | 
 
         if best is None or start < best[0]:
             best = (start, end)
-    return best
+
+    if best is not None:
+        return best[0], best[1], False
+    if endless:
+        return opened_at or now, None, True
+    return None
 
 
 def _pick_image(images: list[dict] | None) -> str | None:
@@ -122,10 +145,10 @@ def _pick_image(images: list[dict] | None) -> str | None:
 def parse_event(raw: dict, location: str, now: datetime | None = None) -> dict | None:
     """Map one KudaGo item to Event fields, or None if it is unusable."""
     now = now or datetime.now(timezone.utc)
-    slot = _pick_start(raw.get("dates") or [], now)
+    slot = _schedule(raw.get("dates") or [], now)
     if slot is None:
         return None
-    starts_at, ends_at = slot
+    starts_at, ends_at, is_permanent = slot
 
     title = (raw.get("short_title") or raw.get("title") or "").strip()
     if not title:
@@ -145,6 +168,7 @@ def parse_event(raw: dict, location: str, now: datetime | None = None) -> dict |
         "source": SOURCE,
         "image_url": _pick_image(raw.get("images")),
         "site_url": (raw.get("site_url") or None),
+        "is_permanent": is_permanent,
     }
 
 

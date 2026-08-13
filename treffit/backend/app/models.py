@@ -226,6 +226,10 @@ class Event(Base):
     # чужие права на изображения.
     image_url: Mapped[str | None] = mapped_column(String(500))
     site_url: Mapped[str | None] = mapped_column(String(500))
+    # Постоянная экспозиция: идёт всегда, конкретной даты у неё нет.
+    # `starts_at` у таких событий — историческая дата открытия, показывать
+    # её человеку бессмысленно, а сортировать по ней — вредно.
+    is_permanent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     __table_args__ = (UniqueConstraint("source", "external_id", name="uq_events_source_external"),)
 
