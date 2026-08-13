@@ -200,6 +200,26 @@ const inputStyle = {
   color: T.ink,
 };
 
+/** Выбор города из тех, где работает афиша. */
+export function CityPicker({ value, options, onChange }) {
+  const list = options?.length ? options : [value].filter(Boolean);
+  return (
+    <select
+      value={value || ""}
+      onChange={(event) => onChange(event.target.value)}
+      className="w-full rounded-2xl px-4 py-3 text-sm outline-none appearance-none"
+      style={inputStyle}
+    >
+      {!value && <option value="">Выберите город</option>}
+      {list.map((city) => (
+        <option key={city} value={city}>
+          {city}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function BirthDateField({ value, disabled, minAge, onChange }) {
   // ISO с сервера показываем в том же виде, в каком его набирают.
   const [digits, setDigits] = useState(() => digitsFromIso(value));
@@ -279,11 +299,13 @@ function AboutStep({ form, update, onNext, saving, frozenBirthDate, config }) {
         </Field>
 
         <Field label="Город">
-          <input
+          {/* Не свободный ввод: афиша и поиск ищут по точному названию, а
+              «мск» и «Москва» для них разные города. Список приходит с
+              сервера — тот же, по которому собирается афиша. */}
+          <CityPicker
             value={form.city}
-            onChange={(event) => update({ city: event.target.value })}
-            className="w-full rounded-2xl px-4 py-3 text-sm outline-none"
-            style={inputStyle}
+            options={config.cities}
+            onChange={(city) => update({ city })}
           />
         </Field>
 

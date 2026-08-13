@@ -15,6 +15,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .. import cities
 from ..config import settings
 from ..models import Event
 
@@ -25,19 +26,9 @@ FIELDS = "id,title,short_title,place,dates,location,site_url,categories,images"
 EXPAND = "place,dates"
 SOURCE = "kudago"
 
-# KudaGo location slug → the city name stored on profiles.
-CITY_BY_LOCATION = {
-    "ekb": "Екатеринбург",
-    "msk": "Москва",
-    "spb": "Санкт-Петербург",
-    "nsk": "Новосибирск",
-    "kzn": "Казань",
-    "nnv": "Нижний Новгород",
-}
-
-
 def city_for(location: str) -> str:
-    return CITY_BY_LOCATION.get(location, location)
+    """Слаг источника → название города, как оно хранится в анкете."""
+    return cities.name_for_slug(location)
 
 
 # Дольше этого событие считаем бессрочным и конец не храним: у КудаGo
@@ -177,35 +168,73 @@ async def upsert(session: AsyncSession, payload: dict) -> bool:
     return False
 
 
-async def sync(session: AsyncSession, location: str | None = None, pages: int = 3) -> dict:
-    """Pull upcoming events and store them. Returns a small report."""
-    location = location or settings.kudago_location
-    since = datetime.now(timezone.utc)
+async def sync_location(
+    session: AsyncSession, client: httpx.AsyncClient, location: str, pages: int, since: datetime
+) -> dict:
+    """Забрать афишу одного города. Считает, что вышло."""
     created = updated = skipped = 0
+    failed = False
+
+    for page in range(1, pages + 1):
+        try:
+            data = await fetch_page(client, location, page, since)
+        except httpx.HTTPError:
+            logger.exception("KudaGo: %s, страница %s не загрузилась", location, page)
+            failed = True
+            break
+
+        results = data.get("results") or []
+        for raw in results:
+            payload = parse_event(raw, location, since)
+            if payload is None:
+                skipped += 1
+                continue
+            if await upsert(session, payload):
+                created += 1
+            else:
+                updated += 1
+
+        if not data.get("next") or not results:
+            break
+
+    return {
+        "location": location,
+        "city": city_for(location),
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "failed": failed,
+    }
+
+
+async def sync(
+    session: AsyncSession, location: str | None = None, pages: int = 3
+) -> dict:
+    """Забрать афишу по всем нужным городам.
+
+    Городов больше одного намеренно: человек, зарегистрировавшийся в
+    Москве, должен увидеть московскую афишу, а для этого её надо забрать
+    заранее — искать по запросу конкретного пользователя поздно.
+
+    Недоступность одного города не отменяет остальные: у источника
+    бывают и опечатки в слагах, и временные отказы.
+    """
+    locations = [location] if location else settings.kudago_location_list
+    since = datetime.now(timezone.utc)
+    by_location: list[dict] = []
 
     async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "Treffit/1.0"}) as client:
-        for page in range(1, pages + 1):
-            try:
-                data = await fetch_page(client, location, page, since)
-            except httpx.HTTPError:
-                logger.exception("KudaGo: страница %s не загрузилась", page)
-                break
+        for slug in locations:
+            by_location.append(await sync_location(session, client, slug, pages, since))
+            # Пишем после каждого города, чтобы отказ на пятом не терял
+            # первые четыре.
+            await session.commit()
 
-            results = data.get("results") or []
-            for raw in results:
-                payload = parse_event(raw, location, since)
-                if payload is None:
-                    skipped += 1
-                    continue
-                if await upsert(session, payload):
-                    created += 1
-                else:
-                    updated += 1
-
-            if not data.get("next") or not results:
-                break
-
-    await session.commit()
-    report = {"location": location, "created": created, "updated": updated, "skipped": skipped}
+    report = {
+        "created": sum(item["created"] for item in by_location),
+        "updated": sum(item["updated"] for item in by_location),
+        "skipped": sum(item["skipped"] for item in by_location),
+        "locations": by_location,
+    }
     logger.info("KudaGo sync: %s", report)
     return report

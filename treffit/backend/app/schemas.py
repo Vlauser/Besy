@@ -4,6 +4,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from . import cities
 from .config import settings
 from .models import Gender, SeekingGender, SwipeAction
 
@@ -86,6 +87,22 @@ class MeUpdate(BaseModel):
             return None
         cleaned = [i.strip()[:32] for i in value if i and i.strip()]
         return cleaned[:10]
+
+    @field_validator("city")
+    @classmethod
+    def _known_city(cls, value: str | None) -> str | None:
+        """Привести город к тому виду, в котором он записан у событий.
+
+        Афиша ищется точным совпадением названия, поэтому «мск», «Москва »
+        и «москва» обязаны стать одной «Москвой» — иначе список окажется
+        пустым, и ни одной ошибки при этом не возникнет.
+        """
+        if value is None:
+            return None
+        known = cities.normalize(value)
+        if known is None:
+            raise ValueError("Пока мы работаем не во всех городах — выберите из списка")
+        return known
 
     @field_validator("birth_date")
     @classmethod
@@ -358,6 +375,9 @@ class ConfigOut(BaseModel):
     # проде его быть не должно, там пустой initData — это ошибка, а не
     # приглашение выбрать демо-профиль.
     dev_auth_allowed: bool
+    # Список городов приходит с сервера: он же определяет, по каким городам
+    # вообще собирается афиша, и расходиться этим двум спискам нельзя.
+    cities: list[str]
     test_cards: list[TestCardOut]
 
 

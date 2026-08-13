@@ -18,7 +18,9 @@ pytestmark = pytest.mark.asyncio
 VENUE = (56.8447, 60.5878)
 
 
-async def add_event(title: str, starts_in: timedelta, ends_in: timedelta | None) -> int:
+async def add_event(
+    title: str, starts_in: timedelta, ends_in: timedelta | None, city: str = "Екатеринбург"
+) -> int:
     now = datetime.now(timezone.utc)
     async with SessionLocal() as session:
         event = Event(
@@ -29,7 +31,7 @@ async def add_event(title: str, starts_in: timedelta, ends_in: timedelta | None)
             ends_at=now + ends_in if ends_in is not None else None,
             lat=VENUE[0],
             lng=VENUE[1],
-            city="Екатеринбург",
+            city=city,
             source="test",
         )
         session.add(event)
@@ -106,3 +108,40 @@ async def test_live_checkin_needs_you_to_be_there(user_factory):
         "/live/checkin", json={"event_id": event_id, "lat": 55.7558, "lng": 37.6173}
     )
     assert response.status_code == 409
+
+
+# --------------------------- город решает, что видно ---------------------------
+
+
+async def test_each_city_sees_its_own_events(user_factory):
+    """Зарегистрировался в Москве — видишь Москву, и только её."""
+    await add_event("Концерт в Москве", timedelta(days=1), None, city="Москва")
+    await add_event("Концерт в Питере", timedelta(days=1), None, city="Санкт-Петербург")
+    await add_event("Концерт в Екб", timedelta(days=1), None, city="Екатеринбург")
+
+    muscovite = await user_factory(700200, city="Москва")
+    petersburger = await user_factory(700201, city="Санкт-Петербург")
+
+    assert await titles(muscovite) == ["Концерт в Москве"]
+    assert await titles(petersburger) == ["Концерт в Питере"]
+
+
+async def test_city_written_loosely_still_finds_the_events(user_factory):
+    """«мск» и «Москва» — один город.
+
+    Афиша ищется точным совпадением названия, поэтому расхождение в
+    написании оставило бы человека с пустым списком и без единой ошибки.
+    """
+    await add_event("Концерт в Москве", timedelta(days=1), None, city="Москва")
+    for index, written in enumerate(("мск", "МОСКВА", " Москва ", "moscow")):
+        actor = await user_factory(700210 + index, city=written)
+        assert actor.user["city"] == "Москва", written
+        assert await titles(actor) == ["Концерт в Москве"], written
+
+
+async def test_unsupported_city_is_refused_with_an_explanation(user_factory):
+    actor = await user_factory(700220, onboard=False)
+    await actor.post("/me/consent", json={"pdn": True, "photo": True})
+    response = await actor.patch("/me", json={"city": "Урюпинск"})
+    assert response.status_code == 422
+    assert "город" in response.text.lower()

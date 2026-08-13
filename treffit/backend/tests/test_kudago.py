@@ -186,7 +186,8 @@ async def test_sync_survives_an_unreachable_api(monkeypatch):
     monkeypatch.setattr(kudago, "API_ROOT", "http://127.0.0.1:9")  # discard port
     async with SessionLocal() as session:
         report = await kudago.sync(session, location="ekb", pages=1)
-    assert report == {"location": "ekb", "created": 0, "updated": 0, "skipped": 0}
+    assert report["created"] == 0 and report["updated"] == 0 and report["skipped"] == 0
+    assert report["locations"][0]["failed"] is True
 
 
 # --------------------------- афиши ---------------------------

@@ -12,6 +12,7 @@ import {
 
 import { endpoints, mediaUrl, setToken } from "../api/client";
 import { Button, Pill, Sheet } from "../components/ui";
+import { CityPicker } from "./Onboarding";
 import { Verification } from "./Verification";
 import { haptic, openInvoice, showConfirm } from "../lib/telegram";
 import { FALLBACK_GRADIENT, T, gradient } from "../theme";
@@ -222,6 +223,7 @@ export function Profile({ me, config, onUpdated, onGoTest, onError }) {
       <Sheet open={sheet === "edit"} onClose={() => setSheet(null)} title="О себе">
         <EditProfile
           me={me}
+          cities={config.cities}
           busy={busy}
           onSave={(patch) =>
             guard(async () => {
@@ -361,7 +363,7 @@ const INTEREST_OPTIONS = [
   "кофе", "готовка", "искусство", "театр", "фото", "танцы", "игры",
 ];
 
-function EditProfile({ me, onSave, busy }) {
+function EditProfile({ me, cities, onSave, busy }) {
   const [bio, setBio] = useState(me.bio || "");
   const [city, setCity] = useState(me.city || "");
   const [interests, setInterests] = useState(me.interests || []);
@@ -413,17 +415,14 @@ function EditProfile({ me, onSave, busy }) {
 
       <label className="block">
         <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: T.muted }}>Город</span>
-        <input
-          value={city}
-          onChange={(event) => setCity(event.target.value)}
-          className="w-full mt-1.5 rounded-2xl px-4 py-3 text-sm outline-none"
-          style={inputStyle}
-        />
+        <div className="mt-1.5">
+          <CityPicker value={city} options={cities} onChange={setCity} />
+        </div>
       </label>
 
       <Button
         loading={busy}
-        onClick={() => onSave({ bio: bio.trim() || null, city: city.trim(), interests })}
+        onClick={() => onSave({ bio: bio.trim() || null, city, interests })}
       >
         Сохранить
       </Button>

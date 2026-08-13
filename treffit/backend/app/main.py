@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from . import cities
 from .config import settings
 from .routers import (
     admin,
@@ -84,5 +85,6 @@ async def config() -> ConfigOut:
         max_photos=settings.max_photos,
         daily_like_limit=settings.daily_like_limit,
         dev_auth_allowed=settings.allow_dev_auth,
+        cities=list(cities.NAMES),
         test_cards=[TestCardOut(**card) for card in TEST_CARDS],
     )

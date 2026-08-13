@@ -63,8 +63,17 @@ class Settings(BaseSettings):
     mini_app_url: str = ""
 
     # --- events sync ---
-    kudago_location: str = "ekb"
+    # Города, по которым тянем афишу. Пусто — значит все поддерживаемые:
+    # человек из Москвы должен видеть Москву, и для этого её надо забрать.
+    kudago_locations: str = ""
     kudago_page_size: int = 100
+
+    @property
+    def kudago_location_list(self) -> list[str]:
+        from .cities import SLUGS
+
+        chosen = [item.strip() for item in self.kudago_locations.split(",") if item.strip()]
+        return chosen or list(SLUGS)
 
     # --- media ---
     media_root: Path = Path("var/media")
