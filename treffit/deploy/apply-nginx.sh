@@ -29,10 +29,19 @@ die() { printf '\n%sОшибка:%s %s\n' "$RED" "$OFF" "$1" >&2; exit 1; }
 [ "$(id -u)" -eq 0 ] || die "Запускайте через sudo."
 [ -f "$TEMPLATE" ] || die "Не нашёл шаблон $TEMPLATE"
 
+# Имя хоста из адреса в .env. Берём только то, что до первого слэша:
+# PUBLIC_URL записан как https://домен/api, и путь в имя домена попасть
+# не должен.
+read_host() {
+    sed -n "s#^$1=https\?://\([^/:]*\).*#\1#p" "$ENV_FILE" 2>/dev/null | tail -1
+}
+
 DOMAIN="${1:-}"
 if [ -z "$DOMAIN" ] && [ -f "$ENV_FILE" ]; then
-    # PUBLIC_URL пишет finish-tls.sh, из него и берём домен.
-    DOMAIN="$(sed -n 's#^TREFFIT_PUBLIC_URL=https\?://##p' "$ENV_FILE" | tr -d '/' | tail -1)"
+    # MINI_APP_URL — это ровно адрес сайта, без пути; PUBLIC_URL на случай,
+    # если первого в файле почему-то нет.
+    DOMAIN="$(read_host TREFFIT_MINI_APP_URL)"
+    [ -n "$DOMAIN" ] || DOMAIN="$(read_host TREFFIT_PUBLIC_URL)"
 fi
 [ -n "$DOMAIN" ] || die "Не смог определить домен. Укажите: sudo bash deploy/apply-nginx.sh ваш.домен"
 
