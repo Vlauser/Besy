@@ -19,8 +19,8 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 # stores require it, so there is no card path here on purpose.
 PRODUCTS: dict[str, dict] = {
     "premium_1m": {"title": "Treffit Premium — 1 месяц", "description": "Кто вас лайкнул, безлимит лайков, буст анкеты", "amount": 299},
-    "boost": {"title": "Буст анкеты", "description": "Ваша анкета выше в колоде 24 часа", "amount": 99},
-    "likes_pack": {"title": "Пачка лайков", "description": "+100 лайков сверх дневного лимита", "amount": 49},
+    "boost": {"title": "Буст анкеты", "description": "Ваша анкета выше в поиске 24 часа", "amount": 99},
+    "likes_pack": {"title": "100 лайков", "description": "+100 лайков сверх дневного лимита", "amount": 49},
 }
 
 

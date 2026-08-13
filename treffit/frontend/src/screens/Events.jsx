@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Calendar, LayoutGrid, MapPin, Radio, Sparkles } from "lucide-react";
+import { Calendar, MapPin, Radio } from "lucide-react";
 
 import { endpoints } from "../api/client";
-import { Spinner } from "../components/ui";
+import { EmptyState, Spinner } from "../components/ui";
 import { haptic, requestLocation } from "../lib/telegram";
-import { T, gradient } from "../theme";
+import { T } from "../theme";
 
 function whenLabel(iso) {
   const date = new Date(iso);
@@ -15,7 +15,7 @@ function whenLabel(iso) {
   return date.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }
 
-export function Home({ me, config, onGoDeck, onGoPack, onGoTest, onError }) {
+export function Events({ onError }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(null);
@@ -56,73 +56,19 @@ export function Home({ me, config, onGoDeck, onGoPack, onGoTest, onError }) {
     }
   }
 
-  const testDone = Boolean(me.test_completed_at);
-
   return (
-    <div className="px-4 pt-4 pb-4 space-y-3">
-      <button
-        onClick={onGoDeck}
-        className="relative w-full flex items-center gap-3 rounded-2xl p-4 active:scale-95 transition-transform duration-150 overflow-hidden"
-        style={{ background: gradient.action }}
-      >
-        <span className="relative flex-shrink-0" style={{ width: 44, height: 44 }}>
-          <span className="absolute rounded-xl" style={{ width: 34, height: 40, background: "rgba(255,255,255,0.35)", left: 6, top: 2, transform: "rotate(-8deg)" }} />
-          <span className="absolute rounded-xl" style={{ width: 34, height: 40, background: "#fff", left: 5, top: 0, transform: "rotate(4deg)" }} />
-        </span>
-        <span className="flex-1 text-left">
-          <span className="block text-sm font-bold text-white">Колода</span>
-          <span className="block text-xs" style={{ color: "rgba(255,255,255,0.85)" }}>
-            Новые люди рядом
-          </span>
-        </span>
-      </button>
-
-      <button
-        onClick={onGoPack}
-        className="w-full flex items-center gap-3 rounded-2xl p-4 active:scale-95 transition-transform text-left"
-        style={{ background: T.gold }}
-      >
-        <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.15)" }}>
-          <LayoutGrid size={17} color="#fff" />
-        </span>
-        <span className="flex-1">
-          <span className="block text-sm font-bold text-white">Пачка скретч-карт</span>
-          <span className="block text-xs" style={{ color: "rgba(255,255,255,0.78)" }}>
-            Кто-то ждёт под фольгой
-          </span>
-        </span>
-      </button>
-
-      {!testDone && (
-        <button
-          onClick={onGoTest}
-          className="w-full flex items-center gap-3 rounded-2xl p-4 active:scale-95 transition-transform text-left"
-          style={{ background: T.surface, border: `1px solid ${T.line}` }}
-        >
-          <span className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: T.goldSoft }}>
-            <Sparkles size={18} color={T.gold} />
-          </span>
-          <span className="flex-1">
-            <span className="block text-sm font-semibold" style={{ color: T.ink }}>Пройдите мини-тест</span>
-            <span className="block text-xs" style={{ color: T.muted }}>6 вопросов — совпадения станут точнее</span>
-          </span>
-        </button>
-      )}
-
-      <div className="pt-2">
-        <div className="flex items-center gap-2 mb-2.5 px-1">
-          <Calendar size={15} color={T.muted} />
-          <span className="text-sm font-semibold" style={{ color: T.ink }}>События в городе</span>
-        </div>
-
+    <div className="px-4 pt-4 pb-4">
+      <div>
         {loading && (
           <div className="flex justify-center py-6"><Spinner /></div>
         )}
 
         {!loading && !events.length && (
-          <p className="text-sm px-1" style={{ color: T.muted }}>
-            Скоро здесь появятся события города.
-          </p>
+          <EmptyState
+            icon={Calendar}
+            title="Пока тихо"
+            hint="Здесь появятся концерты, выставки и вечеринки — и те, кто на них идёт."
+          />
         )}
 
         <div className="space-y-2.5">

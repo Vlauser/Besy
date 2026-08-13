@@ -93,7 +93,7 @@ async function scratchRound(page) {
 /** Walk the deck until the named profile is on top, then like them. Passing
  *  on everyone else keeps the run deterministic regardless of deck order. */
 async function likeByName(page, needle, attempts = 6) {
-  await page.click("button:has-text('Колода')");
+  await page.click("button:has-text('Поиск')");
   await page.waitForTimeout(1600);
   for (let attempt = 0; attempt < attempts; attempt++) {
     const name = (await page.locator("h3").first().textContent().catch(() => "")) || "";
@@ -118,22 +118,22 @@ async function send(page, text) {
 // --------------------------- the run ---------------------------
 
 const her = await signIn("Лера, 31");
-check("дев-вход выполнен, видна главная", await her.locator("text=События в городе").isVisible());
-await shot(her, "01-home");
+check("дев-вход выполнен, открыт «Поиск»", await her.locator("button:has-text('Поиск')").isVisible());
+await shot(her, "01-deck-default");
 
-await her.click("button:has-text('Колода')");
+await her.click("button:has-text('Поиск')");
 await her.waitForTimeout(1600);
 const dragged = await dragLike(her);
-check("свайп вправо убирает карту из колоды", Boolean(dragged));
+check("свайп вправо убирает карту", Boolean(dragged));
 await shot(her, "02-deck");
 
-await her.click("button:has-text('Пачка')");
+await her.click("button:has-text('Карты')");
 await her.waitForTimeout(1500);
-check("в пачке есть закрытая скретч-карта", (await her.locator("canvas").count()) > 0);
+check("на вкладке «Карты» есть закрытая скретч-карта", (await her.locator("canvas").count()) > 0);
 await shot(her, "03-pack");
 
 check("лайк по конкретному профилю проходит", await likeByName(her, "Дима"));
-await her.click("button:has-text('Пачка')");
+await her.click("button:has-text('Карты')");
 await her.waitForTimeout(1200);
 
 const him = await signIn("Дима, 34");

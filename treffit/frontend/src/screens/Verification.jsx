@@ -56,7 +56,7 @@ export function Verification({ isVerified, onDone, onError }) {
         </div>
         <p className="font-display text-xl" style={{ color: T.ink }}>Анкета подтверждена</p>
         <p className="text-sm" style={{ color: T.muted }}>
-          Галочка видна всем в колоде — таким анкетам доверяют больше.
+          Галочка видна всем в поиске — таким анкетам доверяют больше.
         </p>
       </div>
     );

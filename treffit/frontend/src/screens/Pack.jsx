@@ -35,14 +35,14 @@ export function Pack({ onOpenCandidate, onError }) {
     }
   }
 
-  if (loading) return <Loading label="Собираем пачку…" />;
+  if (loading) return <Loading label="Раздаём карты…" />;
 
   if (!cards.length) {
     return (
       <EmptyState
         icon={LayoutGrid}
-        title="Пачка пуста"
-        hint="Новые карты появятся, когда подойдут новые люди поблизости."
+        title="Карты закончились"
+        hint="Новые появятся, когда рядом окажутся новые люди."
       />
     );
   }

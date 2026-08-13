@@ -346,7 +346,7 @@ function PhotoManager({ me, maxPhotos, guard, refresh, busy }) {
       </div>
       <input ref={inputRef} type="file" accept="image/*" onChange={add} className="hidden" />
       <p className="text-xs mt-3" style={{ color: T.muted }}>
-        Первое фото видят в колоде. Можно добавить до {maxPhotos}.
+        Первое фото — главное, его видят первым. Можно добавить до {maxPhotos}.
       </p>
     </div>
   );

@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Calendar,
   ChevronLeft,
-  Heart,
-  Home as HomeIcon,
+  Flame,
   LayoutGrid,
   MessageCircle,
   User as UserIcon,
@@ -14,7 +14,7 @@ import { ChatList } from "./screens/Chats";
 import { ChatRoom } from "./screens/ChatRoom";
 import { Deck } from "./screens/Deck";
 import { DevLogin } from "./screens/DevLogin";
-import { Home } from "./screens/Home";
+import { Events } from "./screens/Events";
 import { Onboarding } from "./screens/Onboarding";
 import { Profile } from "./screens/Profile";
 import { Test } from "./screens/Test";
@@ -32,17 +32,17 @@ import {
 import { FALLBACK_GRADIENT, T, gradient } from "./theme";
 
 const TABS = [
-  { key: "home", label: "Дом", icon: HomeIcon },
-  { key: "deck", label: "Колода", icon: Heart },
-  { key: "pack", label: "Пачка", icon: LayoutGrid },
+  { key: "deck", label: "Поиск", icon: Flame },
+  { key: "pack", label: "Карты", icon: LayoutGrid },
+  { key: "events", label: "События", icon: Calendar },
   { key: "chats", label: "Чаты", icon: MessageCircle },
   { key: "profile", label: "Профиль", icon: UserIcon },
 ];
 
 const TAB_TITLES = {
-  home: "Treffit",
-  deck: "Колода",
-  pack: "Пачка карт",
+  deck: "Поиск",
+  pack: "Карты",
+  events: "События",
   chats: "Чаты",
   profile: "Профиль",
   test: "Мини-тест",
@@ -54,7 +54,7 @@ export default function App() {
   const [needsDevLogin, setNeedsDevLogin] = useState(false);
   const [config, setConfig] = useState(null);
   const [me, setMe] = useState(null);
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState("deck");
   const [activeChatId, setActiveChatId] = useState(null);
   const [candidate, setCandidate] = useState(null);
   const [matchPopup, setMatchPopup] = useState(null);
@@ -211,17 +211,8 @@ export default function App() {
   /* ---------------- main app ---------------- */
 
   let body = null;
-  if (tab === "home") {
-    body = (
-      <Home
-        me={me}
-        config={config}
-        onGoDeck={() => setTab("deck")}
-        onGoPack={() => setTab("pack")}
-        onGoTest={() => setTab("test")}
-        onError={notify}
-      />
-    );
+  if (tab === "events") {
+    body = <Events onError={notify} />;
   } else if (tab === "deck") {
     body = <Deck config={config} onMatch={setMatchPopup} onError={notify} />;
   } else if (tab === "pack") {
@@ -246,7 +237,7 @@ export default function App() {
         initialAnswers={me.test_answers}
         onSaved={(updated) => {
           setMe(updated);
-          setTimeout(() => setTab("home"), 900);
+          setTimeout(() => setTab("deck"), 900);
         }}
         onError={notify}
       />
@@ -344,14 +335,10 @@ function Shell({ height, title, onBack, footer, bare, children }) {
           className="flex items-center gap-2 px-4 py-3.5 flex-shrink-0"
           style={{ background: T.surface, borderBottom: `1px solid ${T.line}` }}
         >
-          {onBack ? (
+          {onBack && (
             <button onClick={onBack} className="p-1 -ml-1 rounded-full active:scale-90 transition-transform">
               <ChevronLeft size={20} color={T.ink} />
             </button>
-          ) : (
-            <span className="font-ui font-extrabold text-xs tracking-widest" style={{ color: T.coral }}>
-              TREFFIT
-            </span>
           )}
           <span className="font-display text-base" style={{ color: T.ink }}>{title}</span>
         </div>
