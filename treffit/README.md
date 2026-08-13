@@ -182,7 +182,8 @@ python -m scripts.setup_bot --status   # проверить, что Telegram д�
 5. В проде обязательно `TREFFIT_ALLOW_DEV_AUTH=false` — иначе кто угодно
    выпустит себе сессию на любой `telegram_id`.
 
-Полная инструкция по серверу — **[`docs/deploy.md`](docs/deploy.md)**:
+Установка на сервер — `sudo bash deploy/bootstrap.sh` делает всё до
+домена. Полная инструкция — **[`docs/deploy.md`](docs/deploy.md)**:
 systemd, nginx с TLS, бэкапы, таймер синка событий и раздел «Проверка в
 Telegram» с тем, что нельзя проверить локально.
 
