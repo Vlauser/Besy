@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Flag, Send, Shield } from "lucide-react";
+import { ChevronRight, Flag, MapPin, Send, Shield, X } from "lucide-react";
 
 import { endpoints, mediaUrl } from "../api/client";
+import { CompatRing } from "../components/CompatRing";
 import { ScratchPhoto } from "../components/Scratch";
-import { Avatar, Button, Loading, Sheet } from "../components/ui";
+import { Avatar, Button, Loading, Pill, Sheet } from "../components/ui";
 import { realtime } from "../lib/realtime";
 import { haptic, showConfirm } from "../lib/telegram";
 import { FALLBACK_GRADIENT, T, gradient } from "../theme";
@@ -25,6 +26,8 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
   const [typing, setTyping] = useState(false);
   const [revealPhoto, setRevealPhoto] = useState(null);
   const [safetyOpen, setSafetyOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [zoomed, setZoomed] = useState(null);
   const bottomRef = useRef(null);
   const typingTimer = useRef(null);
 
@@ -89,6 +92,11 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
         // The URL only exists now — the server refused it a message ago.
         const photo = await endpoints.chatPhoto(chatId).catch(() => null);
         if (photo) setRevealPhoto(photo);
+        // Флаг выше — только для шапки. Сама анкета собеседника пришла ещё
+        // закрытой: без фотографий и с photos_locked. Если её не перечитать,
+        // чат говорит «фото открыто», а в анкете остаётся замок — до тех пор,
+        // пока экран не откроют заново.
+        load();
       }
     } catch (error) {
       setText(body);
@@ -132,31 +140,46 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
   return (
     <div className="flex flex-col h-full">
       <div className="px-4 py-3 flex items-center gap-3" style={{ background: T.surface, borderBottom: `1px solid ${T.line}` }}>
-        <Avatar
-          src={photoSrc}
-          grad={photo?.gradient || FALLBACK_GRADIENT}
-          size={44}
-          verified={chat.revealed}
-          online={chat.other.is_online}
-        />
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm truncate" style={{ color: T.ink }}>
-            {chat.other.first_name}
-            {chat.other.age ? `, ${chat.other.age}` : ""}
-          </p>
-          <p className="text-xs" style={{ color: typing ? T.coral : chat.revealed ? T.gold : T.muted }}>
-            {typing
-              ? "печатает…"
-              : chat.revealed
-              ? "фото открыто"
-              : config.blind_mode
-              ? `ещё ${remaining} сообщ. до фото`
-              : chat.other.is_online
-              ? "онлайн"
-              : "не в сети"}
-          </p>
-        </div>
-        <button onClick={() => setSafetyOpen(true)} className="p-2 rounded-full active:scale-90 transition-transform">
+        {/* Вся шапка — вход в анкету: это единственное место, откуда до неё
+            можно дойти из чата. */}
+        <button
+          onClick={() => {
+            haptic.light();
+            setProfileOpen(true);
+          }}
+          className="flex items-center gap-3 flex-1 min-w-0 text-left active:opacity-70 transition-opacity"
+        >
+          <Avatar
+            src={photoSrc}
+            grad={photo?.gradient || FALLBACK_GRADIENT}
+            size={44}
+            verified={chat.revealed}
+            online={chat.other.is_online}
+          />
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm truncate" style={{ color: T.ink }}>
+              {chat.other.first_name}
+              {chat.other.age ? `, ${chat.other.age}` : ""}
+            </p>
+            <p className="text-xs truncate" style={{ color: typing ? T.coral : chat.revealed ? T.gold : T.muted }}>
+              {typing
+                ? "печатает…"
+                : chat.revealed
+                ? "фото открыто"
+                : config.blind_mode
+                ? `ещё ${remaining} сообщ. до фото`
+                : chat.other.is_online
+                ? "онлайн"
+                : "не в сети"}
+            </p>
+          </div>
+          <ChevronRight size={16} color={T.muted} className="flex-shrink-0" />
+        </button>
+        <button
+          onClick={() => setSafetyOpen(true)}
+          aria-label="Пожаловаться или заблокировать"
+          className="p-2 rounded-full active:scale-90 transition-transform flex-shrink-0"
+        >
           <Shield size={18} color={T.muted} />
         </button>
       </div>
@@ -237,6 +260,20 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
         </button>
       </div>
 
+      <Sheet
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        title={chat.other.first_name}
+      >
+        <PartnerProfile
+          partner={chat.other}
+          remaining={config.blind_mode && !chat.revealed ? remaining : 0}
+          onZoom={setZoomed}
+        />
+      </Sheet>
+
+      {zoomed && <PhotoViewer src={zoomed} onClose={() => setZoomed(null)} />}
+
       <Sheet open={safetyOpen} onClose={() => setSafetyOpen(false)} title="Безопасность">
         <div className="p-4 space-y-2">
           {REPORT_REASONS.map(([value, label]) => (
@@ -259,6 +296,155 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
   );
 }
 
+/** Анкета собеседника, как её видно из чата.
+ *
+ *  Всё нужное уже лежит в `chat.other` — сервер отдаёт ту же анкету, что и в
+ *  поиске, и сам решает, вкладывать ли ссылки на фото. Если фото ещё не
+ *  открыты, в `url` приходит null, и показывать тут нечего, кроме градиента.
+ */
+function PartnerProfile({ partner, remaining, onZoom }) {
+  const photos = (partner.photos || []).filter((item) => item.url);
+  // Скрыто и не добавлено — разные вещи: во втором случае ждать нечего.
+  const locked = partner.photos_locked;
+  const empty = !locked && photos.length === 0;
+
+  return (
+    <div className="px-5 pt-4 pb-6">
+      {locked || empty ? (
+        <div
+          className="rounded-2xl flex flex-col items-center justify-center text-center px-6"
+          style={{
+            height: 200,
+            background: partner.photos?.[0]?.gradient || FALLBACK_GRADIENT,
+          }}
+        >
+          <span className="text-xs font-bold tracking-widest text-white/90">
+            {empty ? "БЕЗ ФОТО" : "ФОТО СКРЫТО"}
+          </span>
+          <span className="text-xs mt-2 text-white/75">
+            {empty
+              ? "Собеседник ещё не добавил фотографий"
+              : remaining > 0
+              ? `Откроется после ${remaining} ваших сообщений`
+              : "Откроется, когда разговор начнётся"}
+          </span>
+        </div>
+      ) : (
+        // Больше одного фото листается вбок; одно занимает всю ширину.
+        <div className={`flex gap-2 ${photos.length > 1 ? "overflow-x-auto no-scrollbar -mx-1 px-1" : ""}`}>
+          {photos.map((item) => (
+            <button
+              key={item.url}
+              onClick={() => onZoom(mediaUrl(item.url))}
+              className="rounded-2xl overflow-hidden flex-shrink-0 active:scale-95 transition-transform"
+              style={{
+                width: photos.length > 1 ? "72%" : "100%",
+                height: 260,
+                background: item.gradient || FALLBACK_GRADIENT,
+              }}
+            >
+              <img src={mediaUrl(item.url)} alt="" className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 mt-4">
+        <h2 className="font-display text-xl" style={{ color: T.ink }}>
+          {partner.first_name}
+          {partner.age ? `, ${partner.age}` : ""}
+        </h2>
+        {partner.is_verified && <Pill tone="success">проверен</Pill>}
+        {partner.is_online && <Pill tone="muted">онлайн</Pill>}
+      </div>
+
+      {partner.city && (
+        <div className="flex items-center gap-1.5 mt-1">
+          <MapPin size={13} color={T.muted} />
+          <span className="text-sm" style={{ color: T.muted }}>{partner.city}</span>
+        </div>
+      )}
+
+      {partner.bio && (
+        <p className="text-sm mt-3 whitespace-pre-wrap" style={{ color: T.ink }}>{partner.bio}</p>
+      )}
+
+      {(partner.interests || []).length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          {partner.interests.map((interest) => (
+            <Pill key={interest} tone="muted">{interest}</Pill>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-col items-center mt-5">
+        <CompatRing percent={partner.compatibility_pct} size={104} />
+        <span className="text-xs mt-2" style={{ color: T.muted }}>совпадение по тесту</span>
+      </div>
+
+      {(partner.shared_flags || []).length > 0 && (
+        <div className="mt-4 space-y-2">
+          {partner.shared_flags.map((flag) => (
+            <div
+              key={flag}
+              className="flex items-center gap-2.5 rounded-2xl p-3"
+              style={{ background: T.bg, border: `1px solid ${T.line}` }}
+            >
+              <span
+                className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: T.goldSoft }}
+              >
+                <Flag size={13} color={T.gold} />
+              </span>
+              <span className="text-sm" style={{ color: T.ink }}>{flag}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {partner.event && (
+        <div
+          className="flex items-center gap-2.5 rounded-2xl p-3 mt-2"
+          style={{ background: "#E1EBFF", border: `1px solid ${T.line}` }}
+        >
+          <span className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#FFFFFF" }}>
+            <MapPin size={13} color={T.coral} />
+          </span>
+          <span className="text-sm" style={{ color: T.ink }}>{partner.event.title}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Фото на весь экран. Закрывается касанием в любом месте. */
+function PhotoViewer({ src, onClose }) {
+  useEffect(() => {
+    const onKey = (event) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      // Выше попапа матча (z-70): фото открывают намеренно, оно главное.
+      className="fixed inset-0 z-[80] flex items-center justify-center p-4"
+      style={{ background: "rgba(10,14,30,0.94)" }}
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        aria-label="Закрыть"
+        className="absolute top-4 right-4 p-2 rounded-full active:scale-90 transition-transform"
+        style={{ background: "rgba(255,255,255,0.14)" }}
+      >
+        <X size={20} color="#fff" />
+      </button>
+      <img src={src} alt="" className="max-w-full max-h-full object-contain rounded-2xl" />
+    </div>
+  );
+}
+
 function Bubble({ message }) {
   if (message.type === "system") {
     return (
@@ -271,7 +457,8 @@ function Bubble({ message }) {
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div
-        className="max-w-[78%] rounded-2xl px-3.5 py-2 text-sm"
+        // break-words — чтобы ссылка без пробелов рвалась, а не растягивала чат.
+        className="max-w-[78%] rounded-2xl px-3.5 py-2 text-sm break-words whitespace-pre-wrap"
         style={
           mine
             ? { background: gradient.action, color: "#fff", borderBottomRightRadius: 6 }
