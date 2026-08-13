@@ -175,7 +175,8 @@ ok "venv готов, модель модерации на месте"
 step "Миграции"
 sudo -u "$SERVICE_USER" env $(grep -v '^#' "$ENV_FILE" | grep -v '^$' | xargs -d '\n') \
     .venv/bin/alembic upgrade head >/dev/null
-TABLES=$(psql_as_postgres -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+# Без -d psql уходит в базу postgres и всегда насчитывает ноль таблиц.
+TABLES=$(psql_as_postgres -d treffit -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
 [ "$TABLES" -ge 15 ] || die "ожидал минимум 15 таблиц, вижу $TABLES"
 ok "схема накатана ($TABLES таблиц)"
 
