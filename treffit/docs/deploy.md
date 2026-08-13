@@ -175,15 +175,44 @@ systemctl list-timers 'treffit-*'      # два таймера с ближайш
 
 ## 8. nginx и TLS
 
+Сертификат выпускается в два приёма: полный конфиг ссылается на файлы,
+которых до первого выпуска нет, и `nginx -t` на нём не пройдёт.
+
+**8.1 — временный http-конфиг для проверки Let's Encrypt**
+
 ```bash
-cp /srv/treffit/src/treffit/deploy/nginx.conf /etc/nginx/sites-available/treffit
+mkdir -p /var/www/certbot
+cp /srv/treffit/src/treffit/deploy/nginx-acme.conf /etc/nginx/sites-available/treffit
 sed -i 's/treffit.example.com/ВАШ.ДОМЕН/g' /etc/nginx/sites-available/treffit
 ln -sf /etc/nginx/sites-available/treffit /etc/nginx/sites-enabled/treffit
 rm -f /etc/nginx/sites-enabled/default
-mkdir -p /var/www/certbot
-
 nginx -t && systemctl reload nginx
-certbot --nginx -d ВАШ.ДОМЕН
+```
+
+Проверка: `curl -s http://ВАШ.ДОМЕН/` → строка про ожидание сертификата.
+Если не отвечает — DNS ещё не разошёлся; сверьте `dig +short ВАШ.ДОМЕН`
+с реальным IP сервера, certbot без этого не выпустит сертификат.
+
+**8.2 — выпуск сертификата**
+
+```bash
+certbot certonly --webroot -w /var/www/certbot -d ВАШ.ДОМЕН \
+    --agree-tos --no-eff-email -m ваша@почта \
+    --deploy-hook "systemctl reload nginx"
+```
+
+`certonly` вместо `--nginx` намеренно: certbot не редактирует наш конфиг,
+и он остаётся единственным источником правды. `--deploy-hook` перечитает
+nginx после автопродления.
+
+**8.3 — полный конфиг**
+
+```bash
+cp /srv/treffit/src/treffit/deploy/nginx.conf /etc/nginx/sites-available/treffit
+sed -i 's/treffit.example.com/ВАШ.ДОМЕН/g' /etc/nginx/sites-available/treffit
+sed -i 's#/srv/treffit/frontend#/srv/treffit/src/treffit/frontend#g' \
+    /etc/nginx/sites-available/treffit
+nginx -t && systemctl reload nginx
 ```
 
 Проверка:
@@ -193,7 +222,7 @@ curl -s https://ВАШ.ДОМЕН/api/health          # {"status":"ok"}
 curl -s https://ВАШ.ДОМЕН/ | head -c 100      # html фронтенда
 ```
 
-Сертификат продлевается таймером certbot автоматически; проверить —
+Продление автоматическое таймером certbot; проверить —
 `systemctl list-timers certbot`.
 
 ---

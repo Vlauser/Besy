@@ -233,14 +233,22 @@ cat <<DONE
 
 ${GREEN}${BOLD}Бэкенд поднят.${OFF} Дальше руками — нужны ваш домен и токен:
 
-  ${BOLD}1. nginx и TLS${OFF}
+  ${BOLD}1. nginx и TLS${OFF} (в два приёма — сертификата ещё нет)
+     mkdir -p /var/www/certbot
+     cp ${REPO_ROOT}/deploy/nginx-acme.conf /etc/nginx/sites-available/treffit
+     sed -i 's/treffit.example.com/ВАШ.ДОМЕН/g' /etc/nginx/sites-available/treffit
+     ln -sf /etc/nginx/sites-available/treffit /etc/nginx/sites-enabled/treffit
+     rm -f /etc/nginx/sites-enabled/default
+     nginx -t && systemctl reload nginx
+
+     certbot certonly --webroot -w /var/www/certbot -d ВАШ.ДОМЕН \\
+         --agree-tos --no-eff-email -m ваша@почта \\
+         --deploy-hook "systemctl reload nginx"
+
      cp ${REPO_ROOT}/deploy/nginx.conf /etc/nginx/sites-available/treffit
      sed -i 's/treffit.example.com/ВАШ.ДОМЕН/g' /etc/nginx/sites-available/treffit
      sed -i 's#/srv/treffit/frontend#${REPO_ROOT}/frontend#g' /etc/nginx/sites-available/treffit
-     ln -sf /etc/nginx/sites-available/treffit /etc/nginx/sites-enabled/treffit
-     rm -f /etc/nginx/sites-enabled/default
-     mkdir -p /var/www/certbot && nginx -t && systemctl reload nginx
-     certbot --nginx -d ВАШ.ДОМЕН
+     nginx -t && systemctl reload nginx
 
   ${BOLD}2. Впишите в ${ENV_FILE}${OFF}
      TREFFIT_BOT_TOKEN=<токен от BotFather>
