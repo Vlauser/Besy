@@ -1,134 +1,187 @@
-# Treffit — схема БД и API-эндпоинты (MVP)
+# Treffit — схема БД и API
 
-Основано на: тест → скретч-пачка совпадений → карточка совпадения → блайнд-чат → скретч-reveal фото. Стек: FastAPI + PostgreSQL на Aeza VPS, авторизация через `initData` Telegram.
+Справочник по тому, что реально реализовано в `backend/`. Источник истины —
+`backend/app/models.py` (таблицы) и `GET /docs` у запущенного сервиса
+(OpenAPI со всеми схемами запросов и ответов).
+
+Стек: FastAPI + SQLAlchemy 2.0 (async) + PostgreSQL, авторизация через
+`initData` Telegram, миграции — Alembic.
 
 ---
 
-## 1. Таблицы БД
+## 0. Что изменилось против первой редакции документа
+
+Первая редакция называла `matches` пачку рекомендаций для одного человека.
+Twinby-подобному продукту нужны обе сущности сразу, поэтому они разделены:
+
+| Было | Стало | Смысл |
+|---|---|---|
+| `matches` | `deck_cards` | кандидаты, показанные одному пользователю (скретч-пачка) |
+| — | `matches` | **взаимный** лайк двоих; владеет ровно одним чатом |
+| — | `swipes` | лайк / пропуск / суперлайк — основа свайп-колоды |
+| — | `photos` | несколько фото на анкету + статус модерации |
+| — | `blocks`, `reports` | блокировки и жалобы |
+| — | `purchases` | покупки за Telegram Stars |
+
+Остальные таблицы (`users`, `events`, `user_events`, `live_sessions`,
+`chats`, `messages`) сохранили исходный смысл и обросли полями.
+
+---
+
+## 1. Таблицы
 
 ### `users`
-| Поле | Тип | Комментарий |
-|---|---|---|
-| id | bigserial PK | внутренний id |
-| telegram_id | bigint, unique | из `initDataUnsafe.user.id` |
-| username | text, nullable | из Telegram |
-| first_name | text | |
-| birth_date | date | обязательное — проверка 18+ на уровне API |
-| gender | text | |
-| city | text | Екатеринбург по умолчанию |
-| bio | text, nullable | |
-| profile_photo_url | text, nullable | **отдельная от Telegram-аватарки**, приватная, отдаётся только после reveal |
-| test_answers | jsonb | `{"1": "right", "2": "left", ...}` — 6 вопросов теста |
-| consent_pdn_at | timestamptz, nullable | согласие на обработку перс. данных (152-ФЗ) |
-| consent_photo_at | timestamptz, nullable | отдельное согласие на фото/гео — чувствительные данные |
-| is_active | boolean default true | бан/soft-delete |
-| created_at, updated_at | timestamptz | |
+Ключевые поля: `telegram_id` (unique), `first_name`, `birth_date`,
+`gender`, `seeking_gender`, `seeking_age_min/max`, `city`, `bio`,
+`interests` (jsonb), `test_answers` (jsonb `{"1":"left",…}`),
+`test_completed_at`, `consent_pdn_at`, `consent_photo_at`,
+`is_premium`, `is_verified`, `is_active`, `is_banned`, `onboarded_at`,
+`last_active_at`.
 
-### `events`
-| Поле | Тип | Комментарий |
-|---|---|---|
-| id | bigserial PK | |
-| external_id | text | id из KudaGo, для синхронизации |
-| title | text | |
-| venue | text | |
-| starts_at, ends_at | timestamptz | |
-| lat, lng | double precision | для геозапросов Live-режима |
-| source | text default 'kudago' | |
+- `birth_date` проверяется на 18+ в схеме запроса и **замораживается** после
+  первого сохранения — иначе можно зарегистрироваться взрослым и потом
+  поправить возраст.
+- `is_onboarded` — вычисляемое свойство: дата рождения + пол + согласие ПДн +
+  пройденный тест. Без него закрыт весь социальный API (HTTP 428).
 
-### `user_events`
-| Поле | Тип | Комментарий |
-|---|---|---|
-| id | bigserial PK | |
-| user_id | FK → users | |
-| event_id | FK → events | |
-| created_at | timestamptz | |
+### `photos`
+`user_id`, `position` (unique вместе с `user_id`), `file_path`, `thumb_path`,
+`blur_gradient`, `moderation_status` (`pending`/`approved`/`rejected`).
 
-### `matches` (пачка скретч-карт)
-| Поле | Тип | Комментарий |
-|---|---|---|
-| id | bigserial PK | |
-| user_id | FK → users | «для кого» карта |
-| candidate_id | FK → users | «кто» на карте |
-| compatibility_pct | smallint | считается по пересечению `test_answers`, кэшируется |
-| shared_flags | jsonb | массив строк для карточки совпадения |
-| event_id | FK → events, nullable | если есть общее событие |
-| is_live | boolean default false | пересчитывается по окну события |
-| scratched_at | timestamptz, nullable | null = карта ещё не открыта |
-| created_at | timestamptz | |
+Файл никогда не отдаётся статикой — только через `/media/photos/{id}`,
+где проверяются права. `blur_gradient` — двухцветный CSS-градиент, снятый с
+самого изображения: он показывается **вместо** фото, поэтому «расблюрить»
+нечего, настоящие пиксели не покидают сервер. EXIF снимается при загрузке
+(перекодирование в JPEG), иначе геометка из фото — прямая утечка адреса.
 
-*Уникальность: (`user_id`, `candidate_id`).*
+### `swipes`
+`actor_id`, `target_id`, `action` (`like`/`pass`/`superlike`),
+unique по паре. Взаимный `like`/`superlike` создаёт `matches`.
 
-### `live_sessions` (чек-ин на месте)
-| Поле | Тип | Комментарий |
-|---|---|---|
-| id | bigserial PK | |
-| user_id | FK → users | |
-| event_id | FK → events | |
-| lat, lng | double precision | снимок из `LocationManager` |
-| checked_in_at | timestamptz | |
-| expires_at | timestamptz | окно события + буфер |
+### `deck_cards`
+Скретч-пачка: `user_id`, `candidate_id` (unique пара),
+`compatibility_pct`, `shared_flags` (jsonb), `event_id`, `is_live`,
+`scratched_at` (null = не открыта).
+
+### `matches`
+Взаимный лайк: `user_a_id < user_b_id` (constraint), поэтому пара уникальна.
+`compatibility_pct`, `shared_flags`, `event_id`, `source`, `is_active`.
 
 ### `chats`
-| Поле | Тип | Комментарий |
-|---|---|---|
-| id | bigserial PK | |
-| user_a_id, user_b_id | FK → users | упорядоченная пара, unique |
-| msg_count_a, msg_count_b | int default 0 | **считаются раздельно** — reveal у каждого свой |
-| revealed_a | boolean default false | видит ли A фото B |
-| revealed_b | boolean default false | видит ли B фото A |
-| started_at, last_message_at | timestamptz | |
+`match_id` (unique), `user_a_id`, `user_b_id`, **`msg_count_a` /
+`msg_count_b`**, `revealed_a` / `revealed_b`, `unread_a` / `unread_b`,
+`last_message_at`.
 
-Порог reveal (`REVEAL_THRESHOLD = 3`) — константа на бэкенде, не на фронте.
+Счётчики раздельные: reveal зарабатывает каждый сам за себя.
+`revealed_a = true` означает «A заслужил увидеть фото B».
 
 ### `messages`
-| Поле | Тип | Комментарий |
-|---|---|---|
-| id | bigserial PK | |
-| chat_id | FK → chats | |
-| sender_id | FK → users | |
-| type | text default 'text' | `text` / `system` |
-| body | text | |
-| sent_at | timestamptz | |
+`chat_id`, `sender_id` (null у системных), `type` (`text`/`system`),
+`body`, `sent_at`, `read_at`.
+
+### `events`, `user_events`, `live_sessions`
+Как в исходной схеме. Гео считается формулой гаверсинуса в Python —
+PostGIS ради одного радиуса не нужен.
+
+### `blocks`, `reports`
+Блокировка скрывает обоих друг от друга и деактивирует общий матч.
+Жалоба неявно блокирует. Пять независимых жалобщиков — автобан.
+
+### `purchases`
+`product`, `amount`, `currency` (`XTR`), `payload` (unique),
+`telegram_charge_id` (unique), `status`.
 
 ---
 
-## 2. API-эндпоинты
+## 2. Эндпоинты
+
+Полная спецификация с телами запросов — `GET /docs`.
+
+### Служебные
+| Метод | Путь | Назначение |
+|---|---|---|
+| GET | `/health` | проверка живости |
+| GET | `/config` | правила продукта для клиента: `blind_mode`, `reveal_threshold`, `min_age`, `max_photos`, лимит лайков, карточки теста |
+
+`/config` только сообщает UI, что рисовать. Порог reveal применяется на
+сервере; клиент ничего им не открывает.
 
 ### Авторизация
-- `POST /auth/telegram` — принимает `initData`, проверяет хэш через bot token, создаёт/находит `user`, отдаёт сессионный токен
+| Метод | Путь | |
+|---|---|---|
+| POST | `/auth/telegram` | `{init_data}` → проверка HMAC → JWT. Поля `dev_telegram_id`/`dev_first_name` работают только при `TREFFIT_ALLOW_DEV_AUTH=true` |
+
+Проверка `initData`: ключ подписи — `HMAC_SHA256("WebAppData", bot_token)`,
+плюс отказ по возрасту `auth_date`, чтобы перехваченную строку нельзя было
+переигрывать вечно.
 
 ### Профиль
-- `GET /me` — профиль + статус теста
-- `PATCH /me` — city, bio, birth_date, consent-флаги
-- `POST /me/photo` — загрузка приватного фото
-- `POST /me/test-answers` — сохранить 6 ответов, пересчитать `matches` для этого пользователя
-- `GET /me/test-answers` — для повторного прохождения
+`GET /me` · `PATCH /me` · `DELETE /me` (мягкое удаление) ·
+`POST /me/consent` · `GET|POST /me/test-answers` ·
+`POST /me/photos` · `DELETE /me/photos/{id}` · `POST /me/photos/{id}/primary`
 
-### Матчи (скретч-пачка)
-- `GET /matches` — список карт: id, `compatibility_pct`, `event`, `scratched` (без имени/фото, пока не открыта)
-- `POST /matches/{id}/scratch` — пометить открытой, вернуть полный teaser (имя, %, событие)
-- `GET /matches/{id}` — детальная карточка: кольцо совместимости, `shared_flags`, событие
+Сохранение ответов теста инвалидирует нестёртые карты пачки — проценты
+кэшируются на картах.
 
-### Чаты
-- `POST /chats` — начать чат по `match_id`
-- `GET /chats` — список чатов: последнее сообщение, `revealed`
-- `GET /chats/{id}/messages` — история
-- `POST /chats/{id}/messages` — отправить сообщение → инкремент `msg_count_*` на бэкенде → если достигнут порог, ответ содержит `reveal_unlocked: true`
-- `GET /chats/{id}/photo` — **фото собеседника, только если `revealed_*=true` для текущего юзера, иначе 403**
+### Поиск и свайпы
+| Метод | Путь | |
+|---|---|---|
+| GET | `/discover` | свайп-колода: кандидаты, отсортированные по совместимости |
+| POST | `/discover/{user_id}/swipe` | `{action}` → `{matched, match_id, chat_id, likes_left}` |
+| GET | `/discover/likes` | кто лайкнул вас (402 без Premium) |
+| GET | `/deck` | скретч-пачка; закрытая карта содержит только свой `id` |
+| POST | `/deck/{card_id}/scratch` | открыть карту — **только этот ответ** отдаёт анкету |
 
-### События / Live
-- `GET /events/nearby` — синхронизировано с ботом KudaGo
-- `POST /events/{id}/attend` — «иду»
-- `POST /live/checkin` — координаты из `LocationManager.getLocation()`, создаёт `live_session`, если в радиусе и окне события
-- `GET /live/nearby` — кто ещё чекинился на этом событии
+### Матчи и чаты
+`GET /matches` · `GET /chats` · `GET /chats/{id}` ·
+`GET /chats/{id}/messages` · `POST /chats/{id}/messages` ·
+`POST /chats/{id}/read` · `GET /chats/{id}/photo`
 
-### Платежи (когда понадобится монетизация)
-- `POST /payments/invoice` — `createInvoiceLink`, валюта `XTR`
-- `POST /payments/webhook` — `successful_payment` от Telegram → выдать купленное (буст анкеты, доп. попытки и т.п.)
+`POST /chats/{id}/messages` возвращает `{message, reveal_unlocked,
+remaining_to_reveal, system_message}`.
+
+### События и Live
+`GET /events` · `POST|DELETE /events/{id}/attend` ·
+`POST /live/checkin` · `GET /live/nearby`
+
+Чек-ин отклоняется вне радиуса (`TREFFIT_LIVE_RADIUS_METERS`) и вне окна
+события — иначе Live перестаёт означать «человек действительно здесь».
+
+### Безопасность и платежи
+`POST /safety/block` · `DELETE /safety/block/{id}` · `GET /safety/blocks` ·
+`POST /safety/report` · `GET /safety/reports/mine`
+`GET /payments/products` · `POST /payments/invoice` · `POST /payments/webhook` · `GET /payments/mine`
+
+Вебхук Telegram ничем не подписан, поэтому единственная защита — общий
+секрет из `setWebhook(secret_token=…)`, он сверяется с заголовком
+`X-Telegram-Bot-Api-Secret-Token`. Повторная доставка не начисляет покупку
+дважды.
+
+### WebSocket `/ws?token=<jwt>`
+Сервер шлёт: `ready`, `message`, `read`, `typing`, `match`, `superlike`,
+`reveal`. Клиент шлёт только `ping` и `typing` — отправка сообщений идёт
+по HTTP, чтобы счётчик reveal имел ровно один путь исполнения.
+
+Хаб внутрипроцессный (`app/ws.py`), поэтому сервис запускается **в один
+воркер**. Для горизонтального масштабирования нужен Redis pub/sub.
 
 ---
 
 ## 3. Критичный момент безопасности
 
-**Фото не должно попадать на фронт до reveal — ни в каком виде.**
-Блюр на клиенте — это только визуал. Реальная защита — `GET /chats/{id}/photo` физически не отдаёт URL/файл, пока `revealed_a`/`revealed_b` не true в БД. Если отдавать ссылку на фото заранее (даже с blur через CSS), человек откроет devtools/consolue и увидит файл до того, как «заслужил» reveal. Проверка — только на бэкенде, при каждом запросе.
+**Фото не попадает на фронт до reveal — ни в каком виде.**
+
+Реализовано в одной точке — `serializers.can_view_photos()`, через которую
+проходит любой ответ с чужими фото:
+
+1. В ответах API у закрытых фото `url = null`, приходит только градиент —
+   расблюривать в devtools нечего.
+2. `GET /chats/{id}/photo` возвращает 403, пока `revealed_*` не `true` в БД.
+3. `GET /media/photos/{id}` перепроверяет то же правило при каждом запросе
+   к файлу и требует `approved` модерации для всех, кроме владельца.
+4. Статической раздачи каталога с медиа нет нигде в приложении.
+
+Тесты на это: `backend/tests/test_flow.py` —
+`test_photo_is_withheld_until_the_reveal_is_earned`,
+`test_photo_bytes_are_refused_before_reveal`,
+`test_candidate_payload_never_carries_a_locked_url`.

@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: treffit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-treffit}
+      POSTGRES_DB: treffit
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U treffit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TREFFIT_DATABASE_URL: postgresql+asyncpg://treffit:${POSTGRES_PASSWORD:-treffit}@db:5432/treffit
+      TREFFIT_SECRET_KEY: ${TREFFIT_SECRET_KEY:?set TREFFIT_SECRET_KEY}
+      TREFFIT_BOT_TOKEN: ${TREFFIT_BOT_TOKEN:?set TREFFIT_BOT_TOKEN}
+      TREFFIT_BLIND_MODE: ${TREFFIT_BLIND_MODE:-true}
+      TREFFIT_CORS_ORIGINS: ${TREFFIT_CORS_ORIGINS:-*}
+    volumes:
+      - media:/var/lib/treffit/media
+    # Apply migrations before serving; the image's CMD is the fallback.
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:8080:80"
+
+volumes:
+  pgdata:
+  media:
