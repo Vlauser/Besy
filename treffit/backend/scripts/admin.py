@@ -6,6 +6,7 @@
     python -m scripts.admin premium <tg_id> off снять Premium
     python -m scripts.admin verify <tg_id>      подтвердить анкету
     python -m scripts.admin queue               открытые заявки на верификацию
+    python -m scripts.admin events              что лежит в афише и что из этого видно
 
 Запускать от пользователя сервиса, с переменными из .env:
 
@@ -16,11 +17,13 @@
 import asyncio
 import sys
 
-from sqlalchemy import desc, func, select
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import Integer, desc, func, or_, select
 
 from app.config import settings
 from app.db import SessionLocal
-from app.models import ModerationStatus, Photo, User, Verification, VerificationStatus
+from app.models import Event, ModerationStatus, Photo, User, Verification, VerificationStatus
 from app.services import review, verification as verification_service
 
 
@@ -53,6 +56,52 @@ async def cmd_status() -> None:
             f"\nЗаявок на верификацию: "
             f"{await count(Verification, Verification.status == VerificationStatus.submitted.value)}"
         )
+
+
+async def cmd_events() -> None:
+    """Почему в приложении столько событий, сколько их там.
+
+    Считаем ровно тем же условием, что и /events: город пользователя плюс
+    «ещё не закончилось или идёт постоянно». Расхождение между «в базе» и
+    «видно» сразу показывает, где потерялись события.
+    """
+    now = datetime.now(timezone.utc)
+    listable = or_(
+        Event.is_permanent.is_(True),
+        Event.ends_at >= now,
+        Event.starts_at >= now - timedelta(hours=6),
+    )
+
+    async with SessionLocal() as session:
+        rows = await session.execute(
+            select(
+                Event.city,
+                func.count(),
+                func.sum(func.cast(Event.is_permanent, Integer)),
+            ).group_by(Event.city).order_by(desc(func.count()))
+        )
+        totals = rows.all()
+        if not totals:
+            print("Событий в базе нет. Запустите scripts.sync_events")
+            return
+
+        print(f"{'Город':<20}{'всего':>7}{'видно':>7}{'постоянных':>12}")
+        for city, total, permanent in totals:
+            visible = await session.scalar(
+                select(func.count()).select_from(Event).where(Event.city == city, listable)
+            )
+            print(f"{city:<20}{total:>7}{visible:>7}{int(permanent or 0):>12}")
+
+        cities_of_users = await session.execute(
+            select(User.city, func.count()).where(User.is_active.is_(True)).group_by(User.city)
+        )
+        print("\nГорода пользователей:")
+        for city, count in cities_of_users.all():
+            visible = await session.scalar(
+                select(func.count()).select_from(Event).where(Event.city == city, listable)
+            )
+            mark = "" if visible else "  ← событий для них нет"
+            print(f"  {city}: {count} чел., видят {visible} событий{mark}")
 
 
 async def cmd_photos(limit: int) -> None:
@@ -155,6 +204,8 @@ async def main() -> None:
         await cmd_premium(int(args[1]), enable=(len(args) < 3 or args[2] != "off"))
     elif command == "queue":
         await cmd_queue()
+    elif command == "events":
+        await cmd_events()
     elif command == "verify":
         if len(args) < 2:
             sys.exit("Укажите telegram_id")
