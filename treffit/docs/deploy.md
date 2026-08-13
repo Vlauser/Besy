@@ -208,12 +208,17 @@ nginx после автопродления.
 **8.3 — полный конфиг**
 
 ```bash
-cp /srv/treffit/src/treffit/deploy/nginx.conf /etc/nginx/sites-available/treffit
-sed -i 's/treffit.example.com/ВАШ.ДОМЕН/g' /etc/nginx/sites-available/treffit
-sed -i 's#/srv/treffit/frontend#/srv/treffit/src/treffit/frontend#g' \
-    /etc/nginx/sites-available/treffit
-nginx -t && systemctl reload nginx
+sudo bash /srv/treffit/src/treffit/deploy/apply-nginx.sh
 ```
+
+`deploy/nginx.conf` — шаблон, а не готовый файл: в нём стоят
+`treffit.example.com` и `/srv/treffit/frontend`. Скопировать его в
+`sites-available` как есть нельзя — nginx не найдёт ни сертификат, ни
+собранный фронтенд. Скрипт подставляет домен (берёт из
+`backend/.env`, либо первым аргументом) и настоящий путь репозитория,
+проверяет результат через `nginx -t` и откатывается, если проверка не
+прошла. Тем же скриптом обновляют конфиг после каждого `git pull`,
+который его затронул.
 
 Проверка:
 
