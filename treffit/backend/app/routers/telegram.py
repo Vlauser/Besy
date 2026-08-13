@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..db import get_session
 from ..models import Purchase, User
-from ..services import bot
+from ..services import bot, review
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +121,20 @@ async def webhook(
         return {"ok": True, "ignored": "malformed"}
     if not isinstance(update, dict):
         return {"ok": True, "ignored": "malformed"}
+
+    # Кнопки «Одобрить»/«Отклонить» под фото в чате модератора.
+    callback = update.get("callback_query")
+    if callback:
+        data = callback.get("data") or ""
+        telegram_id = (callback.get("from") or {}).get("id")
+        outcome = await review.handle_callback(session, telegram_id, data)
+        await bot.answer_callback(callback["id"], outcome)
+        message = callback.get("message") or {}
+        chat_id = (message.get("chat") or {}).get("id")
+        if chat_id and message.get("message_id"):
+            base = message.get("caption") or ""
+            await bot.edit_caption(chat_id, message["message_id"], f"{base}\n\n<b>{outcome}</b>")
+        return {"ok": True, "review": outcome}
 
     # Answering this is not optional: Telegram cancels the payment if the
     # bot stays silent for ~10 seconds.

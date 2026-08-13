@@ -72,7 +72,7 @@ export function Verification({ isVerified, onDone, onError }) {
         </div>
         <p className="font-display text-xl" style={{ color: T.ink }}>Селфи на проверке</p>
         <p className="text-sm" style={{ color: T.muted }}>
-          Обычно занимает несколько часов. Придёт уведомление в Telegram.
+          Обычно занимает несколько минут. Придёт уведомление в Telegram.
         </p>
       </div>
     );

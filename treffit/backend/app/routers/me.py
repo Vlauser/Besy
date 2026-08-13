@@ -13,7 +13,7 @@ from ..deps import current_user
 from ..models import DeckCard, ModerationStatus, Photo, User
 from ..schemas import ConsentIn, MeOut, MeUpdate, PhotoOut, TestAnswersIn
 from ..serializers import me_out, photo_out
-from ..services import media, moderation
+from ..services import media, moderation, review
 from ..services.matching import normalize_answers, rebuild_deck
 
 router = APIRouter(prefix="/me", tags=["me"])
@@ -134,6 +134,9 @@ async def upload_photo(
     session.add(photo)
     await session.commit()
     await session.refresh(photo)
+
+    if photo.moderation_status == ModerationStatus.pending.value:
+        await review.notify_photo(session, photo)
     return photo_out(photo, unlocked=True)
 
 

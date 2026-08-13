@@ -7,7 +7,7 @@ from ..db import get_session
 from ..deps import current_user
 from ..models import User, VerificationStatus
 from ..schemas import VerificationOut
-from ..services import media, verification
+from ..services import media, review, verification
 
 router = APIRouter(prefix="/me/verification", tags=["verification"])
 
@@ -66,4 +66,5 @@ async def submit_verification(
 
     await verification.submit(session, request, stored["file_path"])
     await session.commit()
+    await review.notify_verification(session, request)
     return _out(request, user)

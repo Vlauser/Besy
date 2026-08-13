@@ -34,7 +34,7 @@ from ..schemas import (
     AdminVerificationOut,
     ReviewIn,
 )
-from ..services import kudago, media, moderation, push, verification as verification_service
+from ..services import kudago, media, moderation, review, verification as verification_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -130,16 +130,9 @@ async def review_photo(
         raise HTTPException(status_code=404, detail="Фото не найдено")
     owner = await session.get(User, photo.user_id)
 
-    photo.moderation_status = (
-        ModerationStatus.approved.value if payload.approve else ModerationStatus.rejected.value
+    await review.decide_photo(
+        session, photo, approve=payload.approve, reason=payload.reason, admin_id=admin.id
     )
-    photo.moderation_reason = payload.reason
-    photo.reviewed_by_id = admin.id
-    photo.reviewed_at = datetime.now(timezone.utc)
-    await session.commit()
-
-    if owner is not None:
-        await push.notify_moderation(owner, payload.approve, payload.reason)
 
     return AdminPhotoOut(
         id=photo.id,
@@ -249,22 +242,9 @@ async def review_verification(
         raise HTTPException(status_code=404, detail="Заявка не найдена")
     owner = await session.get(User, request.user_id)
 
-    request.status = (
-        VerificationStatus.approved.value if payload.approve else VerificationStatus.rejected.value
+    await review.decide_verification(
+        session, request, approve=payload.approve, reason=payload.reason, admin_id=admin.id
     )
-    request.reason = payload.reason
-    request.reviewed_by_id = admin.id
-    request.reviewed_at = datetime.now(timezone.utc)
-    if owner is not None:
-        owner.is_verified = payload.approve
-        # The selfie has served its purpose; keeping it is a liability.
-        if request.file_path:
-            media.delete_files(request.file_path)
-            request.file_path = None
-    await session.commit()
-
-    if owner is not None:
-        await push.notify_verification(owner, payload.approve, payload.reason)
 
     return AdminVerificationOut(
         id=request.id,

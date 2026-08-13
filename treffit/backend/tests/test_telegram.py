@@ -215,3 +215,135 @@ async def test_pre_checkout_after_payment_is_declined(client, user_factory):
 async def test_payment_with_an_unknown_payload_is_acknowledged(client):
     body = (await client.post("/telegram/webhook", json=payment_update("ghost"), headers=SECRET_HEADER)).json()
     assert body["unknown_payload"] is True
+
+
+# --------------------------- модерация кнопками ---------------------------
+
+
+def callback_update(data: str, telegram_id: int) -> dict:
+    return {
+        "update_id": 4,
+        "callback_query": {
+            "id": "cb-1",
+            "from": {"id": telegram_id},
+            "data": data,
+            "message": {"message_id": 10, "chat": {"id": telegram_id}, "caption": "фото"},
+        },
+    }
+
+
+async def upload(actor):
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (400, 500), (170, 160, 200)).save(buffer, "PNG")
+    response = await actor.post("/me/photos", files={"file": ("p.png", buffer.getvalue(), "image/png")})
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+@pytest.fixture
+def admin_only(monkeypatch):
+    monkeypatch.setattr(settings, "admin_telegram_ids", "555777")
+    monkeypatch.setattr(settings, "moderation_enabled", False)
+
+
+async def test_stranger_cannot_approve_a_photo(client, user_factory, admin_only):
+    """callback_data видна в клиенте — доверять ей нельзя."""
+    author = await user_factory(920001)
+    photo = await upload(author)
+
+    body = (
+        await client.post(
+            "/telegram/webhook", json=callback_update(f"mod:photo:{photo['id']}:ok", 111222), headers=SECRET_HEADER
+        )
+    ).json()
+    assert body["review"] == "Недостаточно прав"
+    assert (await author.get("/me")).json()["photos"][0]["moderation_status"] == "pending"
+
+
+async def test_admin_approves_a_photo_from_the_chat(client, user_factory, admin_only):
+    await user_factory(555777, name="Модератор")
+    author = await user_factory(920002)
+    photo = await upload(author)
+
+    body = (
+        await client.post(
+            "/telegram/webhook", json=callback_update(f"mod:photo:{photo['id']}:ok", 555777), headers=SECRET_HEADER
+        )
+    ).json()
+    assert body["review"] == "Фото одобрено"
+    assert (await author.get("/me")).json()["photos"][0]["moderation_status"] == "approved"
+
+
+async def test_rejecting_hides_the_photo(client, user_factory, admin_only):
+    await user_factory(555777)
+    author = await user_factory(920003)
+    photo = await upload(author)
+
+    await client.post(
+        "/telegram/webhook", json=callback_update(f"mod:photo:{photo['id']}:no", 555777), headers=SECRET_HEADER
+    )
+    assert (await author.get("/me")).json()["photos"] == []
+
+
+async def test_a_second_press_changes_nothing(client, user_factory, admin_only):
+    await user_factory(555777)
+    author = await user_factory(920004)
+    photo = await upload(author)
+
+    first = callback_update(f"mod:photo:{photo['id']}:ok", 555777)
+    await client.post("/telegram/webhook", json=first, headers=SECRET_HEADER)
+    again = (
+        await client.post(
+            "/telegram/webhook", json=callback_update(f"mod:photo:{photo['id']}:no", 555777), headers=SECRET_HEADER
+        )
+    ).json()
+    assert again["review"] == "Уже обработано"
+    assert (await author.get("/me")).json()["photos"][0]["moderation_status"] == "approved"
+
+
+async def test_admin_verifies_a_profile_from_the_chat(client, user_factory, admin_only):
+    from app.db import SessionLocal
+    from app.models import Verification
+
+    await user_factory(555777)
+    actor = await user_factory(920005)
+    await actor.post("/me/verification/start")
+    await actor.post("/me/verification/photo", files={"file": ("s.png", png_selfie(), "image/png")})
+
+    async with SessionLocal() as session:
+        request = (await session.execute(select(Verification))).scalars().first()
+        request_id = request.id
+
+    body = (
+        await client.post(
+            "/telegram/webhook", json=callback_update(f"mod:verify:{request_id}:ok", 555777), headers=SECRET_HEADER
+        )
+    ).json()
+    assert body["review"] == "Анкета подтверждена"
+    assert (await actor.get("/me")).json()["is_verified"] is True
+
+    async with SessionLocal() as session:
+        stored = await session.get(Verification, request_id)
+        assert stored.file_path is None
+
+
+async def test_garbage_callback_data_is_refused(client, user_factory, admin_only):
+    await user_factory(555777)
+    body = (
+        await client.post("/telegram/webhook", json=callback_update("мусор", 555777), headers=SECRET_HEADER)
+    ).json()
+    assert body["review"] == "Не понял команду"
+
+
+def png_selfie() -> bytes:
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (400, 500), (200, 180, 160)).save(buffer, "PNG")
+    return buffer.getvalue()
