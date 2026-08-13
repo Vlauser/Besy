@@ -1,0 +1,9 @@
+[Unit]
+Description=Back up the Treffit database and media
+
+[Service]
+Type=oneshot
+User=treffit
+WorkingDirectory=/srv/treffit/backend
+EnvironmentFile=/srv/treffit/backend/.env
+ExecStart=/srv/treffit/backend/scripts/backup.sh

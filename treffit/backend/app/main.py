@@ -15,6 +15,7 @@ from .routers import (
     payments,
     realtime,
     safety,
+    telegram,
     verification,
 )
 from .schemas import ConfigOut, TestCardOut
@@ -58,6 +59,7 @@ for router in (
     safety.router,
     payments.router,
     admin.router,
+    telegram.router,
     realtime.router,
 ):
     app.include_router(router)

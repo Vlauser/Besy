@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly KudaGo sync
+
+[Timer]
+OnCalendar=hourly
+# Spread the load and survive a reboot that skipped a run.
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

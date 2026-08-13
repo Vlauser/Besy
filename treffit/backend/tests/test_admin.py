@@ -9,7 +9,7 @@ from sqlalchemy import select, update
 from app.config import settings
 from app.db import SessionLocal
 from app.models import Photo, User, Verification
-from app.services import push
+from app.services import bot, push
 from app.ws import manager
 
 pytestmark = pytest.mark.asyncio
@@ -36,11 +36,11 @@ def no_outbound_telegram(monkeypatch):
     """Never touch api.telegram.org from tests; record calls instead."""
     sent = []
 
-    async def fake_call(method, payload):
-        sent.append((method, payload))
-        return True
+    async def fake_call(method, payload=None, *, raise_on_error=False):
+        sent.append((method, payload or {}))
+        return {"ok": True}
 
-    monkeypatch.setattr(push, "_call", fake_call)
+    monkeypatch.setattr(bot, "call", fake_call)
     return sent
 
 

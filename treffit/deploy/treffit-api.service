@@ -1,0 +1,28 @@
+[Unit]
+Description=Treffit API
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=treffit
+Group=treffit
+WorkingDirectory=/srv/treffit/backend
+EnvironmentFile=/srv/treffit/backend/.env
+# One worker is only safe without Redis; with TREFFIT_REDIS_URL set, raise it.
+ExecStart=/srv/treffit/backend/.venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers \
+    --forwarded-allow-ips 127.0.0.1
+Restart=always
+RestartSec=3
+
+# The service only ever needs its own directory and the media volume.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/treffit/backend/var
+StateDirectory=treffit
+
+[Install]
+WantedBy=multi-user.target

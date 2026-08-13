@@ -10,54 +10,18 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-import httpx
-
 from ..config import settings
 from ..models import Chat, User
 from ..ws import manager
+from . import bot
 
 logger = logging.getLogger(__name__)
 
 PREVIEW_LIMIT = 80
 
 
-async def _call(method: str, payload: dict) -> bool:
-    if not settings.bot_token:
-        return False
-    url = f"https://api.telegram.org/bot{settings.bot_token}/{method}"
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.post(url, json=payload)
-        data = response.json()
-    except (httpx.HTTPError, ValueError):
-        logger.exception("Не удалось отправить %s в Telegram", method)
-        return False
-    if not data.get("ok"):
-        # 403 here just means the user blocked the bot — normal, not an error.
-        logger.info("Telegram отклонил %s: %s", method, data.get("description"))
-        return False
-    return True
-
-
-def _keyboard() -> dict | None:
-    if not settings.mini_app_url:
-        return None
-    return {
-        "inline_keyboard": [[{"text": "Открыть Treffit", "web_app": {"url": settings.mini_app_url}}]]
-    }
-
-
 async def send(telegram_id: int, text: str) -> bool:
-    payload = {
-        "chat_id": telegram_id,
-        "text": text,
-        "parse_mode": "HTML",
-        "disable_notification": False,
-    }
-    keyboard = _keyboard()
-    if keyboard:
-        payload["reply_markup"] = keyboard
-    return await _call("sendMessage", payload)
+    return await bot.send_message(telegram_id, text, keyboard=bot.webapp_keyboard())
 
 
 def _escape(text: str) -> str:

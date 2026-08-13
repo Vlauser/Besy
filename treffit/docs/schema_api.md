@@ -183,12 +183,26 @@ remaining_to_reveal, system_message}`.
 ### Безопасность и платежи
 `POST /safety/block` · `DELETE /safety/block/{id}` · `GET /safety/blocks` ·
 `POST /safety/report` · `GET /safety/reports/mine`
-`GET /payments/products` · `POST /payments/invoice` · `POST /payments/webhook` · `GET /payments/mine`
+`GET /payments/products` · `POST /payments/invoice` · `GET /payments/mine`
 
-Вебхук Telegram ничем не подписан, поэтому единственная защита — общий
-секрет из `setWebhook(secret_token=…)`, он сверяется с заголовком
-`X-Telegram-Bot-Api-Secret-Token`. Повторная доставка не начисляет покупку
-дважды.
+### Вебхук бота
+`POST /telegram/webhook` — единственная точка, куда Telegram шлёт **все**
+апдейты. Обрабатывает:
+
+| Апдейт | Что делает |
+|---|---|
+| `/start`, `/app` | приветствие с кнопкой запуска Mini App |
+| `/help` | как устроен продукт |
+| обычный текст | отправляет человека в приложение — переписка живёт там |
+| `pre_checkout_query` | **обязательный** ответ; без него Telegram отменяет платёж через ~10 с |
+| `successful_payment` | выдаёт покупку, повторная доставка не начисляет дважды |
+
+Апдейты ничем не подписаны, поэтому единственная защита — общий секрет из
+`setWebhook(secret_token=…)`, он сверяется с заголовком
+`X-Telegram-Bot-Api-Secret-Token`. Битое тело возвращает 200: иначе Telegram
+будет вечно ретраить один и тот же мусор.
+
+Регистрация вебхука, команд и кнопки меню — `python -m scripts.setup_bot`.
 
 ### WebSocket `/ws?token=<jwt>`
 Сервер шлёт: `ready`, `message`, `read`, `typing`, `match`, `superlike`,

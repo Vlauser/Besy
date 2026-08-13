@@ -1,0 +1,10 @@
+[Unit]
+Description=Sync city events from KudaGo
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=treffit
+WorkingDirectory=/srv/treffit/backend
+EnvironmentFile=/srv/treffit/backend/.env
+ExecStart=/srv/treffit/backend/.venv/bin/python -m scripts.sync_events
