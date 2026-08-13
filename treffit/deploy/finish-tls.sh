@@ -77,8 +77,30 @@ nginx -t || die "боевой конфиг не проходит проверк�
 systemctl reload nginx
 ok "nginx перезагружен"
 
-HEALTH="$(curl -s --max-time 10 "https://$DOMAIN/api/health" || true)"
-[ "$HEALTH" = '{"status":"ok"}' ] || die "https://$DOMAIN/api/health вернул: ${HEALTH:-пусто}"
+# -sS вместо -s: без этого настоящая причина (отказ соединения, TLS,
+# закрытый порт) молча теряется и остаётся бесполезное «пусто».
+HEALTH="$(curl -sS --max-time 10 "https://$DOMAIN/api/health" 2>/tmp/treffit-curl.err || true)"
+if [ "$HEALTH" != '{"status":"ok"}' ]; then
+    echo
+    printf '%sНе достучались до https://%s/api/health%s\n' "$RED$BOLD" "$DOMAIN" "$OFF"
+    printf '  ответ curl: %s\n' "${HEALTH:-(пусто)}"
+    printf '  ошибка curl: %s\n' "$(cat /tmp/treffit-curl.err 2>/dev/null || echo '-')"
+    echo
+    echo "--- бэкенд напрямую ---"
+    curl -sS --max-time 5 http://127.0.0.1:8000/health || echo "(бэкенд не отвечает)"
+    echo
+    echo "--- сервис ---"
+    systemctl is-active treffit-api || true
+    echo "--- слушающие порты ---"
+    ss -lntp 2>/dev/null | grep -E ':(80|443|8000)\b' || echo "(80/443/8000 никто не слушает)"
+    echo "--- последние ошибки nginx ---"
+    tail -n 10 /var/log/nginx/error.log 2>/dev/null || echo "(лог пуст)"
+    echo
+    echo "Чаще всего это закрытый извне порт 443: certbot проверялся по 80,"
+    echo "и 80 открыт, а 443 мог остаться закрытым в firewall или в панели"
+    echo "провайдера. Проверьте ufw и firewall в панели Aeza."
+    die "проверка https не прошла"
+fi
 ok "https://$DOMAIN/api/health → $HEALTH"
 
 # ------------------------------------------------------------ 4. .env
