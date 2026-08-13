@@ -21,7 +21,7 @@ from ..models import Event
 logger = logging.getLogger(__name__)
 
 API_ROOT = "https://kudago.com/public-api/v1.4"
-FIELDS = "id,title,short_title,place,dates,location,site_url,categories"
+FIELDS = "id,title,short_title,place,dates,location,site_url,categories,images"
 EXPAND = "place,dates"
 SOURCE = "kudago"
 
@@ -74,6 +74,29 @@ def _pick_start(dates: list[dict], now: datetime) -> tuple[datetime, datetime | 
     return best
 
 
+def _pick_image(images: list[dict] | None) -> str | None:
+    """Ссылка на афишу.
+
+    КудаGo кладёт в `images` список, где у каждой картинки есть оригинал и
+    набор уменьшенных копий. Оригинал бывает в несколько мегабайт — на
+    телефоне это лишний трафик, поэтому берём подходящую по размеру копию,
+    а к оригиналу откатываемся, только если копий нет.
+    """
+    for image in images or []:
+        if not isinstance(image, dict):
+            continue
+        thumbnails = image.get("thumbnails")
+        if isinstance(thumbnails, dict):
+            for size in ("640x384", "640x auto", "144x96"):
+                url = thumbnails.get(size)
+                if isinstance(url, str) and url.startswith("http"):
+                    return url[:500]
+        url = image.get("image")
+        if isinstance(url, str) and url.startswith("http"):
+            return url[:500]
+    return None
+
+
 def parse_event(raw: dict, location: str, now: datetime | None = None) -> dict | None:
     """Map one KudaGo item to Event fields, or None if it is unusable."""
     now = now or datetime.now(timezone.utc)
@@ -98,6 +121,8 @@ def parse_event(raw: dict, location: str, now: datetime | None = None) -> dict |
         "lng": coords.get("lon"),
         "city": city_for(location),
         "source": SOURCE,
+        "image_url": _pick_image(raw.get("images")),
+        "site_url": (raw.get("site_url") or None),
     }
 
 

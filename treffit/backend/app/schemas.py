@@ -237,6 +237,8 @@ class EventOut(ORMModel):
     city: str
     lat: float | None = None
     lng: float | None = None
+    image_url: str | None = None
+    site_url: str | None = None
     attending: bool = False
 
 

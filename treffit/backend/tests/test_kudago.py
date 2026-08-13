@@ -187,3 +187,60 @@ async def test_sync_survives_an_unreachable_api(monkeypatch):
     async with SessionLocal() as session:
         report = await kudago.sync(session, location="ekb", pages=1)
     assert report == {"location": "ekb", "created": 0, "updated": 0, "skipped": 0}
+
+
+# --------------------------- афиши ---------------------------
+
+
+def test_prefers_a_thumbnail_over_the_original():
+    """Оригинал бывает в несколько мегабайт — на телефоне это лишний трафик."""
+    parsed = kudago.parse_event(
+        raw_event(
+            images=[
+                {
+                    "image": "https://kudago.com/media/images/event/big.jpg",
+                    "thumbnails": {
+                        "144x96": "https://kudago.com/media/thumbs/small.jpg",
+                        "640x384": "https://kudago.com/media/thumbs/large.jpg",
+                    },
+                }
+            ]
+        ),
+        "ekb",
+        NOW,
+    )
+    assert parsed["image_url"] == "https://kudago.com/media/thumbs/large.jpg"
+
+
+def test_falls_back_to_the_original_without_thumbnails():
+    parsed = kudago.parse_event(
+        raw_event(images=[{"image": "https://kudago.com/media/images/event/big.jpg"}]), "ekb", NOW
+    )
+    assert parsed["image_url"] == "https://kudago.com/media/images/event/big.jpg"
+
+
+def test_event_without_pictures_is_still_usable():
+    for images in (None, [], [{}], [{"image": None}], "не список"):
+        parsed = kudago.parse_event(raw_event(images=images), "ekb", NOW)
+        assert parsed is not None, images
+        assert parsed["image_url"] is None, images
+
+
+def test_skips_junk_and_takes_the_first_real_picture():
+    parsed = kudago.parse_event(
+        raw_event(
+            images=[
+                {"image": "/media/relative.jpg"},  # не абсолютная ссылка
+                {"thumbnails": {"640x384": "https://kudago.com/ok.jpg"}},
+            ]
+        ),
+        "ekb",
+        NOW,
+    )
+    assert parsed["image_url"] == "https://kudago.com/ok.jpg"
+
+
+def test_keeps_the_source_page_link():
+    parsed = kudago.parse_event(raw_event(site_url="https://kudago.com/ekb/event/jazz/"), "ekb", NOW)
+    assert parsed["site_url"] == "https://kudago.com/ekb/event/jazz/"
+    assert kudago.parse_event(raw_event(), "ekb", NOW)["site_url"] is None

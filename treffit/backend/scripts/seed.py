@@ -35,6 +35,23 @@ DEMO_EVENTS = [
 
 COLORS = [(143, 184, 255), (185, 198, 255), (169, 198, 255), (183, 203, 255), (110, 133, 232), (61, 107, 255)]
 
+# Афиши в демо-данных — рисованные, а не скачанные: сид должен работать без
+# сети и не тащить в репозиторий чужие изображения. Настоящие афиши приходят
+# из КудаGo абсолютными ссылками, так что путь отрисовки тот же.
+POSTER_COLORS = ["%236E85E8", "%233D6BFF", "%23A9C6FF"]
+
+
+def demo_poster(index: int) -> str:
+    fill = POSTER_COLORS[index % len(POSTER_COLORS)]
+    return (
+        "data:image/svg+xml,"
+        "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 300'%3E"
+        f"%3Crect width='500' height='300' fill='{fill}'/%3E"
+        "%3Ccircle cx='390' cy='70' r='120' fill='%23FFFFFF' opacity='0.16'/%3E"
+        "%3Ccircle cx='110' cy='250' r='90' fill='%23FFFFFF' opacity='0.12'/%3E"
+        "%3C/svg%3E"
+    )
+
 
 def demo_photo(seed: int) -> bytes:
     """A generated placeholder — no real people in seed data."""
@@ -59,6 +76,7 @@ async def seed_events(session) -> None:
         starts_at = now + timedelta(hours=hours)
         if existing:
             existing.starts_at = starts_at
+            existing.image_url = demo_poster(index)
             continue
         session.add(
             Event(
@@ -70,6 +88,7 @@ async def seed_events(session) -> None:
                 lat=lat,
                 lng=lng,
                 source="demo",
+                image_url=demo_poster(index),
             )
         )
 

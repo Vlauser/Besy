@@ -97,6 +97,8 @@ def event_out(event: Event | None, *, attending: bool = False) -> EventOut | Non
         city=event.city,
         lat=event.lat,
         lng=event.lng,
+        image_url=event.image_url,
+        site_url=event.site_url,
         attending=attending,
     )
 

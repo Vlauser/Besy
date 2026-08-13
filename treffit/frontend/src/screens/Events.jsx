@@ -15,6 +15,31 @@ function whenLabel(iso) {
   return date.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }
 
+/** Афиша события.
+ *
+ *  Картинки лежат на стороне источника, поэтому ссылка может протухнуть или
+ *  не открыться. Тогда убираем блок целиком: пустая рамка с иконкой битого
+ *  изображения выглядит хуже, чем карточка без картинки. Пока изображение
+ *  грузится, на его месте лежит серый прямоугольник — иначе список дёргается
+ *  по мере подгрузки.
+ */
+function Poster({ src, alt }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <div className="w-full" style={{ aspectRatio: "5 / 3", background: T.surfaceSoft }}>
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+        className="w-full h-full object-cover"
+      />
+    </div>
+  );
+}
+
 export function Events({ onError }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,14 +98,19 @@ export function Events({ onError }) {
 
         <div className="space-y-2.5">
           {events.map((event) => (
-            <div key={event.id} className="rounded-2xl p-3.5" style={{ background: T.surface, border: `1px solid ${T.line}` }}>
+            <div key={event.id} className="rounded-2xl overflow-hidden" style={{ background: T.surface, border: `1px solid ${T.line}` }}>
+              {event.image_url && <Poster src={event.image_url} alt={event.title} />}
+
+              <div className="p-3.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold truncate" style={{ color: T.ink }}>{event.title}</p>
+                  {/* Название в две строки: у афишных событий оно длинное, и
+                      обрезка в одну строку съедала половину смысла. */}
+                  <p className="text-sm font-semibold line-clamp-2" style={{ color: T.ink }}>{event.title}</p>
                   <div className="flex items-center gap-1 mt-0.5">
-                    <MapPin size={11} color={T.muted} />
+                    <MapPin size={11} color={T.muted} className="flex-shrink-0" />
                     <span className="text-xs truncate" style={{ color: T.muted }}>
-                      {event.venue} · {whenLabel(event.starts_at)}
+                      {[event.venue, whenLabel(event.starts_at)].filter(Boolean).join(" · ")}
                     </span>
                   </div>
                 </div>
@@ -132,6 +162,7 @@ export function Events({ onError }) {
                   )}
                 </div>
               )}
+              </div>
             </div>
           ))}
         </div>

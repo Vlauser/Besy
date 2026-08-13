@@ -221,6 +221,11 @@ class Event(Base):
     lng: Mapped[float | None] = mapped_column(Float)
     city: Mapped[str] = mapped_column(String(64), default="Екатеринбург", nullable=False)
     source: Mapped[str] = mapped_column(String(32), default="kudago", nullable=False)
+    # Афиша и страница события у источника. Храним ссылки, а не файлы:
+    # картинки лежат на стороне КудаGo, качать их к себе — это и место, и
+    # чужие права на изображения.
+    image_url: Mapped[str | None] = mapped_column(String(500))
+    site_url: Mapped[str | None] = mapped_column(String(500))
 
     __table_args__ = (UniqueConstraint("source", "external_id", name="uq_events_source_external"),)
 
