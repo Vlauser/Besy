@@ -3,6 +3,13 @@ import { Camera, Check, Shield, Trash2 } from "lucide-react";
 
 import { endpoints, mediaUrl } from "../api/client";
 import { Button, Pill, ProgressDots } from "../components/ui";
+import {
+  digitsFromIso,
+  digitsOf,
+  formatBirthDate,
+  readBirthDate,
+  yearsWord,
+} from "../lib/birthdate";
 import { haptic } from "../lib/telegram";
 import { T, gradient } from "../theme";
 
@@ -193,6 +200,41 @@ const inputStyle = {
   color: T.ink,
 };
 
+function BirthDateField({ value, disabled, minAge, onChange }) {
+  // ISO с сервера показываем в том же виде, в каком его набирают.
+  const [digits, setDigits] = useState(() => digitsFromIso(value));
+  // Ошибка возможна только когда набраны все восемь цифр, то есть дата уже
+  // дописана — ждать потери фокуса, чтобы о ней сказать, незачем.
+  const { iso, error, age } = readBirthDate(digits, minAge);
+
+  function handle(event) {
+    const next = digitsOf(event.target.value);
+    setDigits(next);
+    onChange(readBirthDate(next, minAge).iso);
+  }
+
+  return (
+    <Field label={`Дата рождения${disabled ? " (изменить нельзя)" : ""}`}>
+      <input
+        value={formatBirthDate(digits)}
+        onChange={handle}
+        disabled={disabled}
+        inputMode="numeric"
+        // iOS смотрит на pattern, чтобы показать клавиатуру без букв.
+        pattern="[0-9]*"
+        maxLength={10}
+        placeholder="ДД.ММ.ГГГГ"
+        aria-label="Дата рождения"
+        className="w-full rounded-2xl px-4 py-3 text-sm outline-none disabled:opacity-60 tabular-nums tracking-wide"
+        style={{ ...inputStyle, borderColor: error ? T.danger : T.line }}
+      />
+      <p className="text-xs mt-1" style={{ color: error ? T.danger : T.muted }}>
+        {error || (iso ? `${age} ${yearsWord(age)}` : `Регистрация с ${minAge} лет`)}
+      </p>
+    </Field>
+  );
+}
+
 function AboutStep({ form, update, onNext, saving, frozenBirthDate, config }) {
   const ready = form.first_name.trim() && form.gender && (frozenBirthDate || form.birth_date);
   return (
@@ -210,17 +252,12 @@ function AboutStep({ form, update, onNext, saving, frozenBirthDate, config }) {
           />
         </Field>
 
-        <Field label={`Дата рождения${frozenBirthDate ? " (изменить нельзя)" : ""}`}>
-          <input
-            type="date"
-            value={form.birth_date}
-            disabled={frozenBirthDate}
-            onChange={(event) => update({ birth_date: event.target.value })}
-            className="w-full rounded-2xl px-4 py-3 text-sm outline-none disabled:opacity-60"
-            style={inputStyle}
-          />
-          <p className="text-xs mt-1" style={{ color: T.muted }}>Регистрация с {config.min_age} лет</p>
-        </Field>
+        <BirthDateField
+          value={form.birth_date}
+          disabled={frozenBirthDate}
+          minAge={config.min_age}
+          onChange={(birth_date) => update({ birth_date })}
+        />
 
         <Field label="Пол">
           <div className="grid grid-cols-3 gap-2">
