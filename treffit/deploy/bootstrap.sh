@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Первичная установка Treffit на чистый Ubuntu 22.04/24.04.
+# Первичная установка Treffit на чистый Ubuntu 20.04/22.04/24.04.
 #
 # Делает шаги 1–7 из docs/deploy.md: пакеты, пользователь, база, venv,
 # зависимости, миграции, сборка фронтенда, systemd. Домен, TLS и настройку
@@ -19,10 +19,29 @@ SRV=/srv/treffit
 SERVICE_USER=treffit
 NODE_MAJOR=20
 
+# Код использует StrEnum, asyncio.to_thread и Path.is_relative_to —
+# минимум 3.11. На Ubuntu 20.04 системный python3 это 3.8, поэтому нужный
+# интерпретатор ставится отдельно.
+PYTHON_MIN="3.11"
+
 RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; BOLD=$'\033[1m'; OFF=$'\033[0m'
 STEP=0
 
 step()  { STEP=$((STEP + 1)); printf '\n%s[%d/9] %s%s\n' "$BOLD" "$STEP" "$1" "$OFF"; }
+psql_as_postgres() { (cd /tmp && sudo -u postgres psql "$@"); }
+
+find_python() {
+    local candidate
+    for candidate in python3.13 python3.12 python3.11; do
+        command -v "$candidate" >/dev/null 2>&1 && { echo "$candidate"; return 0; }
+    done
+    if command -v python3 >/dev/null 2>&1 \
+       && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'; then
+        echo python3
+        return 0
+    fi
+    return 1
+}
 ok()    { printf '  %s✓%s %s\n' "$GREEN" "$OFF" "$1"; }
 warn()  { printf '  %s!%s %s\n' "$YELLOW" "$OFF" "$1"; }
 die()   { printf '\n%sОшибка:%s %s\n' "$RED" "$OFF" "$1" >&2; exit 1; }
@@ -36,10 +55,25 @@ step "Системные пакеты"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq \
-    python3 python3-venv python3-dev build-essential \
-    postgresql redis-server nginx certbot python3-certbot-nginx \
-    git curl ca-certificates gnupg >/dev/null
-ok "python3 $(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))'), postgres, redis, nginx"
+    build-essential postgresql redis-server nginx certbot python3-certbot-nginx \
+    git curl ca-certificates gnupg software-properties-common >/dev/null
+ok "postgres, redis, nginx"
+
+if ! PYTHON="$(find_python)"; then
+    warn "нужен Python >= ${PYTHON_MIN}, ставлю python3.11"
+    if ! apt-get install -y -qq python3.11 python3.11-venv python3.11-dev >/dev/null 2>&1; then
+        # На 20.04 python3.11 есть только в deadsnakes.
+        add-apt-repository -y ppa:deadsnakes/ppa >/dev/null 2>&1 \
+            || die "не удалось подключить ppa:deadsnakes/ppa — поставьте Python 3.11 вручную"
+        apt-get update -qq
+        apt-get install -y -qq python3.11 python3.11-venv python3.11-dev >/dev/null \
+            || die "python3.11 не установился"
+    fi
+    # На 20.04 часть сборок всё ещё зовёт distutils; на новых он не нужен.
+    apt-get install -y -qq python3.11-distutils >/dev/null 2>&1 || true
+    PYTHON="$(find_python)" || die "python3.11 установлен, но не найден в PATH"
+fi
+ok "$PYTHON $($PYTHON -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')"
 
 if ! command -v node >/dev/null || [ "$(node -v | cut -c2- | cut -d. -f1)" -lt 18 ]; then
     install -d -m 0755 /etc/apt/keyrings
@@ -72,13 +106,13 @@ ok "$SRV/backend → $REPO_ROOT/backend"
 # ------------------------------------------------------------------ 3. база
 
 step "База данных"
-DB_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='treffit'" || true)
+DB_EXISTS=$(psql_as_postgres -tAc "SELECT 1 FROM pg_database WHERE datname='treffit'" || true)
 if [ "$DB_EXISTS" = "1" ]; then
     warn "база treffit уже есть, пароль не меняю"
     DB_PASSWORD=""
 else
     DB_PASSWORD="$(openssl rand -hex 24)"
-    sudo -u postgres psql -q <<SQL
+    psql_as_postgres -q <<SQL
 CREATE USER treffit WITH PASSWORD '${DB_PASSWORD}';
 CREATE DATABASE treffit OWNER treffit;
 SQL
@@ -123,7 +157,13 @@ chmod 600 "$ENV_FILE"
 
 step "Python-окружение (несколько минут: onnxruntime тяжёлый)"
 cd "$REPO_ROOT/backend"
-[ -d .venv ] || python3 -m venv .venv
+# Окружение, собранное старым интерпретатором, надо пересоздать, иначе
+# pip продолжит ставить пакеты под него.
+if [ -d .venv ] && ! .venv/bin/python -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+    warn "существующий .venv собран старым Python — пересоздаю"
+    rm -rf .venv
+fi
+[ -d .venv ] || "$PYTHON" -m venv .venv
 .venv/bin/pip install -q --upgrade pip
 .venv/bin/pip install -q -r requirements.txt
 chown -R "$SERVICE_USER:$SERVICE_USER" .venv
@@ -135,7 +175,7 @@ ok "venv готов, модель модерации на месте"
 step "Миграции"
 sudo -u "$SERVICE_USER" env $(grep -v '^#' "$ENV_FILE" | grep -v '^$' | xargs -d '\n') \
     .venv/bin/alembic upgrade head >/dev/null
-TABLES=$(sudo -u postgres psql -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+TABLES=$(psql_as_postgres -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
 [ "$TABLES" -ge 15 ] || die "ожидал минимум 15 таблиц, вижу $TABLES"
 ok "схема накатана ($TABLES таблиц)"
 

@@ -1,6 +1,6 @@
 # Развёртывание Treffit
 
-Инструкция под Ubuntu 22.04/24.04 на VPS (Aeza). Всё, что ниже, проверяемо
+Инструкция под Ubuntu 20.04/22.04/24.04 на VPS (Aeza). Всё, что ниже, проверяемо
 пошагово: после каждого блока есть команда, показывающая, что шаг удался.
 
 **Важно:** путь `initData` и всё, что связано с Telegram (хаптика,
@@ -35,6 +35,10 @@ sudo bash /srv/treffit/src/treffit/deploy/bootstrap.sh
 
 - Домен, направленный A-записью на IP сервера.
 - Токен бота от [@BotFather](https://t.me/BotFather).
+- **Python 3.11+.** Код использует `StrEnum` и `asyncio.to_thread`, так
+  что системный python3 из Ubuntu 20.04 (3.8) не подойдёт. `bootstrap.sh`
+  ставит 3.11 сам, при ручной установке добавьте
+  `add-apt-repository ppa:deadsnakes/ppa`.
 - Сервер: 2 CPU / 2 ГБ RAM хватает на старте. NudeNet держит модель в
   памяти (~150 МБ на воркер), это основной потребитель.
 
@@ -43,6 +47,7 @@ sudo bash /srv/treffit/src/treffit/deploy/bootstrap.sh
 ## 1. Система и пользователь
 
 ```bash
+# На 20.04 сначала: add-apt-repository -y ppa:deadsnakes/ppa
 apt update && apt install -y \
     python3.11 python3.11-venv python3-pip \
     postgresql redis-server nginx certbot python3-certbot-nginx git
