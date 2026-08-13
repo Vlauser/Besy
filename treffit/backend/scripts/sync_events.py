@@ -5,6 +5,9 @@
 Meant for cron, e.g. hourly:
 
     0 * * * * cd /srv/treffit/backend && .venv/bin/python -m scripts.sync_events >> var/sync.log 2>&1
+
+Если в отчёте всё ушло в «пропущено», причину покажет scripts.kudago_probe:
+он печатает, на чём именно спотыкается разбор, и сырой ответ источника.
 """
 
 import asyncio

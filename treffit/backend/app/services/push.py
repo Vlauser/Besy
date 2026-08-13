@@ -11,6 +11,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from ..config import settings
+from ..timeutil import as_utc
 from ..models import Chat, User
 from ..ws import manager
 from . import bot
@@ -39,8 +40,7 @@ def _cooldown_passed(chat: Chat, recipient_id: int) -> bool:
     last = chat.last_push_a if recipient_id == chat.user_a_id else chat.last_push_b
     if last is None:
         return True
-    if last.tzinfo is None:
-        last = last.replace(tzinfo=timezone.utc)
+    last = as_utc(last)
     return datetime.now(timezone.utc) - last >= timedelta(seconds=settings.push_cooldown_seconds)
 
 

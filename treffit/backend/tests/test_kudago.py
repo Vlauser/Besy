@@ -244,3 +244,78 @@ def test_keeps_the_source_page_link():
     parsed = kudago.parse_event(raw_event(site_url="https://kudago.com/ekb/event/jazz/"), "ekb", NOW)
     assert parsed["site_url"] == "https://kudago.com/ekb/event/jazz/"
     assert kudago.parse_event(raw_event(), "ekb", NOW)["site_url"] is None
+
+
+# --------------------------- длительные события ---------------------------
+#
+# КудаGo по actual_since отдаёт то, что актуально сейчас, — а это в основном
+# выставки, начавшиеся раньше и идущие ещё месяц. Раньше они отсеивались все
+# до единой, и афиша приходила пустой.
+
+
+def test_keeps_an_exhibition_that_started_before_today():
+    parsed = kudago.parse_event(
+        raw_event(
+            dates=[{"start": ts(NOW - timedelta(days=12)), "end": ts(NOW + timedelta(days=40))}]
+        ),
+        "ekb",
+        NOW,
+    )
+    assert parsed is not None
+    assert parsed["starts_at"] == NOW - timedelta(days=12)
+    assert parsed["ends_at"] == NOW + timedelta(days=40)
+
+
+def test_drops_it_once_it_has_closed():
+    ended = raw_event(
+        dates=[{"start": ts(NOW - timedelta(days=40)), "end": ts(NOW - timedelta(days=1))}]
+    )
+    assert kudago.parse_event(ended, "ekb", NOW) is None
+
+
+def test_open_ended_run_loses_its_end():
+    """Постоянная экспозиция размечена концом в далёком будущем.
+
+    Хранить такой конец нельзя: по нему считается окно Live.
+    """
+    forever = raw_event(
+        dates=[{"start": ts(NOW + timedelta(hours=2)), "end": 253370754000}]
+    )
+    parsed = kudago.parse_event(forever, "ekb", NOW)
+    assert parsed is not None
+    assert parsed["ends_at"] is None
+
+
+def test_sentinel_start_is_not_a_date():
+    assert kudago.parse_event(raw_event(dates=[{"start": -62135433000}]), "ekb", NOW) is None
+
+
+def test_picks_the_earliest_suitable_slot():
+    parsed = kudago.parse_event(
+        raw_event(
+            dates=[
+                {"start": ts(NOW + timedelta(days=9))},
+                {"start": ts(NOW + timedelta(days=2))},
+                {"start": ts(NOW - timedelta(days=30))},  # прошедший — мимо
+            ]
+        ),
+        "ekb",
+        NOW,
+    )
+    assert parsed["starts_at"] == NOW + timedelta(days=2)
+
+
+def test_end_before_start_is_ignored():
+    parsed = kudago.parse_event(
+        raw_event(
+            dates=[{"start": ts(NOW + timedelta(hours=3)), "end": ts(NOW - timedelta(hours=3))}]
+        ),
+        "ekb",
+        NOW,
+    )
+    assert parsed is not None and parsed["ends_at"] is None
+
+
+def test_garbage_slots_do_not_crash_the_parser():
+    for dates in ([None], ["строка"], [{"start": "не число"}], [{}]):
+        assert kudago.parse_event(raw_event(dates=dates), "ekb", NOW) is None

@@ -40,34 +40,54 @@ def city_for(location: str) -> str:
     return CITY_BY_LOCATION.get(location, location)
 
 
-def _pick_start(dates: list[dict], now: datetime) -> tuple[datetime, datetime | None] | None:
-    """First upcoming slot of an event, as timezone-aware datetimes.
+# Дольше этого событие считаем бессрочным и конец не храним: у КудаGo
+# постоянные экспозиции размечены концом в далёком будущем, и такой конец
+# ничего не говорит о том, когда туда идти.
+MAX_RUN = timedelta(days=180)
 
-    KudaGo returns unix timestamps and uses sentinel values for open-ended
-    schedules, which would otherwise land in the year 10000.
+
+def _moment(value: object) -> datetime | None:
+    """Unix-время в datetime. None для мусора и служебных значений.
+
+    КудаGo размечает бессрочные расписания числами вроде -62135433000 и
+    253370754000 — без проверки они превращаются в первый и десятитысячный
+    год.
     """
+    if not isinstance(value, int) or value <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(value, tz=timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _pick_start(dates: list[dict], now: datetime) -> tuple[datetime, datetime | None] | None:
+    """Ближайший подходящий слот события.
+
+    Подходит не только тот, что ещё не начался, но и тот, что ещё не
+    закончился: выставка, открывшаяся неделю назад и идущая до сентября, —
+    это событие, на которое можно пойти сегодня. Раньше брались только
+    будущие начала, и вся афиша длительных событий отсеивалась целиком —
+    а КудаGo по actual_since отдаёт как раз идущие сейчас.
+    """
+    horizon = now - timedelta(hours=6)
     best: tuple[datetime, datetime | None] | None = None
+
     for slot in dates or []:
-        start_ts = slot.get("start")
-        if not isinstance(start_ts, int) or start_ts <= 0:
+        if not isinstance(slot, dict):
             continue
-        try:
-            start = datetime.fromtimestamp(start_ts, tz=timezone.utc)
-        except (OverflowError, OSError, ValueError):
-            continue
-        if start < now - timedelta(hours=6):
+        start = _moment(slot.get("start"))
+        if start is None:
             continue
 
-        end = None
-        end_ts = slot.get("end")
-        if isinstance(end_ts, int) and end_ts > start_ts:
-            try:
-                candidate_end = datetime.fromtimestamp(end_ts, tz=timezone.utc)
-            except (OverflowError, OSError, ValueError):
-                candidate_end = None
-            # Ignore "runs forever" sentinels — they break the Live window.
-            if candidate_end and candidate_end - start <= timedelta(days=2):
-                end = candidate_end
+        end = _moment(slot.get("end"))
+        if end is not None and (end <= start or end - start > MAX_RUN):
+            end = None
+
+        still_running = end is not None and end >= now
+        not_started_yet = start >= horizon
+        if not (still_running or not_started_yet):
+            continue
 
         if best is None or start < best[0]:
             best = (start, end)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
@@ -13,6 +13,7 @@ from ..models import Event, LiveSession, User, UserEvent
 from ..schemas import CheckinIn, EventOut, LiveNeighbourOut
 from ..serializers import event_out, visible_photos
 from ..services.matching import haversine_meters
+from ..timeutil import as_utc
 
 router = APIRouter(tags=["events"])
 
@@ -21,11 +22,19 @@ router = APIRouter(tags=["events"])
 async def list_events(
     user: User = Depends(onboarded_user), session: AsyncSession = Depends(get_session)
 ) -> list[EventOut]:
-    """Upcoming events in the user's city, synced from the KudaGo bot."""
+    """Что идёт и что скоро начнётся в городе пользователя.
+
+    Событие показываем, пока оно не закончилось: выставка, открывшаяся в
+    прошлом месяце, сегодня так же доступна, как завтрашний концерт. По
+    одному только `starts_at` такие события выпадали из списка.
+    """
     now = datetime.now(timezone.utc)
     rows = await session.execute(
         select(Event)
-        .where(Event.city == user.city, Event.starts_at >= now - timedelta(hours=6))
+        .where(
+            Event.city == user.city,
+            or_(Event.ends_at >= now, Event.starts_at >= now - timedelta(hours=6)),
+        )
         .order_by(Event.starts_at.asc())
         .limit(50)
     )
@@ -88,13 +97,19 @@ async def live_checkin(
 
     now = datetime.now(timezone.utc)
     window = timedelta(hours=settings.live_window_hours)
-    ends_at = event.ends_at or (event.starts_at + window)
-    if not (event.starts_at - window <= now <= ends_at + window):
+    starts_at = as_utc(event.starts_at)
+    ends_at = as_utc(event.ends_at) or (starts_at + window)
+    if not (starts_at - window <= now <= ends_at + window):
         raise HTTPException(status_code=409, detail="Окно Live для этого события закрыто")
 
     distance = haversine_meters(payload.lat, payload.lng, event.lat, event.lng)
     if distance > settings.live_radius_meters:
         raise HTTPException(status_code=409, detail="Вы слишком далеко от места события")
+
+    # Отметка «я на месте» живёт от момента отметки, а не до конца события.
+    # Иначе на двухмесячной выставке человек оставался бы «здесь» два
+    # месяца — и попадал бы в список соседей, давно уйдя домой.
+    expires_at = min(now + window, ends_at + window)
 
     user.lat, user.lng = payload.lat, payload.lng
     existing = await session.scalar(
@@ -111,11 +126,11 @@ async def live_checkin(
                 event_id=event.id,
                 lat=payload.lat,
                 lng=payload.lng,
-                expires_at=ends_at + window,
+                expires_at=expires_at,
             )
         )
     await session.commit()
-    return {"ok": True, "event_id": event.id, "expires_at": ends_at + window, "distance_m": int(distance)}
+    return {"ok": True, "event_id": event.id, "expires_at": expires_at, "distance_m": int(distance)}
 
 
 @router.get("/live/nearby", response_model=list[LiveNeighbourOut])

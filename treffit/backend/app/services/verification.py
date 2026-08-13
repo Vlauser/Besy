@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..timeutil import as_utc
 from ..models import Verification, VerificationStatus
 
 # Kept deliberately simple and describable in one line each.
@@ -54,9 +55,7 @@ async def active_request(session: AsyncSession, user_id: int) -> Verification | 
     request = row.scalar_one_or_none()
     if request is None:
         return None
-    expires_at = request.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    expires_at = as_utc(request.expires_at)
     if request.status == VerificationStatus.requested.value and expires_at < now:
         return None
     return request
