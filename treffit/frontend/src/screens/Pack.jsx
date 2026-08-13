@@ -42,7 +42,7 @@ export function Pack({ onOpenCandidate, onError }) {
       <EmptyState
         icon={LayoutGrid}
         title="Пачка пуста"
-        hint="Новые карты появятся, когда подойдут новые люди."
+        hint="Новые карты появятся, когда подойдут новые люди поблизости."
       />
     );
   }
@@ -162,7 +162,7 @@ export function CandidateDetail({ candidate, onLike, onPass, busy }) {
 
           {candidate.photos_locked && (
             <p className="text-xs text-center pt-1" style={{ color: T.muted }}>
-              Фото откроется после трёх ваших сообщений в чате
+              Фото откроется в чате
             </p>
           )}
         </div>

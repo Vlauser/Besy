@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Calendar, LayoutGrid, MapPin, Radio, Sparkles } from "lucide-react";
 
 import { endpoints } from "../api/client";
-import { Pill, Spinner } from "../components/ui";
+import { Spinner } from "../components/ui";
 import { haptic, requestLocation } from "../lib/telegram";
 import { T, gradient } from "../theme";
 
@@ -72,7 +72,7 @@ export function Home({ me, config, onGoDeck, onGoPack, onGoTest, onError }) {
         <span className="flex-1 text-left">
           <span className="block text-sm font-bold text-white">Колода</span>
           <span className="block text-xs" style={{ color: "rgba(255,255,255,0.85)" }}>
-            Свайп вправо — нравится, влево — мимо
+            Новые люди рядом
           </span>
         </span>
       </button>
@@ -88,7 +88,7 @@ export function Home({ me, config, onGoDeck, onGoPack, onGoTest, onError }) {
         <span className="flex-1">
           <span className="block text-sm font-bold text-white">Пачка скретч-карт</span>
           <span className="block text-xs" style={{ color: "rgba(255,255,255,0.78)" }}>
-            Потрите карту, чтобы узнать, кто там
+            Кто-то ждёт под фольгой
           </span>
         </span>
       </button>
@@ -121,7 +121,7 @@ export function Home({ me, config, onGoDeck, onGoPack, onGoTest, onError }) {
 
         {!loading && !events.length && (
           <p className="text-sm px-1" style={{ color: T.muted }}>
-            Событий пока нет. Они подтягиваются из бота KudaGo.
+            Скоро здесь появятся события города.
           </p>
         )}
 
@@ -191,14 +191,6 @@ export function Home({ me, config, onGoDeck, onGoPack, onGoTest, onError }) {
         </div>
       </div>
 
-      {config.blind_mode && (
-        <div className="rounded-2xl p-3.5 flex items-start gap-2.5" style={{ background: T.surfaceSoft }}>
-          <Pill tone="gold">режим</Pill>
-          <p className="text-xs flex-1" style={{ color: T.ink }}>
-            Сначала разговор: фото открывается после {config.reveal_threshold} ваших сообщений в чате.
-          </p>
-        </div>
-      )}
     </div>
   );
 }

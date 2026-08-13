@@ -51,7 +51,7 @@ export function ChatList({ onOpenChat, onError }) {
       <EmptyState
         icon={MessageCircle}
         title="Пока пусто"
-        hint="Чат открывается, когда лайк взаимный. Свайпайте в «Колоде» или откройте карту в «Пачке»."
+        hint="Чат появится, когда симпатия окажется взаимной."
       />
     );
   }

@@ -78,7 +78,7 @@ export function Deck({ config, onMatch, onError }) {
       <EmptyState
         icon={Sparkles}
         title="Пока никого нового"
-        hint="Мы показываем только тех, кто подходит по вашим фильтрам и сам ищет таких, как вы. Загляните позже или расширьте фильтры в профиле."
+        hint="Загляните позже или измените фильтры в профиле."
         action={
           <div className="w-full max-w-xs">
             <Button variant="secondary" onClick={() => load()}>Обновить</Button>

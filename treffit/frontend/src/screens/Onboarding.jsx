@@ -363,7 +363,7 @@ function PhotoStep({ photos, setPhotos, blindMode, maxPhotos, saving, guard, onD
         title="Фото"
         hint={
           blindMode
-            ? "В режиме «сначала разговор» фото не видно в колоде — оно откроется после трёх ваших сообщений в чате."
+            ? "В колоде его не покажут: фото откроется в чате, после трёх ваших сообщений."
             : "Первое фото — главное, его видят в колоде."
         }
       />
@@ -406,7 +406,7 @@ function PhotoStep({ photos, setPhotos, blindMode, maxPhotos, saving, guard, onD
       <input ref={inputRef} type="file" accept="image/*" onChange={pick} className="hidden" />
 
       <p className="text-xs mt-4" style={{ color: T.muted }}>
-        Фото проходит модерацию перед показом другим. EXIF (в том числе геометки) удаляется при загрузке.
+        Фото проверяется перед публикацией.
       </p>
 
       <div className="flex-1" />

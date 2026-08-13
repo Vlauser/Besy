@@ -89,8 +89,7 @@ export function Verification({ isVerified, onDone, onError }) {
         <div>
           <p className="font-display text-lg" style={{ color: T.ink }}>Подтвердите анкету</p>
           <p className="text-sm mt-0.5" style={{ color: T.muted }}>
-            Сделайте селфи с жестом, который мы назначим. Так видно, что за анкетой живой человек,
-            а не чужие фото.
+            Сделайте селфи с жестом, который мы назначим.
           </p>
         </div>
       </div>
@@ -107,7 +106,7 @@ export function Verification({ isVerified, onDone, onError }) {
             <Pill tone="gold">ваш жест</Pill>
             <p className="font-display text-xl mt-2" style={{ color: T.ink }}>{state.instruction}</p>
             <p className="text-xs mt-2" style={{ color: T.muted }}>
-              Жест назначается случайно и не меняется — в этом весь смысл проверки.
+              Жест назначается случайно и не меняется.
             </p>
           </div>
 
@@ -123,8 +122,7 @@ export function Verification({ isVerified, onDone, onError }) {
       )}
 
       <p className="text-xs" style={{ color: T.muted }}>
-        Селфи видит только модератор и оно удаляется сразу после проверки. Другим пользователям
-        оно не показывается никогда.
+        Селфи видит только модератор, и оно удаляется сразу после проверки.
       </p>
     </div>
   );
