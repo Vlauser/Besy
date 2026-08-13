@@ -119,14 +119,15 @@ ok "https://$DOMAIN/api/health → $HEALTH"
 # ------------------------------------------------------------ 4. .env
 
 step "Проверка .env"
-missing=""
-for key in TREFFIT_BOT_TOKEN TREFFIT_MINI_APP_URL; do
-    grep -qE "^${key}=.+" "$ENV_FILE" || missing="$missing $key"
-done
-[ -z "$missing" ] || die "в $ENV_FILE не заполнено:$missing"
+grep -qE "^TREFFIT_BOT_TOKEN=.+" "$ENV_FILE" \
+    || die "в $ENV_FILE не заполнен TREFFIT_BOT_TOKEN"
 
-# Эти два всегда выводятся из домена — подставляем, чтобы не расходились.
-for pair in "TREFFIT_PUBLIC_URL=https://$DOMAIN/api" "TREFFIT_CORS_ORIGINS=https://$DOMAIN"; do
+# Все три выводятся из домена — подставляем сами, чтобы не разошлись между
+# собой и с сертификатом. MINI_APP_URL это адрес сайта: ссылку t.me/бот/app
+# Telegram отвергает в web_app.url с BUTTON_URL_INVALID.
+for pair in "TREFFIT_PUBLIC_URL=https://$DOMAIN/api" \
+            "TREFFIT_CORS_ORIGINS=https://$DOMAIN" \
+            "TREFFIT_MINI_APP_URL=https://$DOMAIN"; do
     key="${pair%%=*}"
     if grep -q "^${key}=" "$ENV_FILE"; then
         sed -i "s#^${key}=.*#${pair}#" "$ENV_FILE"
@@ -137,7 +138,7 @@ done
 chown "$SERVICE_USER:$SERVICE_USER" "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 systemctl restart treffit-api
-ok "PUBLIC_URL и CORS выставлены на https://$DOMAIN, сервис перезапущен"
+ok "PUBLIC_URL, CORS и MINI_APP_URL выставлены на https://$DOMAIN, сервис перезапущен"
 
 # ----------------------------------------------------------- 5. вебхук
 

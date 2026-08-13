@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     push_enabled: bool = True
     # Do not ping someone about every line of a fast conversation.
     push_cooldown_seconds: int = 180
+    # HTTPS-адрес, по которому раздаётся сам Mini App (https://treffit.ru).
+    # Именно его ждёт Telegram в web_app.url — ссылка вида t.me/бот/app
+    # предназначена для шаринга и отклоняется с BUTTON_URL_INVALID.
     mini_app_url: str = ""
 
     # --- events sync ---

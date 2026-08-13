@@ -52,10 +52,19 @@ async def apply() -> None:
     await bot.set_my_commands(COMMANDS)
     print("Команды: " + ", ".join(f"/{name}" for name, _ in COMMANDS))
 
-    if await bot.set_chat_menu_button() is None:
-        print("Кнопка меню пропущена: не задан TREFFIT_MINI_APP_URL")
-    else:
-        print(f"Кнопка меню → {settings.mini_app_url}")
+    try:
+        if await bot.set_chat_menu_button() is None:
+            print("Кнопка меню пропущена: не задан TREFFIT_MINI_APP_URL")
+        else:
+            print(f"Кнопка меню → {settings.mini_app_url}")
+    except bot.BotError as exc:
+        # Вебхук и команды уже зарегистрированы — бот рабочий и без кнопки.
+        print(f"Кнопку меню поставить не удалось: {exc}")
+        if "BUTTON_URL_INVALID" in str(exc):
+            print(
+                "  TREFFIT_MINI_APP_URL должен быть адресом сайта "
+                "(https://ваш.домен), а не ссылкой t.me/бот/app"
+            )
 
 
 async def main() -> None:

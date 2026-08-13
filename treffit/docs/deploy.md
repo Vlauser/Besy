@@ -105,7 +105,7 @@ TREFFIT_BOT_TOKEN=<токен от BotFather>
 TREFFIT_DATABASE_URL=postgresql+asyncpg://treffit:ПАРОЛЬ@localhost:5432/treffit
 TREFFIT_REDIS_URL=redis://localhost:6379/0
 TREFFIT_MEDIA_ROOT=/srv/treffit/backend/var/media
-TREFFIT_MINI_APP_URL=https://t.me/ВАШ_БОТ/app
+TREFFIT_MINI_APP_URL=https://ВАШ.ДОМЕН   # адрес сайта, НЕ ссылка t.me
 TREFFIT_CORS_ORIGINS=https://treffit.example.com
 TREFFIT_ADMIN_TELEGRAM_IDS=<ваш telegram_id>
 TREFFIT_ALLOW_DEV_AUTH=false
@@ -233,8 +233,9 @@ curl -s https://ВАШ.ДОМЕН/ | head -c 100      # html фронтенда
 
 1. `/newbot` → имя и username, токен уже в `.env`.
 2. `/newapp` → выбрать бота, короткое имя `app`, URL `https://ВАШ.ДОМЕН`.
-   Полученная ссылка `https://t.me/ВАШ_БОТ/app` должна совпадать с
-   `TREFFIT_MINI_APP_URL`.
+   Ссылку `https://t.me/ВАШ_БОТ/app` можно раздавать людям, но в
+   `TREFFIT_MINI_APP_URL` идёт именно адрес сайта: в `web_app.url`
+   Telegram принимает только его.
 
 Затем зарегистрировать вебхук, команды и кнопку меню:
 
