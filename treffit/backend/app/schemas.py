@@ -352,6 +352,10 @@ class ConfigOut(BaseModel):
     min_age: int
     max_photos: int
     daily_like_limit: int
+    # Клиенту нужно знать, есть ли смысл показывать экран dev-входа: в
+    # проде его быть не должно, там пустой initData — это ошибка, а не
+    # приглашение выбрать демо-профиль.
+    dev_auth_allowed: bool
     test_cards: list[TestCardOut]
 
 

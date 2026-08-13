@@ -402,5 +402,15 @@ async def test_config_exposes_the_rules_the_client_needs(client):
     assert body["test_cards"][0]["left"] == "Вечеринка"
 
 
+async def test_config_reports_whether_dev_login_is_offered(client, monkeypatch):
+    """The client must not offer a dev sign-in on production: there an empty
+    initData is a failure, not an invitation to pick a demo profile."""
+    monkeypatch.setattr(settings, "allow_dev_auth", False)
+    assert (await client.get("/config")).json()["dev_auth_allowed"] is False
+
+    monkeypatch.setattr(settings, "allow_dev_auth", True)
+    assert (await client.get("/config")).json()["dev_auth_allowed"] is True
+
+
 async def test_health(client):
     assert (await client.get("/health")).json() == {"status": "ok"}

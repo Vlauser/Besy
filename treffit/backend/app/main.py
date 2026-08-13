@@ -83,5 +83,6 @@ async def config() -> ConfigOut:
         min_age=settings.min_age,
         max_photos=settings.max_photos,
         daily_like_limit=settings.daily_like_limit,
+        dev_auth_allowed=settings.allow_dev_auth,
         test_cards=[TestCardOut(**card) for card in TEST_CARDS],
     )

@@ -24,6 +24,7 @@ import {
   getViewportHeight,
   haptic,
   initTelegram,
+  hasTelegramSdk,
   isTelegram,
   onViewportChange,
   setBackButton,
@@ -73,10 +74,21 @@ export default function App() {
       try {
         profile = await endpoints.me();
       } catch {
-        if (!isTelegram) {
-          // Browser session with no token: offer the dev sign-in instead of
-          // failing, so the app is usable during development.
-          setNeedsDevLogin(true);
+        if (!isTelegram()) {
+          // Три разных случая, и путать их нельзя: обычный браузер при
+          // разработке, запуск не как Mini App, и прод без dev-входа.
+          if (hasTelegramSdk()) {
+            setFatal(
+              "Telegram не передал данные авторизации. Откройте приложение " +
+                "кнопкой в боте или командой /start, а не по ссылке на сайт."
+            );
+          } else if (productConfig.dev_auth_allowed) {
+            setNeedsDevLogin(true);
+          } else {
+            setFatal(
+              "Приложение открыто вне Telegram. Запустите его через бота."
+            );
+          }
           return;
         }
         // Exchange initData for a fresh token.
@@ -309,13 +321,16 @@ export default function App() {
  * a centred phone frame so the layout stays honest during development.
  */
 function Shell({ height, title, onBack, footer, bare, children }) {
+  // Внутри Telegram занимаем весь вьюпорт; в браузере рисуем рамку
+  // телефона, чтобы вёрстка при разработке оставалась честной.
+  const inTelegram = isTelegram();
   const inner = (
     <div
       className="relative w-full flex flex-col overflow-hidden font-ui"
       style={{
-        height: isTelegram ? height : Math.min(height - 40, 780),
+        height: inTelegram ? height : Math.min(height - 40, 780),
         background: T.bg,
-        ...(isTelegram
+        ...(inTelegram
           ? {}
           : {
               maxWidth: 420,
@@ -346,7 +361,7 @@ function Shell({ height, title, onBack, footer, bare, children }) {
     </div>
   );
 
-  if (isTelegram) return inner;
+  if (inTelegram) return inner;
   return (
     <div className="w-full min-h-screen flex items-center justify-center px-4" style={{ background: gradient.page }}>
       {inner}

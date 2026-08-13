@@ -80,6 +80,19 @@ ok "nginx перезагружен"
 # -sS вместо -s: без этого настоящая причина (отказ соединения, TLS,
 # закрытый порт) молча теряется и остаётся бесполезное «пусто».
 HEALTH="$(curl -sS --max-time 10 "https://$DOMAIN/api/health" 2>/tmp/treffit-curl.err || true)"
+
+if [ "$HEALTH" != '{"status":"ok"}' ]; then
+    # Многие VPS не маршрутизируют собственный внешний IP обратно на себя
+    # (hairpin NAT). Снаружи всё работает, а запрос с самого сервера не
+    # доходит — поэтому пробуем ещё раз, но через loopback.
+    LOCAL="$(curl -sS --max-time 10 --resolve "${DOMAIN}:443:127.0.0.1" \
+        "https://$DOMAIN/api/health" 2>/dev/null || true)"
+    if [ "$LOCAL" = '{"status":"ok"}' ]; then
+        warn "снаружи проверить не удалось (hairpin NAT), но локально nginx отвечает"
+        HEALTH="$LOCAL"
+    fi
+fi
+
 if [ "$HEALTH" != '{"status":"ok"}' ]; then
     echo
     printf '%sНе достучались до https://%s/api/health%s\n' "$RED$BOLD" "$DOMAIN" "$OFF"

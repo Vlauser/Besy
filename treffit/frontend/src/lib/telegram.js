@@ -5,51 +5,69 @@
  * runnable with `npm run dev` outside Telegram.
  */
 
-export const tg = typeof window !== "undefined" ? window.Telegram?.WebApp : undefined;
+/**
+ * SDK берём заново при каждом обращении, а не один раз при загрузке
+ * модуля: telegram-web-app.js может выполниться позже нашего бандла, и
+ * тогда захваченное значение навсегда осталось бы undefined.
+ */
+function webApp() {
+  return typeof window !== "undefined" ? window.Telegram?.WebApp : undefined;
+}
 
-export const isTelegram = Boolean(tg?.initData);
+/** SDK загрузился — значит страницу открыл Telegram, а не обычный браузер. */
+export function hasTelegramSdk() {
+  return Boolean(webApp());
+}
+
+/** Полноценный запуск Mini App: SDK есть и есть подписанный initData. */
+export function isTelegram() {
+  return Boolean(webApp()?.initData);
+}
 
 export function initTelegram() {
-  if (!tg) return;
-  tg.ready();
-  tg.expand();
+  const app = webApp();
+  if (!app) return;
+  app.ready();
+  app.expand();
   // Swipe-to-dismiss fights the swipe deck for the same gesture.
-  tg.disableVerticalSwipes?.();
-  tg.setHeaderColor?.("#FFFFFF");
-  tg.setBackgroundColor?.("#F3F6FD");
+  app.disableVerticalSwipes?.();
+  app.setHeaderColor?.("#FFFFFF");
+  app.setBackgroundColor?.("#F3F6FD");
 }
 
 export function getInitData() {
-  return tg?.initData || "";
+  return webApp()?.initData || "";
 }
 
 export function getViewportHeight() {
-  if (tg?.viewportStableHeight) return tg.viewportStableHeight;
+  const app = webApp();
+  if (app?.viewportStableHeight) return app.viewportStableHeight;
   return typeof window !== "undefined" ? window.innerHeight : 720;
 }
 
 export function onViewportChange(handler) {
-  if (!tg?.onEvent) return () => {};
-  tg.onEvent("viewportChanged", handler);
-  return () => tg.offEvent("viewportChanged", handler);
+  const app = webApp();
+  if (!app?.onEvent) return () => {};
+  app.onEvent("viewportChanged", handler);
+  return () => app.offEvent("viewportChanged", handler);
 }
 
 /* ---------------- haptics ---------------- */
 
 export const haptic = {
-  light: () => tg?.HapticFeedback?.impactOccurred?.("light"),
-  medium: () => tg?.HapticFeedback?.impactOccurred?.("medium"),
-  heavy: () => tg?.HapticFeedback?.impactOccurred?.("heavy"),
-  success: () => tg?.HapticFeedback?.notificationOccurred?.("success"),
-  warning: () => tg?.HapticFeedback?.notificationOccurred?.("warning"),
-  error: () => tg?.HapticFeedback?.notificationOccurred?.("error"),
-  select: () => tg?.HapticFeedback?.selectionChanged?.(),
+  light: () => webApp()?.HapticFeedback?.impactOccurred?.("light"),
+  medium: () => webApp()?.HapticFeedback?.impactOccurred?.("medium"),
+  heavy: () => webApp()?.HapticFeedback?.impactOccurred?.("heavy"),
+  success: () => webApp()?.HapticFeedback?.notificationOccurred?.("success"),
+  warning: () => webApp()?.HapticFeedback?.notificationOccurred?.("warning"),
+  error: () => webApp()?.HapticFeedback?.notificationOccurred?.("error"),
+  select: () => webApp()?.HapticFeedback?.selectionChanged?.(),
 };
 
 /* ---------------- native back button ---------------- */
 
 export function setBackButton(handler) {
-  const button = tg?.BackButton;
+  const button = webApp()?.BackButton;
   if (!button) return () => {};
   if (!handler) {
     button.hide();
@@ -66,13 +84,15 @@ export function setBackButton(handler) {
 /* ---------------- dialogs ---------------- */
 
 export function showAlert(message) {
-  if (tg?.showAlert) return new Promise((resolve) => tg.showAlert(message, resolve));
+  const app = webApp();
+  if (app?.showAlert) return new Promise((resolve) => app.showAlert(message, resolve));
   window.alert(message);
   return Promise.resolve();
 }
 
 export function showConfirm(message) {
-  if (tg?.showConfirm) return new Promise((resolve) => tg.showConfirm(message, resolve));
+  const app = webApp();
+  if (app?.showConfirm) return new Promise((resolve) => app.showConfirm(message, resolve));
   return Promise.resolve(window.confirm(message));
 }
 
@@ -80,12 +100,13 @@ export function showConfirm(message) {
 
 export function openInvoice(link) {
   return new Promise((resolve) => {
-    if (!tg?.openInvoice) {
+    const app = webApp();
+    if (!app?.openInvoice) {
       window.open(link, "_blank");
       resolve("unknown");
       return;
     }
-    tg.openInvoice(link, resolve);
+    app.openInvoice(link, resolve);
   });
 }
 
@@ -93,7 +114,7 @@ export function openInvoice(link) {
 
 export function requestLocation() {
   return new Promise((resolve, reject) => {
-    const manager = tg?.LocationManager;
+    const manager = webApp()?.LocationManager;
     if (manager?.getLocation) {
       manager.init?.(() => {
         manager.getLocation((location) => {
