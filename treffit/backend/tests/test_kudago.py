@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.config import settings
 from app.db import SessionLocal
@@ -519,3 +519,52 @@ async def test_it_stops_shrinking_at_the_floor(monkeypatch):
             report = await kudago.sync_location(session, client, "msk", 1, NOW)
 
     assert report["failed"] is True
+
+
+# --------------------------- повторы в выдаче ---------------------------
+
+
+async def test_the_same_event_on_two_pages_does_not_break_the_run():
+    """При одинаковых датах источник не держит порядок между страницами.
+
+    Одно и то же событие приходит дважды. Пока добавленное лежит в сессии
+    неотправленным, повторная вставка падает на уникальном индексе — и
+    уносит с собой весь прогон.
+    """
+    payload = kudago.parse_event(raw_event(), "ekb", NOW)
+    async with SessionLocal() as session:
+        assert await kudago.upsert(session, payload) is True
+        assert await kudago.upsert(session, payload) is False
+        await session.commit()
+
+        count = await session.scalar(
+            select(func.count()).select_from(Event).where(Event.external_id == payload["external_id"])
+        )
+    assert count == 1
+
+
+async def test_a_broken_city_does_not_take_the_others_with_it(monkeypatch):
+    """Иначе сорвавшаяся Москва оставляет без афиши всех, кто после неё."""
+    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
+    monkeypatch.setattr(settings, "kudago_locations", "msk,ekb")
+
+    async def broken_for_moscow(session, client, location, pages, since):
+        if location == "msk":
+            raise RuntimeError("что-то пошло не так")
+        return {
+            "location": location,
+            "city": kudago.city_for(location),
+            "created": 3,
+            "updated": 0,
+            "skipped": 0,
+            "failed": False,
+        }
+
+    monkeypatch.setattr(kudago, "sync_location", broken_for_moscow)
+    async with SessionLocal() as session:
+        report = await kudago.sync(session, pages=1)
+
+    by_city = {item["city"]: item for item in report["locations"]}
+    assert by_city["Москва"]["failed"] is True
+    assert by_city["Екатеринбург"]["created"] == 3
+    assert report["created"] == 3

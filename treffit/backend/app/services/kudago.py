@@ -237,12 +237,20 @@ async def fetch_page(
 
 
 async def upsert(session: AsyncSession, payload: dict) -> bool:
-    """Insert or update one event. Returns True when it was newly created."""
+    """Записать событие. True — если оно новое.
+
+    Флаш сразу, а не в конце: одно и то же событие приходит на разных
+    страницах выдачи — при одинаковых датах источник не гарантирует порядок,
+    и на границе страниц записи повторяются. Пока добавленное лежит в сессии
+    неотправленным, следующий `select` его не находит, и вставка идёт второй
+    раз — с падением на уникальном индексе.
+    """
     existing = await session.scalar(
         select(Event).where(Event.source == payload["source"], Event.external_id == payload["external_id"])
     )
     if existing is None:
         session.add(Event(**payload))
+        await session.flush()
         return True
     for field, value in payload.items():
         setattr(existing, field, value)
@@ -337,10 +345,28 @@ async def sync(
 
     async with httpx.AsyncClient(timeout=TIMEOUT, headers={"User-Agent": "Treffit/1.0"}) as client:
         for slug in locations:
-            by_location.append(await sync_location(session, client, slug, pages, since))
-            # Пишем после каждого города, чтобы отказ на пятом не терял
-            # первые четыре.
-            await session.commit()
+            try:
+                by_location.append(await sync_location(session, client, slug, pages, since))
+                # Пишем после каждого города, чтобы отказ на пятом не терял
+                # первые четыре.
+                await session.commit()
+            except Exception:
+                # Один сорвавшийся город не должен уносить с собой весь
+                # прогон: без отката сессия остаётся в сломанной транзакции,
+                # и все следующие города падают вслед за ним — а отчёта не
+                # появляется вовсе.
+                logger.exception("KudaGo: %s не синхронизировался", slug)
+                await session.rollback()
+                by_location.append(
+                    {
+                        "location": slug,
+                        "city": city_for(slug),
+                        "created": 0,
+                        "updated": 0,
+                        "skipped": 0,
+                        "failed": True,
+                    }
+                )
 
     report = {
         "created": sum(item["created"] for item in by_location),
