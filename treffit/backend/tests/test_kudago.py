@@ -5,6 +5,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+import httpx
 import pytest
 from sqlalchemy import select
 
@@ -184,6 +185,7 @@ async def test_sync_stores_events_and_is_idempotent(kudago_stub, monkeypatch):
 async def test_sync_survives_an_unreachable_api(monkeypatch):
     """A KudaGo outage must not break the request or the database."""
     monkeypatch.setattr(kudago, "API_ROOT", "http://127.0.0.1:9")  # discard port
+    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
     async with SessionLocal() as session:
         report = await kudago.sync(session, location="ekb", pages=1)
     assert report["created"] == 0 and report["updated"] == 0 and report["skipped"] == 0
@@ -320,3 +322,57 @@ def test_end_before_start_is_ignored():
 def test_garbage_slots_do_not_crash_the_parser():
     for dates in ([None], ["строка"], [{"start": "не число"}], [{}]):
         assert kudago.parse_event(raw_event(dates=dates), "ekb", NOW) is None
+
+
+# --------------------------- медленный источник ---------------------------
+
+
+async def test_retries_a_timeout_and_succeeds(monkeypatch):
+    """Москва и Питер отвечают медленно; один таймаут не должен ронять город."""
+    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
+    calls = {"n": 0}
+
+    async def flaky(self, *args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise httpx.ReadTimeout("слишком долго")
+        return httpx.Response(
+            200,
+            json={"count": 0, "next": None, "results": []},
+            request=httpx.Request("GET", "http://x"),
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", flaky)
+    async with httpx.AsyncClient() as client:
+        data = await kudago.fetch_page(client, "msk", 1, NOW)
+
+    assert calls["n"] == 2
+    assert data["results"] == []
+
+
+async def test_gives_up_after_the_last_attempt(monkeypatch):
+    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
+
+    async def always_slow(self, *args, **kwargs):
+        raise httpx.ReadTimeout("слишком долго")
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", always_slow)
+    async with httpx.AsyncClient() as client:
+        with pytest.raises(httpx.ReadTimeout):
+            await kudago.fetch_page(client, "msk", 1, NOW, attempts=2)
+
+
+async def test_a_bad_response_is_not_retried(monkeypatch):
+    """404 повторять незачем — ответ от этого не изменится."""
+    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
+    calls = {"n": 0}
+
+    async def not_found(self, *args, **kwargs):
+        calls["n"] += 1
+        return httpx.Response(404, json={}, request=httpx.Request("GET", "http://x"))
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", not_found)
+    async with httpx.AsyncClient() as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await kudago.fetch_page(client, "нетакого", 1, NOW)
+    assert calls["n"] == 1

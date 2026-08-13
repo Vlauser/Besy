@@ -8,6 +8,7 @@ are keyed by (source, external_id), so re-running only updates.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -25,6 +26,16 @@ API_ROOT = "https://kudago.com/public-api/v1.4"
 FIELDS = "id,title,short_title,place,dates,location,site_url,categories,images"
 EXPAND = "place,dates"
 SOURCE = "kudago"
+
+# Читать ответ разрешаем долго: у Москвы и Петербурга выборка на порядок
+# больше, и на 20 секундах они не укладывались — города выпадали целиком.
+# Соединение при этом должно устанавливаться быстро: если хоста нет,
+# ждать минуту незачем.
+TIMEOUT = httpx.Timeout(60.0, connect=10.0)
+
+# Пауза перед повтором, множится на номер попытки.
+RETRY_BACKOFF_SECONDS = 2.0
+
 
 def city_for(location: str) -> str:
     """Слаг источника → название города, как оно хранится в анкете."""
@@ -137,22 +148,45 @@ def parse_event(raw: dict, location: str, now: datetime | None = None) -> dict |
     }
 
 
-async def fetch_page(client: httpx.AsyncClient, location: str, page: int, since: datetime) -> dict:
-    response = await client.get(
-        f"{API_ROOT}/events/",
-        params={
-            "location": location,
-            "actual_since": int(since.timestamp()),
-            "fields": FIELDS,
-            "expand": EXPAND,
-            "page_size": settings.kudago_page_size,
-            "page": page,
-            "order_by": "dates",
-            "text_format": "text",
-        },
-    )
-    response.raise_for_status()
-    return response.json()
+async def fetch_page(
+    client: httpx.AsyncClient, location: str, page: int, since: datetime, attempts: int = 3
+) -> dict:
+    """Одна страница выдачи, с повтором на таймаут.
+
+    Москва и Петербург отвечают заметно дольше остальных: выборка там на
+    порядок больше. Одного медленного ответа достаточно, чтобы город
+    выпал из синхронизации целиком, поэтому таймаут не приговор — пробуем
+    ещё раз, с паузой.
+    """
+    last: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            response = await client.get(
+                f"{API_ROOT}/events/",
+                params={
+                    "location": location,
+                    "actual_since": int(since.timestamp()),
+                    "fields": FIELDS,
+                    "expand": EXPAND,
+                    "page_size": settings.kudago_page_size,
+                    "page": page,
+                    "order_by": "dates",
+                    "text_format": "text",
+                },
+            )
+            response.raise_for_status()
+            return response.json()
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            # Отказ сети и медленный ответ стоит перетерпеть. Ответ 4xx/5xx
+            # сюда не попадает: повторять его смысла нет.
+            last = exc
+            if attempt < attempts:
+                logger.warning(
+                    "KudaGo: %s стр. %s — %s, попытка %s из %s",
+                    location, page, type(exc).__name__, attempt, attempts,
+                )
+                await asyncio.sleep(RETRY_BACKOFF_SECONDS * attempt)
+    raise last  # type: ignore[misc]
 
 
 async def upsert(session: AsyncSession, payload: dict) -> bool:
@@ -223,7 +257,7 @@ async def sync(
     since = datetime.now(timezone.utc)
     by_location: list[dict] = []
 
-    async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "Treffit/1.0"}) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT, headers={"User-Agent": "Treffit/1.0"}) as client:
         for slug in locations:
             by_location.append(await sync_location(session, client, slug, pages, since))
             # Пишем после каждого города, чтобы отказ на пятом не терял
