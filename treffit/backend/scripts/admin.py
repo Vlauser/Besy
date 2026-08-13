@@ -4,7 +4,8 @@
     python -m scripts.admin photos [N]          последние фото и их модерация
     python -m scripts.admin premium <tg_id>     выдать Premium
     python -m scripts.admin premium <tg_id> off снять Premium
-    python -m scripts.admin verify <tg_id>      поставить галочку вручную
+    python -m scripts.admin verify <tg_id>      подтвердить анкету
+    python -m scripts.admin queue               открытые заявки на верификацию
 
 Запускать от пользователя сервиса, с переменными из .env:
 
@@ -20,6 +21,7 @@ from sqlalchemy import desc, func, select
 from app.config import settings
 from app.db import SessionLocal
 from app.models import ModerationStatus, Photo, User, Verification, VerificationStatus
+from app.services import review, verification as verification_service
 
 
 async def cmd_status() -> None:
@@ -89,12 +91,52 @@ async def cmd_premium(telegram_id: int, enable: bool) -> None:
         print(f"{user.first_name} (tg {telegram_id}): Premium {'выдан' if enable else 'снят'}")
 
 
+async def cmd_queue() -> None:
+    async with SessionLocal() as session:
+        rows = await session.execute(
+            select(Verification, User)
+            .join(User, User.id == Verification.user_id)
+            .where(Verification.status == VerificationStatus.submitted.value)
+            .order_by(Verification.created_at)
+        )
+        items = rows.all()
+        if not items:
+            print("Открытых заявок нет.")
+            return
+        for request, owner in items:
+            print(
+                f"#{request.id} {owner.first_name} (tg {owner.telegram_id}) — "
+                f"жест: {verification_service.describe(request.gesture)}"
+            )
+        print("\nПодтвердить:  python -m scripts.admin verify <tg_id>")
+
+
 async def cmd_verify(telegram_id: int) -> None:
+    """Закрыть заявку, а не просто поставить флаг.
+
+    Иначе она навсегда остаётся в очереди, а селфи — на диске, хотя
+    смысла хранить его после проверки нет.
+    """
     async with SessionLocal() as session:
         user = await _find(session, telegram_id)
-        user.is_verified = True
-        await session.commit()
-        print(f"{user.first_name} (tg {telegram_id}): галочка поставлена")
+        request = await session.scalar(
+            select(Verification)
+            .where(
+                Verification.user_id == user.id,
+                Verification.status == VerificationStatus.submitted.value,
+            )
+            .order_by(desc(Verification.created_at))
+            .limit(1)
+        )
+        if request is not None:
+            await review.decide_verification(
+                session, request, approve=True, reason=None, admin_id=None
+            )
+            print(f"{user.first_name} (tg {telegram_id}): заявка #{request.id} закрыта, селфи удалено")
+        else:
+            user.is_verified = True
+            await session.commit()
+            print(f"{user.first_name} (tg {telegram_id}): галочка поставлена (заявки не было)")
 
 
 async def main() -> None:
@@ -111,6 +153,8 @@ async def main() -> None:
         if len(args) < 2:
             sys.exit("Укажите telegram_id")
         await cmd_premium(int(args[1]), enable=(len(args) < 3 or args[2] != "off"))
+    elif command == "queue":
+        await cmd_queue()
     elif command == "verify":
         if len(args) < 2:
             sys.exit("Укажите telegram_id")
