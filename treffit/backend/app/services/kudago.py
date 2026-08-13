@@ -36,6 +36,10 @@ TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 # Пауза перед повтором, множится на номер попытки.
 RETRY_BACKOFF_SECONDS = 2.0
 
+# Ниже этого дробить страницу бессмысленно: запросов станет столько, что
+# синхронизация будет идти дольше, чем источник — отвечать.
+MIN_PAGE_SIZE = 25
+
 
 def city_for(location: str) -> str:
     """Слаг источника → название города, как оно хранится в анкете."""
@@ -173,14 +177,22 @@ def parse_event(raw: dict, location: str, now: datetime | None = None) -> dict |
 
 
 async def fetch_page(
-    client: httpx.AsyncClient, location: str, page: int, since: datetime, attempts: int = 3
+    client: httpx.AsyncClient,
+    location: str,
+    page: int,
+    since: datetime,
+    attempts: int = 3,
+    page_size: int | None = None,
 ) -> dict:
-    """Одна страница выдачи, с повтором на таймаут.
+    """Одна страница выдачи, с повтором на временный отказ.
 
-    Москва и Петербург отвечают заметно дольше остальных: выборка там на
-    порядок больше. Одного медленного ответа достаточно, чтобы город
-    выпал из синхронизации целиком, поэтому таймаут не приговор — пробуем
-    ещё раз, с паузой.
+    Москва и Петербург выпадали из синхронизации целиком: у них выборка на
+    порядок больше, и источник на ней то отвечает слишком долго, то отдаёт
+    502. И то и другое — «сейчас не смог», а не «не смогу никогда», поэтому
+    страница запрашивается ещё раз.
+
+    А вот 4xx повторять нечего: несуществующий регион и кривые параметры от
+    повтора не исправятся.
     """
     last: Exception | None = None
     for attempt in range(1, attempts + 1):
@@ -192,7 +204,7 @@ async def fetch_page(
                     "actual_since": int(since.timestamp()),
                     "fields": FIELDS,
                     "expand": EXPAND,
-                    "page_size": settings.kudago_page_size,
+                    "page_size": page_size or settings.kudago_page_size,
                     "page": page,
                     "order_by": "dates",
                     "text_format": "text",
@@ -200,9 +212,20 @@ async def fetch_page(
             )
             response.raise_for_status()
             return response.json()
+        except httpx.HTTPStatusError as exc:
+            # 502 и 503 источник отдаёт, когда не справился с тяжёлой
+            # выборкой, — это временно. 4xx означает, что запрос неверен, и
+            # повтор ничего не изменит.
+            if exc.response.status_code < 500:
+                raise
+            last = exc
+            if attempt < attempts:
+                logger.warning(
+                    "KudaGo: %s стр. %s — %s, попытка %s из %s",
+                    location, page, exc.response.status_code, attempt, attempts,
+                )
+                await asyncio.sleep(RETRY_BACKOFF_SECONDS * attempt)
         except (httpx.TimeoutException, httpx.TransportError) as exc:
-            # Отказ сети и медленный ответ стоит перетерпеть. Ответ 4xx/5xx
-            # сюда не попадает: повторять его смысла нет.
             last = exc
             if attempt < attempts:
                 logger.warning(
@@ -226,20 +249,22 @@ async def upsert(session: AsyncSession, payload: dict) -> bool:
     return False
 
 
-async def sync_location(
-    session: AsyncSession, client: httpx.AsyncClient, location: str, pages: int, since: datetime
-) -> dict:
-    """Забрать афишу одного города. Считает, что вышло."""
+async def _walk_pages(
+    session: AsyncSession,
+    client: httpx.AsyncClient,
+    location: str,
+    pages: int,
+    since: datetime,
+    page_size: int,
+) -> tuple[int, int, int, bool]:
     created = updated = skipped = 0
-    failed = False
 
     for page in range(1, pages + 1):
         try:
-            data = await fetch_page(client, location, page, since)
-        except httpx.HTTPError:
-            logger.exception("KudaGo: %s, страница %s не загрузилась", location, page)
-            failed = True
-            break
+            data = await fetch_page(client, location, page, since, page_size=page_size)
+        except httpx.HTTPError as exc:
+            logger.warning("KudaGo: %s, страница %s не загрузилась: %r", location, page, exc)
+            return created, updated, skipped, True
 
         results = data.get("results") or []
         for raw in results:
@@ -254,6 +279,35 @@ async def sync_location(
 
         if not data.get("next") or not results:
             break
+
+    return created, updated, skipped, False
+
+
+async def sync_location(
+    session: AsyncSession, client: httpx.AsyncClient, location: str, pages: int, since: datetime
+) -> dict:
+    """Забрать афишу одного города, при неудаче — запросами полегче.
+
+    У Москвы и Петербурга выборка на порядок больше остальных, и источник
+    на сотне событий за раз отдаёт 502. Меньшая страница ему по силам,
+    поэтому город, не давшийся с первого раза, повторяется целиком с
+    половинной страницей.
+
+    Целиком, а не с места обрыва: номер страницы зависит от её размера, и
+    продолжать с прежнего номера значило бы пропустить часть событий.
+    """
+    page_size = max(MIN_PAGE_SIZE, settings.kudago_page_size)
+    created = updated = skipped = 0
+    failed = True
+
+    while True:
+        created, updated, skipped, failed = await _walk_pages(
+            session, client, location, pages, since, page_size
+        )
+        if not failed or page_size <= MIN_PAGE_SIZE:
+            break
+        page_size = max(MIN_PAGE_SIZE, page_size // 2)
+        logger.warning("KudaGo: %s — пробую заново по %s событий на страницу", location, page_size)
 
     return {
         "location": location,

@@ -9,6 +9,7 @@ import httpx
 import pytest
 from sqlalchemy import select
 
+from app.config import settings
 from app.db import SessionLocal
 from app.models import Event
 from app.services import kudago
@@ -362,22 +363,6 @@ async def test_gives_up_after_the_last_attempt(monkeypatch):
             await kudago.fetch_page(client, "msk", 1, NOW, attempts=2)
 
 
-async def test_a_bad_response_is_not_retried(monkeypatch):
-    """404 повторять незачем — ответ от этого не изменится."""
-    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
-    calls = {"n": 0}
-
-    async def not_found(self, *args, **kwargs):
-        calls["n"] += 1
-        return httpx.Response(404, json={}, request=httpx.Request("GET", "http://x"))
-
-    monkeypatch.setattr(httpx.AsyncClient, "get", not_found)
-    async with httpx.AsyncClient() as client:
-        with pytest.raises(httpx.HTTPStatusError):
-            await kudago.fetch_page(client, "нетакого", 1, NOW)
-    assert calls["n"] == 1
-
-
 # --------------------------- постоянные экспозиции ---------------------------
 #
 # Именно они оставляли целые города с пустой афишей: у музейной выставки два
@@ -448,3 +433,89 @@ def test_endless_without_any_real_date_still_works():
         NOW,
     )
     assert parsed is not None and parsed["is_permanent"] is True
+
+
+# --------------------------- источник не справился ---------------------------
+#
+# Москва и Петербург отдавали 502: у них выборка на порядок больше, и сотню
+# событий за раз источник не вытягивал.
+
+
+async def test_server_error_is_retried(monkeypatch):
+    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
+    calls = {"n": 0}
+
+    async def flaky(self, *args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(502, text="Bad Gateway", request=httpx.Request("GET", "http://x"))
+        return httpx.Response(
+            200,
+            json={"count": 0, "next": None, "results": []},
+            request=httpx.Request("GET", "http://x"),
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", flaky)
+    async with httpx.AsyncClient() as client:
+        await kudago.fetch_page(client, "msk", 1, NOW)
+    assert calls["n"] == 2
+
+
+async def test_client_error_is_not_retried(monkeypatch):
+    """404 от повтора не исправится — в отличие от 502."""
+    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
+    calls = {"n": 0}
+
+    async def gone(self, *args, **kwargs):
+        calls["n"] += 1
+        return httpx.Response(404, json={}, request=httpx.Request("GET", "http://x"))
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", gone)
+    async with httpx.AsyncClient() as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await kudago.fetch_page(client, "нетакого", 1, NOW)
+    assert calls["n"] == 1
+
+
+async def test_a_heavy_city_is_retried_with_smaller_pages(monkeypatch):
+    """Не справился с сотней — просим по пятьдесят, а не бросаем город."""
+    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
+    monkeypatch.setattr(settings, "kudago_page_size", 100)
+    seen: list[int] = []
+
+    async def picky(self, *args, **kwargs):
+        size = int(kwargs["params"]["page_size"])
+        seen.append(size)
+        if size > 50:
+            return httpx.Response(502, text="", request=httpx.Request("GET", "http://x"))
+        return httpx.Response(
+            200,
+            json={"count": 1, "next": None, "results": [raw_event()]},
+            request=httpx.Request("GET", "http://x"),
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", picky)
+    async with SessionLocal() as session:
+        async with httpx.AsyncClient() as client:
+            report = await kudago.sync_location(session, client, "msk", 1, NOW)
+        await session.commit()
+
+    assert seen[0] == 100 and 50 in seen
+    assert report["failed"] is False
+    assert report["created"] == 1
+
+
+async def test_it_stops_shrinking_at_the_floor(monkeypatch):
+    """Если не помогает и меньшая страница — сдаёмся, а не дробим до нуля."""
+    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
+    monkeypatch.setattr(settings, "kudago_page_size", 100)
+
+    async def always_502(self, *args, **kwargs):
+        return httpx.Response(502, text="", request=httpx.Request("GET", "http://x"))
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", always_502)
+    async with SessionLocal() as session:
+        async with httpx.AsyncClient() as client:
+            report = await kudago.sync_location(session, client, "msk", 1, NOW)
+
+    assert report["failed"] is True
