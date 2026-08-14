@@ -231,7 +231,15 @@ export default function App() {
       <Likes me={me} onOpenCandidate={setCandidate} onUpdated={setMe} onError={notify} />
     );
   } else if (tab === "chats") {
-    body = <ChatList onOpenChat={setActiveChatId} onError={notify} />;
+    body = (
+      <ChatList
+        onOpenChat={setActiveChatId}
+        requests={
+          <Likes me={me} onOpenCandidate={setCandidate} onUpdated={setMe} onError={notify} />
+        }
+        onError={notify}
+      />
+    );
   } else if (tab === "profile") {
     body = (
       <Profile

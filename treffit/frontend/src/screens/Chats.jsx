@@ -63,9 +63,47 @@ function NewMatches({ chats, onOpenChat }) {
   );
 }
 
-export function ChatList({ onOpenChat, onError }) {
+/** Переключатель «Чаты / Запросы» с числами непрочитанного. */
+function Segments({ value, onChange, chats, requests }) {
+  const items = [
+    ["chats", "Чаты", chats],
+    ["requests", "Запросы", requests],
+  ];
+  return (
+    <div className="mx-4 mt-4 p-1 rounded-full flex gap-1" style={{ background: T.surfaceSoft }}>
+      {items.map(([key, label, count]) => {
+        const active = value === key;
+        return (
+          <button
+            key={key}
+            onClick={() => onChange(key)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-sm font-semibold transition-colors duration-200"
+            style={{ background: active ? T.ink : "transparent", color: active ? "#fff" : T.muted }}
+          >
+            {label}
+            {count > 0 && (
+              <span
+                className="text-xs font-bold rounded-full px-1.5 min-w-[20px]"
+                style={{
+                  background: active ? "rgba(255,255,255,0.22)" : T.line,
+                  color: active ? "#fff" : T.muted,
+                }}
+              >
+                {count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function ChatList({ onOpenChat, requests, onError }) {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [segment, setSegment] = useState("chats");
+  const [likeCount, setLikeCount] = useState(0);
 
   function load() {
     endpoints
@@ -84,23 +122,45 @@ export function ChatList({ onOpenChat, onError }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    endpoints.incomingLikesCount().then((data) => setLikeCount(data.count)).catch(() => {});
+  }, []);
+
   if (loading) return <Loading />;
 
   const fresh = chats.filter((chat) => !chat.has_conversation);
   const started = chats.filter((chat) => chat.has_conversation);
 
+  const unread = chats.reduce((total, chat) => total + (chat.unread > 0 ? 1 : 0), 0);
+  const segments = (
+    <Segments value={segment} onChange={setSegment} chats={unread} requests={likeCount} />
+  );
+
+  if (segment === "requests") {
+    return (
+      <div className="pb-4">
+        {segments}
+        {requests}
+      </div>
+    );
+  }
+
   if (!chats.length) {
     return (
-      <EmptyState
-        icon={MessageCircle}
-        title="Пока пусто"
-        hint="Чат появится, когда симпатия окажется взаимной."
-      />
+      <div className="pb-4">
+        {segments}
+        <EmptyState
+          icon={MessageCircle}
+          title="Пока пусто"
+          hint="Чат появится, когда симпатия окажется взаимной."
+        />
+      </div>
     );
   }
 
   return (
     <div className="pb-4">
+      {segments}
       <NewMatches chats={fresh} onOpenChat={onOpenChat} />
 
       {started.length > 0 && fresh.length > 0 && (

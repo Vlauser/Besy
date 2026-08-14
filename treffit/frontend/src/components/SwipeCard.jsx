@@ -9,6 +9,13 @@ import { FALLBACK_GRADIENT, T } from "../theme";
 const TAP_SLOP = 8;
 const SWIPE_DISTANCE = 110;
 const MAX_ROTATION = 14;
+// Пикселей в миллисекунду. Быстрый короткий флик — это тоже решение, и
+// требовать от него полного размаха незачем: именно из-за этого карточка
+// возвращалась на место, хотя человек её уверенно бросил.
+const FLICK_SPEED = 0.45;
+// Пружина: карточка возвращается с перелётом, а не приезжает по прямой.
+const SPRING = "cubic-bezier(0.18, 0.89, 0.32, 1.28)";
+const THROW = "cubic-bezier(0.32, 0, 0.67, 0)";
 
 /**
  * A draggable profile card.
@@ -18,6 +25,8 @@ const MAX_ROTATION = 14;
  */
 export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, depth = 0, blindMode }) {
   const [drag, setDrag] = useState({ x: 0, y: 0 });
+  const last = useRef({ x: 0, t: 0 });
+  const speed = useRef(0);
   const [leaving, setLeaving] = useState(null);
   const origin = useRef(null);
   const passedThreshold = useRef(false);
@@ -49,12 +58,26 @@ export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, dep
     if (!interactive || leaving) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     origin.current = { x: event.clientX, y: event.clientY };
+    // Замеряем скорость по последнему отрезку, а не по всему жесту: важно,
+    // как палец двигался перед отрывом, а не как он вёл себя вначале.
+    last.current = { x: event.clientX, t: event.timeStamp };
+    speed.current = 0;
   }
 
   function move(event) {
     if (!origin.current) return;
     const x = event.clientX - origin.current.x;
     const y = event.clientY - origin.current.y;
+
+    const dt = event.timeStamp - last.current.t;
+    if (dt > 0) {
+      const instant = (event.clientX - last.current.x) / dt;
+      // Сглаживаем, но первое измерение берём как есть: разгон от нуля
+      // занижал короткие быстрые жесты — то есть именно флики, ради
+      // которых всё и затевалось.
+      speed.current = speed.current === 0 ? instant : speed.current * 0.6 + instant * 0.4;
+      last.current = { x: event.clientX, t: event.timeStamp };
+    }
     setDrag({ x, y });
     const crossed = Math.abs(x) > SWIPE_DISTANCE;
     if (crossed !== passedThreshold.current) {
@@ -68,8 +91,12 @@ export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, dep
     const moved = Math.hypot(event.clientX - origin.current.x, event.clientY - origin.current.y);
     origin.current = null;
     passedThreshold.current = false;
-    if (Math.abs(drag.x) > SWIPE_DISTANCE) {
-      fly(drag.x > 0 ? "like" : "pass");
+    const thrown = Math.abs(speed.current) > FLICK_SPEED;
+    // Бросок засчитываем по направлению скорости, а не смещения: в конце
+    // жеста палец мог качнуться обратно.
+    if (Math.abs(drag.x) > SWIPE_DISTANCE || (thrown && Math.abs(drag.x) > TAP_SLOP * 3)) {
+      const direction = thrown ? speed.current : drag.x;
+      fly(direction > 0 ? "like" : "pass");
     } else {
       setDrag({ x: 0, y: 0 });
       // Палец почти не сдвинулся — значит это касание, а не свайп.
@@ -80,8 +107,10 @@ export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, dep
   function fly(action) {
     setLeaving(action);
     haptic.medium();
-    // Let the exit animation finish before the parent drops the card.
-    setTimeout(() => onDecide(action), 240);
+    // Родитель убирает карточку только после того, как улёт доигран:
+    // раньше он срезал последние шестьдесят миллисекунд, и карточка
+    // пропадала рывком.
+    setTimeout(() => onDecide(action), 300);
   }
 
   const rotation = Math.max(-MAX_ROTATION, Math.min(MAX_ROTATION, drag.x / 12));
@@ -108,9 +137,17 @@ export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, dep
         transform:
           exitTransform ||
           `translate(${drag.x}px, ${drag.y * 0.35}px) rotate(${rotation}deg) scale(${1 - depth * 0.04}) translateY(${depth * 10}px)`,
-        transition: origin.current ? "none" : "transform 280ms cubic-bezier(0.22,1,0.36,1)",
+        // Пока палец на экране — никакой анимации, карточка обязана идти
+        // за ним ровно. Улетает быстро и с разгоном, возвращается пружиной
+        // с лёгким перелётом: так она ощущается предметом, а не картинкой.
+        transition: origin.current
+          ? "none"
+          : leaving
+          ? `transform 300ms ${THROW}, opacity 300ms linear`
+          : `transform 420ms ${SPRING}`,
         opacity: leaving ? 0 : 1,
         zIndex: 10 - depth,
+        willChange: "transform",
         cursor: interactive ? "grab" : "default",
       }}
     >
