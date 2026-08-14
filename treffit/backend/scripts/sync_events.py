@@ -26,16 +26,22 @@ async def main() -> None:
     async with SessionLocal() as session:
         report = await kudago.sync(session, location=location, pages=pages)
 
+    print(f"{'Город':<18}{'создано':>9}{'обновлено':>11}{'пропущено':>11}{'повторов':>10}")
     for item in report["locations"]:
-        mark = " — НЕ ЗАГРУЗИЛСЯ" if item["failed"] else ""
+        mark = "  — НЕ ЗАГРУЗИЛСЯ" if item["failed"] else ""
         print(
-            f"{item['city']:<18} создано {item['created']:>4}, "
-            f"обновлено {item['updated']:>4}, пропущено {item['skipped']:>4}{mark}"
+            f"{item['city']:<18}{item['created']:>9}{item['updated']:>11}"
+            f"{item['skipped']:>11}{item['repeated']:>10}{mark}"
         )
     print(
-        f"\nВсего: создано {report['created']}, "
-        f"обновлено {report['updated']}, пропущено {report['skipped']}"
+        f"\nВсего: создано {report['created']}, обновлено {report['updated']}, "
+        f"пропущено {report['skipped']}, повторов {report['repeated']}"
     )
+    if report["repeated"]:
+        # Повтор — это событие, пришедшее дважды в одном обходе. Много
+        # повторов означает, что постраничная выборка вернула пересекающиеся
+        # куски, и до дальних событий мы просто не добрались.
+        print("Повторы — одно и то же событие на разных страницах выдачи.")
 
 
 if __name__ == "__main__":

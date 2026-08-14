@@ -557,6 +557,7 @@ async def test_a_broken_city_does_not_take_the_others_with_it(monkeypatch):
             "created": 3,
             "updated": 0,
             "skipped": 0,
+            "repeated": 0,
             "failed": False,
         }
 
@@ -608,3 +609,38 @@ async def test_smaller_pages_do_not_mean_fewer_events(monkeypatch):
     small = [page for page, size in asked if size == 50]
     assert max(big) == 1  # сорвалось на первой же
     assert max(small) == 8
+
+
+async def test_the_same_event_across_pages_is_counted_as_a_repeat(monkeypatch):
+    """Отчёт не должен выдавать повторы за обновления.
+
+    Пятьсот «обновлено» по Москве оказались двенадцатью событиями, и понять
+    это по отчёту было нельзя.
+    """
+    monkeypatch.setattr(kudago, "RETRY_BACKOFF_SECONDS", 0)
+    monkeypatch.setattr(settings, "kudago_page_size", 2)
+
+    async def always_the_same(self, *args, **kwargs):
+        # Источник отдаёт одну и ту же пару событий на каждой странице.
+        return httpx.Response(
+            200,
+            json={
+                "count": 99,
+                "next": "дальше есть",
+                "results": [raw_event(id=1), raw_event(id=2)],
+            },
+            request=httpx.Request("GET", "http://x"),
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", always_the_same)
+    async with SessionLocal() as session:
+        async with httpx.AsyncClient() as client:
+            report = await kudago.sync_location(session, client, "msk", 5, NOW)
+        await session.commit()
+
+        stored = await session.scalar(select(func.count()).select_from(Event))
+
+    assert report["created"] == 2
+    assert report["updated"] == 0
+    assert report["repeated"] == 8  # пять страниц по два, из них два новых
+    assert stored == 2

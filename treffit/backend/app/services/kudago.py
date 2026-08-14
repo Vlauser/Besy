@@ -207,7 +207,14 @@ async def fetch_page(
                     "expand": EXPAND,
                     "page_size": page_size or settings.kudago_page_size,
                     "page": page,
-                    "order_by": "dates",
+                    # Порядок обязан быть устойчивым, иначе постраничная
+                    # выборка со смещением возвращает пересекающиеся куски: у
+                    # постоянных экспозиций даты одинаковые, а при равных
+                    # ключах источник волен отдавать их как угодно. Из десяти
+                    # страниц по Москве так приходило пятьсот записей, среди
+                    # которых различных было двенадцать. По id порядок
+                    # однозначен, а свой список мы всё равно сортируем сами.
+                    "order_by": "id",
                     "text_format": "text",
                 },
             )
@@ -265,15 +272,20 @@ async def _walk_pages(
     pages: int,
     since: datetime,
     page_size: int,
-) -> tuple[int, int, int, bool]:
-    created = updated = skipped = 0
+) -> tuple[int, int, int, int, bool]:
+    created = updated = skipped = repeated = 0
+    # Что уже видели на прошлых страницах этого обхода. Пересечения между
+    # страницами возможны и при устойчивом порядке — например, если событие
+    # добавили в источник между двумя запросами. Считать их обновлениями
+    # нельзя: отчёт тогда показывает работу, которой не было.
+    seen: set[str] = set()
 
     for page in range(1, pages + 1):
         try:
             data = await fetch_page(client, location, page, since, page_size=page_size)
         except httpx.HTTPError as exc:
             logger.warning("KudaGo: %s, страница %s не загрузилась: %r", location, page, exc)
-            return created, updated, skipped, True
+            return created, updated, skipped, repeated, True
 
         results = data.get("results") or []
         for raw in results:
@@ -281,6 +293,10 @@ async def _walk_pages(
             if payload is None:
                 skipped += 1
                 continue
+            if payload["external_id"] in seen:
+                repeated += 1
+                continue
+            seen.add(payload["external_id"])
             if await upsert(session, payload):
                 created += 1
             else:
@@ -289,7 +305,7 @@ async def _walk_pages(
         if not data.get("next") or not results:
             break
 
-    return created, updated, skipped, False
+    return created, updated, skipped, repeated, False
 
 
 async def sync_location(
@@ -312,12 +328,12 @@ async def sync_location(
     page_size = max(MIN_PAGE_SIZE, settings.kudago_page_size)
     # Сколько событий хотим забрать. Дробление страниц эту цифру не меняет.
     budget = pages * page_size
-    created = updated = skipped = 0
+    created = updated = skipped = repeated = 0
     failed = True
 
     while True:
         page_count = math.ceil(budget / page_size)
-        created, updated, skipped, failed = await _walk_pages(
+        created, updated, skipped, repeated, failed = await _walk_pages(
             session, client, location, page_count, since, page_size
         )
         if not failed or page_size <= MIN_PAGE_SIZE:
@@ -334,6 +350,7 @@ async def sync_location(
         "created": created,
         "updated": updated,
         "skipped": skipped,
+        "repeated": repeated,
         "failed": failed,
     }
 
@@ -375,6 +392,7 @@ async def sync(
                         "created": 0,
                         "updated": 0,
                         "skipped": 0,
+                        "repeated": 0,
                         "failed": True,
                     }
                 )
@@ -383,6 +401,7 @@ async def sync(
         "created": sum(item["created"] for item in by_location),
         "updated": sum(item["updated"] for item in by_location),
         "skipped": sum(item["skipped"] for item in by_location),
+        "repeated": sum(item["repeated"] for item in by_location),
         "locations": by_location,
     }
     logger.info("KudaGo sync: %s", report)
