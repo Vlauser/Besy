@@ -100,7 +100,7 @@ export function Deck({ config, onMatch, onOpenLikes, onError }) {
   const top = visible[0];
 
   return (
-    <div className="flex flex-col h-full px-4 pt-3 pb-2">
+    <div className="flex flex-col flex-1 min-h-0 px-4 pt-3 pb-2">
       {likedMe > 0 && (
         <button
           onClick={onOpenLikes}
@@ -126,7 +126,9 @@ export function Deck({ config, onMatch, onOpenLikes, onError }) {
         </p>
       )}
 
-      <div className="relative flex-1" style={{ minHeight: 380 }}>
+      {/* Карточка занимает всё, что осталось после плашек и кнопок:
+          снизу иначе повисает пустая половина экрана. */}
+      <div className="relative flex-1" style={{ minHeight: 320 }}>
         {/* DOM order matches visual order: the top card is first. Stacking
             comes from the explicit z-index on each card, not from paint
             order, so no reversing is needed. */}

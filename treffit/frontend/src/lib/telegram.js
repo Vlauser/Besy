@@ -52,6 +52,39 @@ export function onViewportChange(handler) {
   return () => app.offEvent("viewportChanged", handler);
 }
 
+/** Сколько сверху и снизу занято чужим — вырезом экрана и шапкой Telegram.
+ *
+ *  В развёрнутом виде Telegram рисует свою шапку («Закрыть», «⋯») поверх
+ *  веб-вью, а не над ним. Без отступа наш заголовок оказывается под ней, а
+ *  выше — наезжает на системные часы. Высота вьюпорта об этом не говорит
+ *  ничего: она считает всю область, включая занятую.
+ *
+ *  Оба поля появились в Bot API 8.0. На клиентах постарше их нет, отступы
+ *  выходят нулевыми — то есть ровно прежнее поведение.
+ */
+export function getSafeAreaInsets() {
+  const app = webApp();
+  const device = app?.safeAreaInset || {};
+  const content = app?.contentSafeAreaInset || {};
+  return {
+    top: (device.top || 0) + (content.top || 0),
+    bottom: (device.bottom || 0) + (content.bottom || 0),
+  };
+}
+
+export function onSafeAreaChange(handler) {
+  const app = webApp();
+  if (!app?.onEvent) return () => {};
+  // Меняются независимо: поворот экрана трогает первый, сворачивание —
+  // второй.
+  app.onEvent("safeAreaChanged", handler);
+  app.onEvent("contentSafeAreaChanged", handler);
+  return () => {
+    app.offEvent("safeAreaChanged", handler);
+    app.offEvent("contentSafeAreaChanged", handler);
+  };
+}
+
 /* ---------------- haptics ---------------- */
 
 export const haptic = {

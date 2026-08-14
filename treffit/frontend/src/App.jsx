@@ -22,11 +22,13 @@ import { Test } from "./screens/Test";
 import { Avatar, Button, GlobalStyle, Loading, Sheet, Toast } from "./components/ui";
 import { realtime } from "./lib/realtime";
 import {
+  getSafeAreaInsets,
   getViewportHeight,
   haptic,
   initTelegram,
   hasTelegramSdk,
   isTelegram,
+  onSafeAreaChange,
   onViewportChange,
   setBackButton,
 } from "./lib/telegram";
@@ -62,6 +64,7 @@ export default function App() {
   const [matchPopup, setMatchPopup] = useState(null);
   const [toast, setToast] = useState(null);
   const [height, setHeight] = useState(getViewportHeight);
+  const [insets, setInsets] = useState(getSafeAreaInsets);
 
   const notify = useCallback((message) => setToast(message), []);
 
@@ -115,6 +118,7 @@ export default function App() {
   }, [boot]);
 
   useEffect(() => onViewportChange(() => setHeight(getViewportHeight())), []);
+  useEffect(() => onSafeAreaChange(() => setInsets(getSafeAreaInsets())), []);
 
   // Re-authenticate only when a session we were actually using got rejected.
   const signedIn = Boolean(me);
@@ -158,7 +162,7 @@ export default function App() {
 
   if (booting) {
     return (
-      <Shell height={height} title="Treffit">
+      <Shell height={height} insets={insets} title="Treffit">
         <GlobalStyle />
         <Loading label="Подключаемся…" />
       </Shell>
@@ -167,7 +171,7 @@ export default function App() {
 
   if (needsDevLogin) {
     return (
-      <Shell height={height} title="Treffit">
+      <Shell height={height} insets={insets} title="Treffit">
         <GlobalStyle />
         <DevLogin onAuthenticated={boot} onError={notify} />
         <Toast message={toast} onDone={() => setToast(null)} />
@@ -177,7 +181,7 @@ export default function App() {
 
   if (fatal) {
     return (
-      <Shell height={height} title="Treffit">
+      <Shell height={height} insets={insets} title="Treffit">
         <GlobalStyle />
         <div className="flex flex-col items-center justify-center h-full px-8 text-center gap-4">
           <p className="font-display text-lg" style={{ color: T.ink }}>Не удалось запустить</p>
@@ -193,7 +197,7 @@ export default function App() {
   if (!me.is_onboarded && tab !== "test") {
     const needsTest = me.consent_pdn_at && me.birth_date && me.gender && !me.test_completed_at;
     return (
-      <Shell height={height} title="Знакомство">
+      <Shell height={height} insets={insets} title="Знакомство">
         <GlobalStyle />
         {needsTest ? (
           <Test
@@ -259,7 +263,7 @@ export default function App() {
 
   if (activeChatId) {
     return (
-      <Shell height={height} title="" onBack={() => setActiveChatId(null)} bare>
+      <Shell height={height} insets={insets} title="" onBack={() => setActiveChatId(null)} bare>
         <GlobalStyle />
         <ChatRoom
           chatId={activeChatId}
@@ -282,7 +286,10 @@ export default function App() {
       footer={<TabBar tab={tab} onChange={setTab} />}
     >
       <GlobalStyle />
-      <div key={tab} className="rise-in min-h-full">{body}</div>
+      {/* min-h-full даёт нижнюю границу, flex-shrink-0 не даёт сжаться ниже
+          содержимого: без него длинные экраны обрезались бы вместо прокрутки.
+          Колонка нужна, чтобы экраны с flex-1 внутри занимали всю высоту. */}
+      <div key={tab} className="rise-in min-h-full flex flex-col flex-shrink-0">{body}</div>
 
       <Sheet open={Boolean(candidate)} onClose={() => setCandidate(null)} title="Совпадение">
         {candidate && (
@@ -326,15 +333,20 @@ export default function App() {
  * App shell. Fills the Telegram viewport; in a desktop browser it renders as
  * a centred phone frame so the layout stays honest during development.
  */
-function Shell({ height, title, onBack, footer, bare, children }) {
+function Shell({ height, insets, title, onBack, footer, bare, children }) {
   // Внутри Telegram занимаем весь вьюпорт; в браузере рисуем рамку
   // телефона, чтобы вёрстка при разработке оставалась честной.
   const inTelegram = isTelegram();
+  // Вырез экрана и шапка Telegram занимают место поверх веб-вью. Отдаём его
+  // отступом, иначе заголовок уезжает под чужие кнопки.
+  const pad = inTelegram ? insets || { top: 0, bottom: 0 } : { top: 0, bottom: 0 };
   const inner = (
     <div
       className="relative w-full flex flex-col overflow-hidden font-ui"
       style={{
         height: inTelegram ? height : Math.min(height - 40, 780),
+        paddingTop: pad.top,
+        paddingBottom: pad.bottom,
         background: T.bg,
         ...(inTelegram
           ? {}
@@ -358,7 +370,7 @@ function Shell({ height, title, onBack, footer, bare, children }) {
           <span className="font-display text-base" style={{ color: T.ink }}>{title}</span>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto no-scrollbar relative">{children}</div>
+      <div className="flex-1 overflow-y-auto no-scrollbar relative flex flex-col">{children}</div>
       {footer}
     </div>
   );
