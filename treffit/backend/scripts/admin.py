@@ -20,7 +20,7 @@ import sys
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import Integer, desc, func, or_, select
+from sqlalchemy import Integer, and_, desc, func, or_, select
 
 from app.config import settings
 from app.db import SessionLocal
@@ -57,6 +57,55 @@ async def cmd_status() -> None:
             f"\nЗаявок на верификацию: "
             f"{await count(Verification, Verification.status == VerificationStatus.submitted.value)}"
         )
+
+
+async def _reject_reason(session, user, candidate) -> str | None:
+    """Почему этот человек не попадёт в колоду. None — попадёт.
+
+    Порядок проверок повторяет `matching.candidate_query`: причина должна
+    называться та же, по которой отсеял бы сам подбор. Тест
+    `test_the_deck_diagnostic_agrees_with_the_deck_itself` держит их вместе.
+    """
+    from app.models import Block, Swipe, SwipeAction
+    from app.services import matching
+
+    if not candidate.is_active:
+        return "профиль отключён"
+    if candidate.is_banned:
+        return "заблокирован модератором"
+    if not candidate.onboarded_at:
+        return "не дозаполнил анкету"
+    if not candidate.birth_date:
+        return "не указана дата рождения"
+
+    age_min = max(settings.min_age, user.seeking_age_min)
+    age_max = max(age_min, user.seeking_age_max)
+    oldest, youngest = matching._birth_date_bounds(age_min, age_max)
+    if not oldest <= candidate.birth_date <= youngest:
+        return f"возраст {candidate.age} вне диапазона {age_min}–{age_max}"
+
+    if user.seeking_gender != "any" and candidate.gender != user.seeking_gender:
+        return f"пол «{candidate.gender or 'не указан'}», а ищете «{user.seeking_gender}»"
+    if user.gender and candidate.seeking_gender not in ("any", user.gender):
+        return f"сам(а) ищет «{candidate.seeking_gender}», а вы «{user.gender}»"
+
+    block = await session.scalar(
+        select(Block.id).where(
+            or_(
+                and_(Block.user_id == user.id, Block.blocked_id == candidate.id),
+                and_(Block.user_id == candidate.id, Block.blocked_id == user.id),
+            )
+        )
+    )
+    if block:
+        return "между вами блокировка"
+
+    action = await session.scalar(
+        select(Swipe.action).where(Swipe.actor_id == user.id, Swipe.target_id == candidate.id)
+    )
+    if action in (SwipeAction.like.value, SwipeAction.superlike.value):
+        return "уже лайкнут — ждёт ответа, обратно не вернётся"
+    return None
 
 
 async def cmd_deck(telegram_id: int) -> None:
@@ -128,10 +177,27 @@ async def cmd_deck(telegram_id: int) -> None:
         found = await matching.find_candidates(session, user, 10)
         print(f"\nКолода сейчас отдаёт: {len(found)}")
         for candidate in found[:10]:
-            print(f"  {candidate.first_name}, {candidate.age}")
-        if not found:
-            print("  Пусто. Смотрите строки выше: скорее всего некого показывать")
-            print("  или все подходящие уже лайкнуты.")
+            where = "" if candidate.city == user.city else f" — {candidate.city}"
+            print(f"  {candidate.first_name}, {candidate.age}{where}")
+
+        if found:
+            return
+
+        # Пустая колода — самый бесполезный вывод из возможных: видно, что
+        # никого нет, и совершенно не видно почему. Пройдём по всем
+        # оставшимся и назовём причину поимённо.
+        print("  Пусто. Разбор по анкетам:")
+        rest = await session.execute(
+            select(User).where(User.id != user.id).order_by(User.id).limit(40)
+        )
+        counted = 0
+        for candidate in rest.scalars():
+            reason = await _reject_reason(session, user, candidate)
+            if reason:
+                print(f"    {candidate.first_name or '(без имени)'}, {candidate.city or 'без города'}: {reason}")
+                counted += 1
+        if not counted:
+            print("    Причин не нашлось — похоже, в базе больше вообще никого нет.")
 
 
 async def cmd_events() -> None:

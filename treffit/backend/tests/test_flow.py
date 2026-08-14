@@ -226,6 +226,45 @@ async def test_a_passed_local_does_not_block_the_rest_of_the_country(user_factor
     assert [c["id"] for c in (await her.get("/discover")).json()] == [far.id, local.id]
 
 
+async def test_the_deck_diagnostic_agrees_with_the_deck_itself(user_factory):
+    """`scripts.admin deck` объясняет пустую колоду поимённо.
+
+    Причины он проверяет своим кодом, а не тем, которым отбирает подбор, —
+    разойдись они, и инструмент начнёт уверенно врать как раз тогда, когда
+    на него смотрят. Здесь мы держим их вместе: «причины нет» обязано
+    значить ровно «подбор его берёт».
+    """
+    from scripts.admin import _reject_reason
+
+    from app.models import User
+    from app.services import matching
+
+    # Каждого отсеивает ровно одна проверка: отсеивай его две сразу, и
+    # тест перестал бы замечать, что одна из них сломалась.
+    her = await user_factory(670, gender="female", seeking="male", city="Тула")
+    await user_factory(671, gender="male", seeking="female", city="Тула")  # проходит
+    await user_factory(672, gender="female", seeking="any", city="Тула")  # только не тот пол
+    await user_factory(673, gender="male", seeking="male", city="Тула")  # только ищет не её
+    await user_factory(674, gender="male", seeking="female", city="Тула", birth_date="1930-01-01")
+    liked = await user_factory(675, gender="male", seeking="female", city="Тула")
+    await her.post(f"/discover/{liked.id}/swipe", json={"action": "like"})
+
+    async with SessionLocal() as session:
+        me = await session.get(User, her.id)
+        allowed = {
+            u.id
+            for u in (await session.execute(matching.candidate_query(me))).scalars()
+        }
+        everyone = (await session.execute(select(User).where(User.id != me.id))).scalars()
+        for candidate in everyone:
+            reason = await _reject_reason(session, me, candidate)
+            assert (reason is None) == (candidate.id in allowed), (
+                f"{candidate.first_name} ({candidate.id}): подбор "
+                f"{'берёт' if candidate.id in allowed else 'не берёт'}, "
+                f"а диагностика говорит {reason!r}"
+            )
+
+
 async def test_cannot_swipe_yourself(user_factory):
     her = await user_factory(610)
     assert (await her.post(f"/discover/{her.id}/swipe", json={"action": "like"})).status_code == 422
