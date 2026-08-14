@@ -5,6 +5,8 @@ import { mediaUrl } from "../api/client";
 import { haptic } from "../lib/telegram";
 import { FALLBACK_GRADIENT, T } from "../theme";
 
+// Насколько палец может сместиться, чтобы это всё ещё считалось касанием.
+const TAP_SLOP = 8;
 const SWIPE_DISTANCE = 110;
 const MAX_ROTATION = 14;
 
@@ -14,14 +16,33 @@ const MAX_ROTATION = 14;
  * Only the top card listens for pointer events; the ones behind are static
  * so the stack cannot be dragged by accident.
  */
-export function SwipeCard({ candidate, onDecide, interactive = true, depth = 0, blindMode }) {
+export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, depth = 0, blindMode }) {
   const [drag, setDrag] = useState({ x: 0, y: 0 });
   const [leaving, setLeaving] = useState(null);
   const origin = useRef(null);
   const passedThreshold = useRef(false);
 
-  const photo = candidate.photos?.[0];
+  // Листаем фотографии касанием по краям карточки, как в любом дейтинге:
+  // одно фото о человеке говорит мало, а свайп занят решением.
+  const [shot, setShot] = useState(0);
+  const gallery = (candidate.photos || []).filter((item) => item.url);
+  const photo = gallery[Math.min(shot, gallery.length - 1)] || candidate.photos?.[0];
   const photoSrc = photo?.url ? mediaUrl(photo.url) : null;
+
+  /** Касание без перетаскивания: слева — назад, справа — вперёд, по центру
+   *  открывается анкета. Порог в 8 пикселей отделяет тап от свайпа. */
+  function tap(event) {
+    if (!interactive) return;
+    const box = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - box.left) / box.width;
+    if (gallery.length > 1 && x < 0.3) {
+      setShot((current) => Math.max(0, current - 1));
+    } else if (gallery.length > 1 && x > 0.7) {
+      setShot((current) => Math.min(gallery.length - 1, current + 1));
+    } else {
+      onOpen?.(candidate);
+    }
+  }
   const grad = photo?.gradient || FALLBACK_GRADIENT;
 
   function begin(event) {
@@ -42,14 +63,17 @@ export function SwipeCard({ candidate, onDecide, interactive = true, depth = 0, 
     }
   }
 
-  function end() {
+  function end(event) {
     if (!origin.current) return;
+    const moved = Math.hypot(event.clientX - origin.current.x, event.clientY - origin.current.y);
     origin.current = null;
     passedThreshold.current = false;
     if (Math.abs(drag.x) > SWIPE_DISTANCE) {
       fly(drag.x > 0 ? "like" : "pass");
     } else {
       setDrag({ x: 0, y: 0 });
+      // Палец почти не сдвинулся — значит это касание, а не свайп.
+      if (moved < TAP_SLOP) tap(event);
     }
   }
 
@@ -92,6 +116,23 @@ export function SwipeCard({ candidate, onDecide, interactive = true, depth = 0, 
     >
       <div className="relative w-full h-full" style={{ background: grad }}>
         {photoSrc && <img src={photoSrc} alt="" className="w-full h-full object-cover" draggable={false} />}
+
+        {/* Полоски сверху — какое фото из скольких. Одна фотография в
+            счётчике не нуждается. */}
+        {gallery.length > 1 && (
+          <div className="absolute top-2.5 inset-x-2.5 flex gap-1">
+            {gallery.map((item, index) => (
+              <span
+                key={item.url}
+                className="h-1 flex-1 rounded-full"
+                style={{
+                  background: index === shot ? "#fff" : "rgba(255,255,255,0.4)",
+                  transition: "background 200ms ease",
+                }}
+              />
+            ))}
+          </div>
+        )}
 
         {!photoSrc && (
           <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">

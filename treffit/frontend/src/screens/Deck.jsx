@@ -10,7 +10,7 @@ import { T } from "../theme";
 const REFILL_AT = 2;
 
 /** Twinby-style swipe deck: drag or tap the controls. */
-export function Deck({ config, onMatch, onOpenLikes, onError }) {
+export function Deck({ config, onMatch, onOpenLikes, onOpenCandidate, onError }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -140,6 +140,7 @@ export function Deck({ config, onMatch, onOpenLikes, onError }) {
             interactive={index === 0}
             blindMode={config.blind_mode}
             onDecide={(action) => decide(candidate, action)}
+            onOpen={onOpenCandidate}
           />
         ))}
       </div>

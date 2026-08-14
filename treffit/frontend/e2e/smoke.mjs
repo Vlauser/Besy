@@ -67,29 +67,6 @@ async function dragLike(page) {
 
 /** Erase a round scratch cover. Border-radius clips hit testing, so every
  *  point has to stay inside the circle or the canvas never sees it. */
-async function scratchRound(page) {
-  const box = await page.locator("canvas").last().boundingBox();
-  if (!box) return false;
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
-  const radius = box.width / 2 - 3;
-
-  await page.mouse.move(cx, cy);
-  await page.mouse.down();
-  for (let row = 0; row < 26; row++) {
-    if ((await page.locator("canvas").count()) === 0) break;
-    const y = cy - radius + (row + 0.5) * ((2 * radius) / 26);
-    const half = Math.sqrt(Math.max(0, radius * radius - (y - cy) ** 2));
-    for (let i = 0; i <= 24; i++) {
-      const t = row % 2 === 0 ? i / 24 : 1 - i / 24;
-      await page.mouse.move(cx - half + t * 2 * half, y);
-    }
-  }
-  await page.mouse.up();
-  await page.waitForTimeout(1200);
-  return (await page.locator("canvas").count()) === 0;
-}
-
 /** Walk the deck until the named profile is on top, then like them. Passing
  *  on everyone else keeps the run deterministic regardless of deck order. */
 async function likeByName(page, needle, attempts = 6) {
@@ -127,14 +104,13 @@ const dragged = await dragLike(her);
 check("свайп вправо убирает карту", Boolean(dragged));
 await shot(her, "02-deck");
 
-await her.click("button:has-text('Карты')");
-await her.waitForTimeout(1500);
-check("на вкладке «Карты» есть закрытая скретч-карта", (await her.locator("canvas").count()) > 0);
-await shot(her, "03-pack");
+check(
+  "фотография видна прямо в колоде",
+  (await her.locator(".rounded-3xl img").first().isVisible().catch(() => false))
+);
+await shot(her, "03-card");
 
 check("лайк по конкретному профилю проходит", await likeByName(her, "Дима"));
-await her.click("button:has-text('Карты')");
-await her.waitForTimeout(1200);
 
 const him = await signIn("Дима, 34");
 check("ответный лайк отправлен", await likeByName(him, "Лера"));
@@ -158,8 +134,8 @@ await her.waitForTimeout(1500);
 await her.click("text=Дима");
 await her.waitForTimeout(1600);
 check(
-  "до порога чат сообщает, сколько сообщений осталось",
-  ((await her.locator("p.text-xs").first().textContent()) || "").includes("до фото")
+  "чат не требует трёх сообщений ради фото",
+  !((await her.locator("body").innerText()) || "").includes("до фото")
 );
 
 await him.click("button:has-text('Чаты')");
@@ -174,22 +150,15 @@ check(
   (await him.locator("body").innerText()).includes("Ты тоже ходишь в горы?")
 );
 
-await send(her, "Была на Таганае в выходные");
-await send(her, "Как тебе маршрут?");
-await her.waitForTimeout(1500);
-check("на третьем сообщении появляется скретч с фото", (await her.locator("body").innerText()).includes("Вы открыли фото"));
-await shot(her, "05-reveal");
-
-check("фольгу можно стереть полностью", await scratchRound(her));
 check(
-  "после reveal шапка чата показывает открытое фото",
-  ((await her.locator("p.text-xs").first().textContent()) || "").includes("фото открыто")
+  "скретч-карт в чате больше нет",
+  (await her.locator("canvas").count()) === 0
 );
 check(
-  "у собеседника фото всё ещё закрыто — счётчик у каждого свой",
-  ((await him.locator("p.text-xs").first().textContent()) || "").includes("до фото")
+  "фото собеседника открыто в шапке чата",
+  await her.locator("header img, .rounded-full img").first().isVisible().catch(() => false)
 );
-await shot(her, "06-photo-open");
+await shot(her, "05-chat");
 
 await browser.close();
 

@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     # Blind mode is the Treffit core: photos stay hidden until the chat
     # crosses the reveal threshold. Set false for classic Twinby behaviour
     # where photos are visible in the deck straight away.
-    blind_mode: bool = True
+    # Фото видно сразу. Режим «сначала разговор» остался переключателем, но
+    # по умолчанию выключен: закрытая карточка в свайпе — это пустой
+    # прямоугольник, и решать за человека, кто ему нравится, по одному
+    # проценту совпадения не выходит.
+    blind_mode: bool = False
     reveal_threshold: int = 3
     min_age: int = 18
     max_photos: int = 6

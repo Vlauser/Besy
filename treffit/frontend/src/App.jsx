@@ -3,13 +3,12 @@ import {
   Calendar,
   ChevronLeft,
   Flame,
-  LayoutGrid,
   MessageCircle,
   User as UserIcon,
 } from "lucide-react";
 
 import { endpoints, mediaUrl, onUnauthorized, setToken } from "./api/client";
-import { CandidateDetail, Pack } from "./screens/Pack";
+import { CandidateDetail } from "./components/CandidateDetail";
 import { ChatList } from "./screens/Chats";
 import { ChatRoom } from "./screens/ChatRoom";
 import { Deck } from "./screens/Deck";
@@ -36,7 +35,6 @@ import { FALLBACK_GRADIENT, T, gradient } from "./theme";
 
 const TABS = [
   { key: "deck", label: "Поиск", icon: Flame },
-  { key: "pack", label: "Карты", icon: LayoutGrid },
   { key: "events", label: "События", icon: Calendar },
   { key: "chats", label: "Чаты", icon: MessageCircle },
   { key: "profile", label: "Профиль", icon: UserIcon },
@@ -44,7 +42,6 @@ const TABS = [
 
 const TAB_TITLES = {
   deck: "Поиск",
-  pack: "Карты",
   events: "События",
   chats: "Чаты",
   profile: "Профиль",
@@ -225,6 +222,7 @@ export default function App() {
         config={config}
         onMatch={setMatchPopup}
         onOpenLikes={() => setTab("likes")}
+        onOpenCandidate={setCandidate}
         onError={notify}
       />
     );
@@ -232,8 +230,6 @@ export default function App() {
     body = (
       <Likes me={me} onOpenCandidate={setCandidate} onUpdated={setMe} onError={notify} />
     );
-  } else if (tab === "pack") {
-    body = <Pack onOpenCandidate={setCandidate} onError={notify} />;
   } else if (tab === "chats") {
     body = <ChatList onOpenChat={setActiveChatId} onError={notify} />;
   } else if (tab === "profile") {
