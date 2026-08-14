@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Check, Flag, Heart, MapPin, Star, X } from "lucide-react";
+import { Check, Heart, MapPin, Star, X } from "lucide-react";
 
 import { mediaUrl } from "../api/client";
 import { haptic } from "../lib/telegram";
@@ -129,11 +129,15 @@ export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, dep
       onPointerMove={move}
       onPointerUp={end}
       onPointerCancel={end}
-      className="absolute inset-0 rounded-3xl overflow-hidden select-none"
+      // Метка для проверок: цепляться за классы оформления нельзя, они
+      // меняются при каждой правке вида.
+      data-card=""
+      className="absolute inset-0 overflow-hidden select-none"
       style={{
         touchAction: "none",
         background: T.surface,
-        boxShadow: "0 20px 46px -22px rgba(30,40,90,0.45)",
+        borderRadius: 28,
+        boxShadow: "0 24px 50px -20px rgba(16,16,20,0.4)",
         transform:
           exitTransform ||
           `translate(${drag.x}px, ${drag.y * 0.35}px) rotate(${rotation}deg) scale(${1 - depth * 0.04}) translateY(${depth * 10}px)`,
@@ -189,12 +193,12 @@ export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, dep
 
         <div
           className="absolute inset-x-0 bottom-0 pt-16 pb-4 px-4"
-          style={{ background: "linear-gradient(to top, rgba(12,18,42,0.86), rgba(12,18,42,0))" }}
+          style={{ background: "linear-gradient(to top, rgba(8,8,12,0.92) 12%, rgba(8,8,12,0.55) 55%, rgba(8,8,12,0))" }}
         >
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <h3 className="font-display text-2xl text-white truncate">
+                <h3 className="font-display text-3xl text-white truncate">
                   {candidate.first_name}
                   {candidate.age ? `, ${candidate.age}` : ""}
                 </h3>
@@ -224,10 +228,11 @@ export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, dep
               {candidate.shared_flags.slice(0, 2).map((flag) => (
                 <span
                   key={flag}
-                  className="flex items-center gap-1 rounded-full px-2 py-1 text-xs"
-                  style={{ background: "rgba(255,255,255,0.18)", color: "#fff" }}
+                  // Без иконки флажка: она делала метку похожей на отладочную
+                  // подпись, а не на общий ответ двух людей.
+                  className="rounded-full px-2.5 py-1 text-xs font-medium backdrop-blur-sm"
+                  style={{ background: "rgba(255,255,255,0.22)", color: "#fff" }}
                 >
-                  <Flag size={10} />
                   {flag}
                 </span>
               ))}

@@ -106,7 +106,7 @@ await shot(her, "02-deck");
 
 check(
   "фотография видна прямо в колоде",
-  (await her.locator(".rounded-3xl img").first().isVisible().catch(() => false))
+  (await her.locator("[data-card] img").first().isVisible().catch(() => false))
 );
 await shot(her, "03-card");
 

@@ -361,7 +361,10 @@ function Shell({ height, insets, title, onBack, footer, bare, children }) {
             }),
       }}
     >
-      {!bare && (
+      {/* Заголовок нужен только там, откуда есть выход назад. На вкладках
+          он дублировал подпись в таб-баре — «Поиск» сверху и «Поиск» снизу —
+          и отнимал высоту у карточки. */}
+      {!bare && (onBack || !footer) && (
         <div
           className="flex items-center gap-2 px-4 py-3.5 flex-shrink-0"
           style={{ background: T.surface, borderBottom: `1px solid ${T.line}` }}
