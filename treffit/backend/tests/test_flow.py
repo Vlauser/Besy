@@ -186,6 +186,46 @@ async def test_fresh_faces_come_before_repeats(user_factory):
     assert seen.id in order
 
 
+async def test_other_cities_open_up_when_the_home_city_runs_out(user_factory):
+    """Все свои лайкнуты — показываем соседний город, а не заглушку.
+
+    Лайкнутый не возвращается: его лайк ждёт ответа. Значит, город можно
+    вычерпать досуха, и тогда единственный честный ход — расширить радиус,
+    как это делают живые приложения.
+    """
+    her = await user_factory(640, gender="female", seeking="male", city="Екатеринбург")
+    local = await user_factory(641, gender="male", seeking="female", city="Екатеринбург")
+    far = await user_factory(642, gender="male", seeking="female", city="Владивосток")
+
+    await her.post(f"/discover/{local.id}/swipe", json={"action": "like"})
+    widened = (await her.get("/discover")).json()
+    assert [c["id"] for c in widened] == [far.id]
+    assert widened[0]["city"] == "Владивосток"
+
+
+async def test_the_home_city_comes_first(user_factory):
+    """Расширение радиуса — запасной ход, а не замена своему городу."""
+    her = await user_factory(650, gender="female", seeking="male", city="Казань")
+    await user_factory(651, gender="male", seeking="female", city="Сочи")
+    local = await user_factory(652, gender="male", seeking="female", city="Казань")
+
+    assert [c["id"] for c in (await her.get("/discover")).json()][0] == local.id
+
+
+async def test_a_passed_local_does_not_block_the_rest_of_the_country(user_factory):
+    """Повтор — после географии.
+
+    Пропущенный возвращается в колоду бесконечно. Стой он впереди новых
+    людей из других городов, до них очередь не дошла бы никогда.
+    """
+    her = await user_factory(660, gender="female", seeking="male", city="Пермь")
+    local = await user_factory(661, gender="male", seeking="female", city="Пермь")
+    far = await user_factory(662, gender="male", seeking="female", city="Омск")
+    await her.post(f"/discover/{local.id}/swipe", json={"action": "pass"})
+
+    assert [c["id"] for c in (await her.get("/discover")).json()] == [far.id, local.id]
+
+
 async def test_cannot_swipe_yourself(user_factory):
     her = await user_factory(610)
     assert (await her.post(f"/discover/{her.id}/swipe", json={"action": "like"})).status_code == 422

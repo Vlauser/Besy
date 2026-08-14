@@ -220,6 +220,7 @@ export default function App() {
     body = (
       <Deck
         config={config}
+        homeCity={me?.city}
         onMatch={setMatchPopup}
         onOpenLikes={() => setTab("likes")}
         onOpenCandidate={setCandidate}

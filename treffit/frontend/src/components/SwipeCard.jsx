@@ -23,7 +23,7 @@ const THROW = "cubic-bezier(0.32, 0, 0.67, 0)";
  * Only the top card listens for pointer events; the ones behind are static
  * so the stack cannot be dragged by accident.
  */
-export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, depth = 0, blindMode }) {
+export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, depth = 0, blindMode, homeCity }) {
   const [drag, setDrag] = useState({ x: 0, y: 0 });
   const last = useRef({ x: 0, t: 0 });
   const speed = useRef(0);
@@ -211,6 +211,14 @@ export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, dep
                   </span>
                 )}
               </div>
+              {/* Город подписываем, только когда он чужой: у своих это шум,
+                  а вот человек из другого города иначе появляется в колоде
+                  без всяких объяснений. */}
+              {candidate.city && homeCity && candidate.city !== homeCity && (
+                <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.75)" }}>
+                  {candidate.city}
+                </p>
+              )}
               {candidate.is_online && (
                 <p className="text-xs mt-0.5" style={{ color: "#8BE8C4" }}>сейчас онлайн</p>
               )}

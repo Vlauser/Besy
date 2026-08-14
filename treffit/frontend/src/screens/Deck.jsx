@@ -10,7 +10,7 @@ import { T } from "../theme";
 const REFILL_AT = 2;
 
 /** Twinby-style swipe deck: drag or tap the controls. */
-export function Deck({ config, onMatch, onOpenLikes, onOpenCandidate, onError }) {
+export function Deck({ config, homeCity, onMatch, onOpenLikes, onOpenCandidate, onError }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -94,8 +94,12 @@ export function Deck({ config, onMatch, onOpenLikes, onOpenCandidate, onError })
     return (
       <EmptyState
         icon={Sparkles}
-        title="Пока никого нового"
-        hint="Загляните позже или измените фильтры в профиле."
+        // Колода добирает людей из других городов, так что пустой она
+        // остаётся ровно в одном случае — когда все подходящие уже
+        // лайкнуты. Об этом и надо сказать, а не отправлять крутить фильтры
+        // наугад.
+        title="Вы посмотрели всех"
+        hint="Лайкнутые анкеты обратно не возвращаются. Новые появляются каждый день — загляните позже или расширьте возраст поиска в профиле."
         action={
           <div className="w-full max-w-xs">
             <Button variant="secondary" onClick={() => load()}>Обновить</Button>
@@ -148,6 +152,7 @@ export function Deck({ config, onMatch, onOpenLikes, onOpenCandidate, onError })
             depth={index}
             interactive={index === 0}
             blindMode={config.blind_mode}
+            homeCity={homeCity}
             onDecide={(action) => decide(candidate, action)}
             onOpen={onOpenCandidate}
           />

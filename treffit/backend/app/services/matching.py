@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import and_, func, not_, or_, select
+from sqlalchemy import and_, false, func, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
@@ -87,13 +87,16 @@ def _birth_date_bounds(age_min: int, age_max: int) -> tuple[date, date]:
     return oldest, youngest
 
 
-def candidate_query(user: User, *, exclude_swiped: bool = True):
+def candidate_query(user: User, *, exclude_swiped: bool = True, same_city: bool = True):
     """Кого этому человеку вообще можно показать.
 
     `exclude_swiped=False` оставляет в выборке тех, кого он уже пропустил, —
     это нужно, чтобы колода не кончалась. Лайкнутые исключены всегда: их
     лайк ещё ждёт ответа, и показывать такого человека снова значит
     предлагать передумать за спиной у того, кто уже ответил.
+
+    `same_city=False` — наоборот, только другие города: так добирают, когда
+    свой уже закончился.
     """
     age_min = max(settings.min_age, user.seeking_age_min)
     age_max = max(age_min, user.seeking_age_max)
@@ -127,7 +130,10 @@ def candidate_query(user: User, *, exclude_swiped: bool = True):
     if user.gender:
         q = q.where(or_(User.seeking_gender == "any", User.seeking_gender == user.gender))
     if user.city:
-        q = q.where(User.city == user.city)
+        q = q.where(User.city == user.city) if same_city else q.where(User.city != user.city)
+    elif not same_city:
+        # Города нет — «другой город» не определён, и добирать неоткуда.
+        q = q.where(false())
     return q
 
 
@@ -147,33 +153,56 @@ def _by_compatibility(user: User, pool: list[User], limit: int) -> list[User]:
 async def find_candidates(session: AsyncSession, user: User, limit: int) -> list[User]:
     """Кандидаты по убыванию совпадения. Колода не кончается.
 
-    Сначала те, кого человек ещё не видел. Если их не набирается, добираем
-    ранее пропущенными — начиная с тех, кого пропустили давнее всего.
-
     Пустая колода — это тупик: человеку нечего делать, и он уходит. У живых
-    приложений её не бывает, и «мимо» там означает «не сейчас», а не
-    «никогда больше». Лайкнутые обратно не возвращаются: их лайк ещё ждёт
-    ответа.
-    """
-    pool_size = max(limit * 5, 100)
-    rows = await session.execute(
-        candidate_query(user).order_by(User.last_active_at.desc()).limit(pool_size)
-    )
-    fresh = _by_compatibility(user, list(rows.scalars()), limit)
-    if len(fresh) >= limit:
-        return fresh
+    приложений её не бывает: когда рядом все закончились, они расширяют
+    радиус, а не показывают заглушку. Здесь то же самое, четырьмя ступенями:
 
-    seen = {c.id for c in fresh}
-    # Давние «мимо» вперёд: только что пропущенный не должен возвращаться
-    # следующей же карточкой.
-    repeat_rows = await session.execute(
-        candidate_query(user, exclude_swiped=False)
-        .join(Swipe, and_(Swipe.target_id == User.id, Swipe.actor_id == user.id))
-        .where(not_(User.id.in_(seen or {0})))
-        .order_by(Swipe.created_at.asc())
-        .limit(limit - len(fresh))
-    )
-    return fresh + list(repeat_rows.scalars())
+    1. новые в своём городе — обычный случай, дальше дело не доходит;
+    2. новые в других городах;
+    3. пропущенные в своём городе, давние вперёд: «мимо» означает
+       «не сейчас», а не «никогда больше», и только что пропущенный не
+       должен возвращаться следующей же карточкой;
+    4. пропущенные в других городах.
+
+    Повторы — после географии, а не до неё. Иначе один пропущенный земляк
+    навсегда закрыл бы собой всю остальную страну: он возвращается в колоду
+    бесконечно, и до новых людей очередь не дошла бы никогда.
+
+    Лайкнутые не возвращаются ни на одной ступени: их лайк ещё ждёт ответа,
+    и показывать такого человека снова значит предлагать передумать за
+    спиной у того, кто уже ответил. Поэтому колода всё-таки может опустеть —
+    когда лайкнуты вообще все, кто подходит.
+    """
+    picked: list[User] = []
+
+    async def rows(query, count: int) -> list[User]:
+        taken = {c.id for c in picked}
+        result = await session.execute(query.where(not_(User.id.in_(taken or {0}))).limit(count))
+        return list(result.scalars())
+
+    for same_city in (True, False):
+        need = limit - len(picked)
+        if need <= 0:
+            break
+        # Новых берём с запасом и ранжируем по совпадению: SQL так не умеет.
+        pool = await rows(
+            candidate_query(user, same_city=same_city).order_by(User.last_active_at.desc()),
+            max(need * 5, 100),
+        )
+        picked += _by_compatibility(user, pool, need)
+
+    for same_city in (True, False):
+        need = limit - len(picked)
+        if need <= 0:
+            break
+        picked += await rows(
+            candidate_query(user, exclude_swiped=False, same_city=same_city)
+            .join(Swipe, and_(Swipe.target_id == User.id, Swipe.actor_id == user.id))
+            .order_by(Swipe.created_at.asc()),
+            need,
+        )
+
+    return picked[:limit]
 
 
 async def score_pair(session: AsyncSession, a: User, b: User) -> tuple[int, list[str], int | None]:

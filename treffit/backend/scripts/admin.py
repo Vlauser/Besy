@@ -118,6 +118,10 @@ async def cmd_deck(telegram_id: int) -> None:
         if rows:
             listed = ", ".join(f"{city or 'без города'} — {n}" for city, n in rows[:8])
             print(f"\nЗаполненные анкеты в других городах: {listed}")
+            print(
+                "  из них годятся, когда свой город кончится: "
+                f"{await count(matching.candidate_query(user, same_city=False))}"
+            )
         if unfinished:
             print(f"Не дозаполнили анкету (в поиске их нет): {unfinished}")
 
