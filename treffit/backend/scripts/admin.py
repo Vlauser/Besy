@@ -166,12 +166,10 @@ async def cmd_deck(telegram_id: int) -> None:
         )
         rows = elsewhere.all()
         if rows:
+            total_elsewhere = sum(n for _, n in rows)
             listed = ", ".join(f"{city or 'без города'} — {n}" for city, n in rows[:8])
-            print(f"\nЗаполненные анкеты в других городах: {listed}")
-            print(
-                "  из них годятся, когда свой город кончится: "
-                f"{await count(matching.candidate_query(user, same_city=False))}"
-            )
+            print(f"\nВ других городах анкет: {total_elsewhere} ({listed})")
+            print("  в колоду они не попадут: знакомства локальные, город — жёсткая граница.")
         if unfinished:
             print(f"Не дозаполнили анкету (в поиске их нет): {unfinished}")
 

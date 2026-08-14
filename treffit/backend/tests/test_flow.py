@@ -186,44 +186,32 @@ async def test_fresh_faces_come_before_repeats(user_factory):
     assert seen.id in order
 
 
-async def test_other_cities_open_up_when_the_home_city_runs_out(user_factory):
-    """Все свои лайкнуты — показываем соседний город, а не заглушку.
+async def test_other_cities_never_enter_the_deck(user_factory):
+    """Город — жёсткая граница, даже когда своих не осталось.
 
-    Лайкнутый не возвращается: его лайк ждёт ответа. Значит, город можно
-    вычерпать досуха, и тогда единственный честный ход — расширить радиус,
-    как это делают живые приложения.
+    Соблазн добрать чужим городом появляется ровно тогда, когда колода
+    опустела. Но знакомства локальные: человек за две тысячи километров —
+    не «расширенный радиус», а мусор, и пустая колода честнее.
     """
     her = await user_factory(640, gender="female", seeking="male", city="Екатеринбург")
     local = await user_factory(641, gender="male", seeking="female", city="Екатеринбург")
-    far = await user_factory(642, gender="male", seeking="female", city="Владивосток")
+    await user_factory(642, gender="male", seeking="female", city="Владивосток")
 
+    assert [c["id"] for c in (await her.get("/discover")).json()] == [local.id]
+
+    # Лайкнутый не возвращается — свой город вычерпан досуха.
     await her.post(f"/discover/{local.id}/swipe", json={"action": "like"})
-    widened = (await her.get("/discover")).json()
-    assert [c["id"] for c in widened] == [far.id]
-    assert widened[0]["city"] == "Владивосток"
+    assert (await her.get("/discover")).json() == []
 
 
-async def test_the_home_city_comes_first(user_factory):
-    """Расширение радиуса — запасной ход, а не замена своему городу."""
-    her = await user_factory(650, gender="female", seeking="male", city="Казань")
-    await user_factory(651, gender="male", seeking="female", city="Сочи")
-    local = await user_factory(652, gender="male", seeking="female", city="Казань")
-
-    assert [c["id"] for c in (await her.get("/discover")).json()][0] == local.id
-
-
-async def test_a_passed_local_does_not_block_the_rest_of_the_country(user_factory):
-    """Повтор — после географии.
-
-    Пропущенный возвращается в колоду бесконечно. Стой он впереди новых
-    людей из других городов, до них очередь не дошла бы никогда.
-    """
+async def test_a_passed_local_comes_back_before_the_deck_empties(user_factory):
+    """Пропущенный земляк возвращается: «мимо» — это «не сейчас»."""
     her = await user_factory(660, gender="female", seeking="male", city="Пермь")
     local = await user_factory(661, gender="male", seeking="female", city="Пермь")
-    far = await user_factory(662, gender="male", seeking="female", city="Омск")
+    await user_factory(662, gender="male", seeking="female", city="Омск")
     await her.post(f"/discover/{local.id}/swipe", json={"action": "pass"})
 
-    assert [c["id"] for c in (await her.get("/discover")).json()] == [far.id, local.id]
+    assert [c["id"] for c in (await her.get("/discover")).json()] == [local.id]
 
 
 async def test_the_deck_diagnostic_agrees_with_the_deck_itself(user_factory):
