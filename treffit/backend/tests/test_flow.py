@@ -90,7 +90,17 @@ async def test_discovery_is_blocked_until_onboarding_is_done(user_factory):
 async def test_test_answers_complete_the_profile(user_factory):
     actor = await user_factory(505, onboard=False)
     await actor.post("/me/consent", json={"pdn": True, "photo": True})
-    await actor.patch("/me", json={"birth_date": "1995-03-03", "gender": "female", "seeking_gender": "male"})
+    # Город обязателен наравне с полом и датой: без него подбор не знает,
+    # где искать, и анкета не считается заполненной.
+    await actor.patch(
+        "/me",
+        json={
+            "birth_date": "1995-03-03",
+            "gender": "female",
+            "seeking_gender": "male",
+            "city": "Казань",
+        },
+    )
     body = (await actor.post("/me/test-answers", json={"answers": ALL_LEFT})).json()
     assert body["is_onboarded"] is True
     assert body["test_answers"] == ALL_LEFT

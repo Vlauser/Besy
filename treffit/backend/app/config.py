@@ -76,10 +76,10 @@ class Settings(BaseSettings):
 
     @property
     def kudago_location_list(self) -> list[str]:
-        from .cities import SLUGS
+        from .cities import SYNC_SLUGS
 
         chosen = [item.strip() for item in self.kudago_locations.split(",") if item.strip()]
-        return chosen or list(SLUGS)
+        return chosen or list(SYNC_SLUGS)
 
     # --- media ---
     media_root: Path = Path("var/media")

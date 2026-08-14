@@ -96,7 +96,9 @@ class User(Base, TimestampMixin):
     seeking_gender: Mapped[str] = mapped_column(String(16), default=SeekingGender.any.value, nullable=False)
     seeking_age_min: Mapped[int] = mapped_column(Integer, default=18, nullable=False)
     seeking_age_max: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
-    city: Mapped[str] = mapped_column(String(64), default="Екатеринбург", nullable=False)
+    # Пусто, а не «Екатеринбург»: подставленный за человека город — это
+    # чужие люди в подборе и чужая афиша, причём молча. Спрашиваем.
+    city: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     bio: Mapped[str | None] = mapped_column(Text)
     interests: Mapped[list] = mapped_column(JsonCol, default=list, nullable=False)
 

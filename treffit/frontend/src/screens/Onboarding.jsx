@@ -36,7 +36,7 @@ export function Onboarding({ me, config, onDone, onError }) {
     seeking_gender: me.seeking_gender || "any",
     seeking_age_min: me.seeking_age_min ?? 18,
     seeking_age_max: me.seeking_age_max ?? 45,
-    city: me.city || "Екатеринбург",
+    city: me.city || "",
     bio: me.bio || "",
   });
   const [photos, setPhotos] = useState(me.photos || []);
@@ -200,23 +200,76 @@ const inputStyle = {
   color: T.ink,
 };
 
-/** Выбор города из тех, где работает афиша. */
+/** Приведение к сравнимому виду — то же, что на сервере. */
+function cityKey(text) {
+  return text.trim().toLowerCase().replace(/ё/g, "е").replace(/-/g, " ");
+}
+
+/** Город: поле с подсказками, но ввести можно любой.
+ *
+ *  Выпадающим списком тут не обойтись: справочник заведомо неполный, и
+ *  человека из города, которого мы не вписали, нельзя оставлять без
+ *  выбора — город нужен ему прежде всего для подбора, а не для афиши.
+ *  Поэтому поле свободное, а подсказки лишь помогают попасть в общее
+ *  написание: и подбор, и афиша ищут точным совпадением.
+ */
 export function CityPicker({ value, options, onChange }) {
-  const list = options?.length ? options : [value].filter(Boolean);
+  const [open, setOpen] = useState(false);
+  const cities = options || [];
+
+  const query = cityKey(value || "");
+  const exact = cities.some((city) => cityKey(city) === query);
+  // Точное попадание подсказывать нечего — список только мешал бы.
+  const matches =
+    query && !exact
+      ? cities.filter((city) => cityKey(city).startsWith(query)).slice(0, 6)
+      : [];
+
   return (
-    <select
-      value={value || ""}
-      onChange={(event) => onChange(event.target.value)}
-      className="w-full rounded-2xl px-4 py-3 text-sm outline-none appearance-none"
-      style={inputStyle}
-    >
-      {!value && <option value="">Выберите город</option>}
-      {list.map((city) => (
-        <option key={city} value={city}>
-          {city}
-        </option>
-      ))}
-    </select>
+    <div className="relative">
+      <input
+        value={value || ""}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        placeholder="Ваш город"
+        autoComplete="off"
+        maxLength={64}
+        className="w-full rounded-2xl px-4 py-3 text-sm outline-none"
+        style={inputStyle}
+      />
+
+      {open && matches.length > 0 && (
+        <div
+          className="absolute left-0 right-0 top-full mt-1 rounded-2xl overflow-hidden z-20"
+          style={{
+            background: T.surface,
+            border: `1px solid ${T.line}`,
+            boxShadow: "0 14px 30px -18px rgba(30,40,90,0.5)",
+          }}
+        >
+          {matches.map((city) => (
+            <button
+              key={city}
+              // Именно pointerdown: обычный клик не успевает — поле теряет
+              // фокус раньше, список закрывается, и нажатие уходит впустую.
+              onPointerDown={(event) => {
+                event.preventDefault();
+                onChange(city);
+                setOpen(false);
+              }}
+              className="w-full text-left px-4 py-2.5 text-sm active:opacity-60"
+              style={{ color: T.ink }}
+            >
+              {city}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -256,7 +309,10 @@ function BirthDateField({ value, disabled, minAge, onChange }) {
 }
 
 function AboutStep({ form, update, onNext, saving, frozenBirthDate, config }) {
-  const ready = form.first_name.trim() && form.gender && (frozenBirthDate || form.birth_date);
+  // Город обязателен: по нему идёт подбор, и подставлять чужой наугад
+  // значит показать человеку не тех людей.
+  const ready =
+    form.first_name.trim() && form.gender && form.city.trim() && (frozenBirthDate || form.birth_date);
   return (
     <div className="flex flex-col h-full overflow-y-auto no-scrollbar">
       <StepHeading title="Расскажите о себе" hint="Это увидят другие — кроме даты рождения, показывается только возраст." />

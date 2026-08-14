@@ -20,7 +20,16 @@ router = APIRouter(prefix="/me", tags=["me"])
 
 
 def _finish_onboarding_if_ready(user: User) -> None:
-    if user.onboarded_at is None and user.birth_date and user.gender and user.consent_pdn_at and user.test_completed_at:
+    # Город здесь наравне с полом и датой: без него подбор не знает, где
+    # искать, а раньше он просто молча подставлялся.
+    if (
+        user.onboarded_at is None
+        and user.birth_date
+        and user.gender
+        and user.city
+        and user.consent_pdn_at
+        and user.test_completed_at
+    ):
         user.onboarded_at = datetime.now(timezone.utc)
 
 

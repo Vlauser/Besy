@@ -144,12 +144,35 @@ async def test_city_written_loosely_still_finds_the_events(user_factory):
         assert await titles(actor) == ["Концерт в Москве"], written
 
 
-async def test_unsupported_city_is_refused_with_an_explanation(user_factory):
-    actor = await user_factory(700220, onboard=False)
+async def test_a_city_outside_the_directory_is_still_allowed(user_factory):
+    """Справочник заведомо неполный.
+
+    Отказ означал бы, что человеку из небольшого города приложением
+    пользоваться нельзя, — а город нужен ему прежде всего для знакомств.
+    """
+    actor = await user_factory(700220, city="урюпинск")
+    assert actor.user["city"] == "Урюпинск"
+
+
+async def test_garbage_instead_of_a_city_is_refused(user_factory):
+    actor = await user_factory(700221, onboard=False)
     await actor.post("/me/consent", json={"pdn": True, "photo": True})
-    response = await actor.patch("/me", json={"city": "Урюпинск"})
-    assert response.status_code == 422
-    assert "город" in response.text.lower()
+    for junk in ("12345", "Москва1", "!!!", ""):
+        response = await actor.patch("/me", json={"city": junk})
+        assert response.status_code == 422, junk
+
+
+async def test_the_directory_is_wider_than_the_listings(user_factory):
+    """Афиша есть в десяти городах, знакомства — во всех.
+
+    Раньше это был один список, и человек из Челябинска не мог
+    зарегистрироваться вовсе.
+    """
+    from app.cities import NAMES, SYNC_SLUGS
+
+    assert len(SYNC_SLUGS) == 10
+    assert len(NAMES) > 100
+    assert "Челябинск" in NAMES
 
 
 # --------------------------- постоянные экспозиции ---------------------------
@@ -184,3 +207,18 @@ async def test_client_is_told_the_event_has_no_date(user_factory):
     await add_event("Музей", timedelta(days=-3650), None, permanent=True)
     body = (await actor.get("/events")).json()
     assert body[0]["is_permanent"] is True
+
+
+async def test_a_profile_without_a_city_is_not_finished(user_factory):
+    """Раньше город молча подставлялся, и человек попадал в чужой подбор."""
+    actor = await user_factory(700230, onboard=False)
+    await actor.post("/me/consent", json={"pdn": True, "photo": True})
+    await actor.patch("/me", json={"birth_date": "1995-03-03", "gender": "female"})
+    body = (
+        await actor.post(
+            "/me/test-answers",
+            json={"answers": {"1": "left", "2": "left", "3": "left", "4": "left", "5": "left", "6": "left"}},
+        )
+    ).json()
+    assert body["city"] == ""
+    assert body["is_onboarded"] is False
