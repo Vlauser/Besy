@@ -265,6 +265,38 @@ async def test_the_deck_diagnostic_agrees_with_the_deck_itself(user_factory):
             )
 
 
+async def test_reset_swipes_returns_everyone_but_keeps_matches(user_factory):
+    """Отладочный сброс: колода снова полная, переписка цела.
+
+    Того, с кем уже есть чат, возвращать в колоду незачем — его свайп
+    остаётся на месте.
+    """
+    from scripts.admin import cmd_reset_swipes
+
+    from app.models import User
+
+    her = await user_factory(680, gender="female", seeking="male", city="Сочи")
+    matched = await user_factory(681, gender="male", seeking="female", city="Сочи")
+    passed = await user_factory(682, gender="male", seeking="female", city="Сочи")
+    liked = await user_factory(683, gender="male", seeking="female", city="Сочи")
+
+    await her.post(f"/discover/{matched.id}/swipe", json={"action": "like"})
+    await matched.post(f"/discover/{her.id}/swipe", json={"action": "like"})
+    await her.post(f"/discover/{passed.id}/swipe", json={"action": "pass"})
+    await her.post(f"/discover/{liked.id}/swipe", json={"action": "like"})
+    # Пропущенный возвращается сам — в этом и смысл бесконечной колоды.
+    # Лайкнутые не возвращаются, и вот их-то сброс и вернёт.
+    assert [c["id"] for c in (await her.get("/discover")).json()] == [passed.id]
+
+    async with SessionLocal() as session:
+        me = await session.get(User, her.id)
+        await cmd_reset_swipes(me.telegram_id)
+
+    back = {c["id"] for c in (await her.get("/discover")).json()}
+    assert back == {passed.id, liked.id}
+    assert len((await her.get("/chats")).json()) == 1
+
+
 async def test_cannot_swipe_yourself(user_factory):
     her = await user_factory(610)
     assert (await her.post(f"/discover/{her.id}/swipe", json={"action": "like"})).status_code == 422

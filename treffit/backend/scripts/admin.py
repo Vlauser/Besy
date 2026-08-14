@@ -8,6 +8,7 @@
     python -m scripts.admin queue               открытые заявки на верификацию
     python -m scripts.admin events              что лежит в афише и что из этого видно
     python -m scripts.admin deck <tg_id>        почему в колоде столько людей
+    python -m scripts.admin reset-swipes <tg_id>  вернуть всех в колоду (отладка)
 
 Запускать от пользователя сервиса, с переменными из .env:
 
@@ -330,6 +331,50 @@ async def cmd_verify(telegram_id: int) -> None:
             print(f"{user.first_name} (tg {telegram_id}): галочка поставлена (заявки не было)")
 
 
+async def cmd_reset_swipes(telegram_id: int) -> None:
+    """Вернуть в колоду всех, кого этот человек уже отсмотрел.
+
+    Нужно, пока пользователей мало: на восьми анкетах колода кончается за
+    минуту, и проверять приложение становится нечем. Это отладочная
+    команда, а не часть продукта — в живом приложении лайк отменять нельзя.
+
+    Свайпы к тем, с кем уже есть матч, сохраняются: человека, с которым вы
+    переписываетесь, возвращать в колоду незачем.
+    """
+    from app.models import DeckCard, Match, Swipe
+
+    async with SessionLocal() as session:
+        user = await _find(session, telegram_id)
+
+        partners = select(
+            func.coalesce(
+                func.nullif(Match.user_a_id, user.id), Match.user_b_id
+            )
+        ).where(
+            or_(Match.user_a_id == user.id, Match.user_b_id == user.id),
+            Match.is_active.is_(True),
+        )
+        keep = set((await session.execute(partners)).scalars())
+
+        rows = await session.execute(select(Swipe).where(Swipe.actor_id == user.id))
+        removed = 0
+        for swipe in rows.scalars():
+            if swipe.target_id in keep:
+                continue
+            await session.delete(swipe)
+            removed += 1
+
+        cards = await session.execute(select(DeckCard).where(DeckCard.user_id == user.id))
+        for card in cards.scalars():
+            await session.delete(card)
+
+        await session.commit()
+        print(f"{user.first_name} (tg {telegram_id}): свайпов удалено — {removed}")
+        if keep:
+            print(f"Сохранено для тех, с кем уже есть матч: {len(keep)}")
+        print("Матчи, чаты и сообщения не тронуты.")
+
+
 async def main() -> None:
     args = sys.argv[1:]
     if not args:
@@ -352,6 +397,10 @@ async def main() -> None:
         if len(args) < 2:
             sys.exit("Укажите telegram_id")
         await cmd_deck(int(args[1]))
+    elif command == "reset-swipes":
+        if len(args) < 2:
+            sys.exit("Укажите telegram_id")
+        await cmd_reset_swipes(int(args[1]))
     elif command == "verify":
         if len(args) < 2:
             sys.exit("Укажите telegram_id")
