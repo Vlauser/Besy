@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Calendar, MapPin, Radio } from "lucide-react";
+import { Calendar, CalendarClock, MapPin, Radio } from "lucide-react";
 
 import { endpoints } from "../api/client";
 import { EmptyState, Spinner } from "../components/ui";
@@ -111,12 +111,26 @@ export function Events({ onError }) {
                   {/* Название в две строки: у афишных событий оно длинное, и
                       обрезка в одну строку съедала половину смысла. */}
                   <p className="text-sm font-semibold line-clamp-2" style={{ color: T.ink }}>{event.title}</p>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <MapPin size={11} color={T.muted} className="flex-shrink-0" />
-                    <span className="text-xs truncate" style={{ color: T.muted }}>
-                      {[event.venue, whenLabel(event)].filter(Boolean).join(" · ")}
-                    </span>
-                  </div>
+                  {/* Площадка и дата — разными строками. Вместе в одну они
+                      не влезали: «культурно-просветительский центр
+                      „Эрмитаж-Урал“» съедал строку целиком, дата пропадала
+                      совсем, а обрезанное название читалось как чужой
+                      город. Дату не обрезаем никогда: без неё карточка
+                      бесполезна. */}
+                  {event.venue && (
+                    <div className="flex items-start gap-1 mt-1">
+                      <MapPin size={11} color={T.muted} className="flex-shrink-0 mt-0.5" />
+                      <span className="text-xs line-clamp-2" style={{ color: T.muted }}>
+                        {event.venue}
+                      </span>
+                    </div>
+                  )}
+                  {whenLabel(event) && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <CalendarClock size={11} color={T.muted} className="flex-shrink-0" />
+                      <span className="text-xs" style={{ color: T.muted }}>{whenLabel(event)}</span>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => toggleAttend(event)}
