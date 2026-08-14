@@ -222,6 +222,10 @@ class ChatOut(BaseModel):
     revealed: bool
     remaining_to_reveal: int
     sent_count: int
+    # Написал ли хоть кто-то из двоих. Чат заводится вместе с матчем и сразу
+    # получает системное сообщение, поэтому «пусто» по последнему сообщению
+    # не определить — а отличать свежий матч от начатого разговора нужно.
+    has_conversation: bool = False
     unread: int
     last_message: MessageOut | None = None
     last_message_at: datetime | None = None

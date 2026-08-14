@@ -23,6 +23,46 @@ function timeLabel(iso) {
     : date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
 }
 
+/** Матчи, в которых ещё не сказано ни слова.
+ *
+ *  Отдельным экраном их делать незачем: матч без разговора — это не
+ *  достижение, а незакрытое дело, и место ему там же, где переписки. Внизу
+ *  списка он бы затерялся среди старых чатов, поэтому идёт лентой сверху.
+ */
+function NewMatches({ chats, onOpenChat }) {
+  if (!chats.length) return null;
+  return (
+    <div className="pt-4">
+      <p className="px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: T.muted }}>
+        Новые совпадения · {chats.length}
+      </p>
+      <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 pt-3 pb-1">
+        {chats.map((chat) => {
+          const photo = chat.other.photos?.[0];
+          return (
+            <button
+              key={chat.id}
+              onClick={() => onOpenChat(chat.id)}
+              className="flex flex-col items-center gap-1.5 flex-shrink-0 active:scale-95 transition-transform"
+              style={{ width: 66 }}
+            >
+              <Avatar
+                src={photo?.url ? mediaUrl(photo.url) : null}
+                grad={photo?.gradient || FALLBACK_GRADIENT}
+                size={60}
+                online={chat.other.is_online}
+              />
+              <span className="text-xs truncate w-full text-center" style={{ color: T.ink }}>
+                {chat.other.first_name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ChatList({ onOpenChat, onError }) {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +86,9 @@ export function ChatList({ onOpenChat, onError }) {
 
   if (loading) return <Loading />;
 
+  const fresh = chats.filter((chat) => !chat.has_conversation);
+  const started = chats.filter((chat) => chat.has_conversation);
+
   if (!chats.length) {
     return (
       <EmptyState
@@ -57,8 +100,17 @@ export function ChatList({ onOpenChat, onError }) {
   }
 
   return (
-    <div className="px-4 pt-4 space-y-2.5 pb-4">
-      {chats.map((chat) => {
+    <div className="pb-4">
+      <NewMatches chats={fresh} onOpenChat={onOpenChat} />
+
+      {started.length > 0 && fresh.length > 0 && (
+        <p className="px-4 pt-4 text-xs font-semibold uppercase tracking-wide" style={{ color: T.muted }}>
+          Переписки
+        </p>
+      )}
+
+      <div className="px-4 pt-3 space-y-2.5">
+      {started.map((chat) => {
         const photo = chat.other.photos?.[0];
         return (
           <button
@@ -98,6 +150,13 @@ export function ChatList({ onOpenChat, onError }) {
           </button>
         );
       })}
+      </div>
+
+      {!started.length && (
+        <p className="px-4 pt-6 text-sm text-center" style={{ color: T.muted }}>
+          Напишите первым — разговор начинается с одного сообщения.
+        </p>
+      )}
     </div>
   );
 }

@@ -159,6 +159,7 @@ export const endpoints = {
   discover: (limit = 10) => api.get(`/discover?limit=${limit}`),
   swipe: (userId, action) => api.post(`/discover/${userId}/swipe`, { action }),
   incomingLikes: () => api.get("/discover/likes"),
+  incomingLikesCount: () => api.get("/discover/likes/count"),
 
   deck: () => api.get("/deck"),
   scratch: (cardId) => api.post(`/deck/${cardId}/scratch`),

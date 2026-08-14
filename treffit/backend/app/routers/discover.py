@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -182,6 +182,32 @@ async def who_liked_me(
             await candidate_out(session, user.id, liker, compatibility_pct=pct, shared_flags=flags)
         )
     return result
+
+
+@router.get("/discover/likes/count")
+async def count_incoming_likes(
+    user: User = Depends(onboarded_user), session: AsyncSession = Depends(get_session)
+) -> dict:
+    """Сколько людей лайкнуло — без имён и без Premium.
+
+    Сам список платный, но число открыто всем: иначе человек не знает, что
+    именно ему предлагают купить, и баннер Premium зовёт вслепую. Число не
+    выдаёт ничего — ни кто, ни когда.
+    """
+    answered = select(Swipe.target_id).where(Swipe.actor_id == user.id)
+    total = await session.scalar(
+        select(func.count())
+        .select_from(Swipe)
+        .join(User, User.id == Swipe.actor_id)
+        .where(
+            Swipe.target_id == user.id,
+            Swipe.action.in_([SwipeAction.like.value, SwipeAction.superlike.value]),
+            Swipe.actor_id.not_in(answered),
+            User.is_active.is_(True),
+            User.is_banned.is_(False),
+        )
+    )
+    return {"count": int(total or 0)}
 
 
 # ----------------------- scratch pack (Treffit mode) -----------------------

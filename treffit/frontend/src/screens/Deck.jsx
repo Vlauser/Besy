@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { ChevronRight, Heart, Sparkles } from "lucide-react";
 
 import { endpoints } from "../api/client";
 import { SwipeCard, SwipeControls } from "../components/SwipeCard";
@@ -10,11 +10,14 @@ import { T } from "../theme";
 const REFILL_AT = 2;
 
 /** Twinby-style swipe deck: drag or tap the controls. */
-export function Deck({ config, onMatch, onError }) {
+export function Deck({ config, onMatch, onOpenLikes, onError }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [likesLeft, setLikesLeft] = useState(null);
+  // Сколько людей уже лайкнуло. Число открыто и без Premium — иначе идти
+  // на платный экран не за чем.
+  const [likedMe, setLikedMe] = useState(0);
   // Ids already acted on. A refill can outrun the swipe request, and the
   // server only filters people it has recorded a swipe for — without this
   // the same profile comes back a second time.
@@ -41,6 +44,11 @@ export function Deck({ config, onMatch, onError }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    // Молча: пустая плашка лучше, чем тост об ошибке ради счётчика.
+    endpoints.incomingLikesCount().then((data) => setLikedMe(data.count)).catch(() => {});
+  }, []);
 
   async function decide(candidate, action) {
     if (busy) return;
@@ -93,6 +101,25 @@ export function Deck({ config, onMatch, onError }) {
 
   return (
     <div className="flex flex-col h-full px-4 pt-3 pb-2">
+      {likedMe > 0 && (
+        <button
+          onClick={onOpenLikes}
+          className="w-full flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 mb-2.5 active:scale-95 transition-transform"
+          style={{ background: T.surface, border: `1px solid ${T.line}` }}
+        >
+          <span
+            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: T.coral }}
+          >
+            <Heart size={15} color="#fff" fill="#fff" />
+          </span>
+          <span className="flex-1 text-left text-sm font-semibold" style={{ color: T.ink }}>
+            Вас лайкнули: {likedMe}
+          </span>
+          <ChevronRight size={16} color={T.muted} />
+        </button>
+      )}
+
       {likesLeft !== null && likesLeft <= 5 && (
         <p className="text-xs text-center mb-2" style={{ color: T.muted }}>
           Осталось лайков сегодня: {likesLeft}

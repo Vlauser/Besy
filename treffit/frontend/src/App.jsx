@@ -13,6 +13,7 @@ import { CandidateDetail, Pack } from "./screens/Pack";
 import { ChatList } from "./screens/Chats";
 import { ChatRoom } from "./screens/ChatRoom";
 import { Deck } from "./screens/Deck";
+import { Likes } from "./screens/Likes";
 import { DevLogin } from "./screens/DevLogin";
 import { Events } from "./screens/Events";
 import { Onboarding } from "./screens/Onboarding";
@@ -46,6 +47,7 @@ const TAB_TITLES = {
   chats: "Чаты",
   profile: "Профиль",
   test: "Мини-тест",
+  likes: "Вас лайкнули",
 };
 
 export default function App() {
@@ -214,7 +216,18 @@ export default function App() {
   if (tab === "events") {
     body = <Events onError={notify} />;
   } else if (tab === "deck") {
-    body = <Deck config={config} onMatch={setMatchPopup} onError={notify} />;
+    body = (
+      <Deck
+        config={config}
+        onMatch={setMatchPopup}
+        onOpenLikes={() => setTab("likes")}
+        onError={notify}
+      />
+    );
+  } else if (tab === "likes") {
+    body = (
+      <Likes me={me} onOpenCandidate={setCandidate} onUpdated={setMe} onError={notify} />
+    );
   } else if (tab === "pack") {
     body = <Pack onOpenCandidate={setCandidate} onError={notify} />;
   } else if (tab === "chats") {
@@ -263,7 +276,9 @@ export default function App() {
     <Shell
       height={height}
       title={TAB_TITLES[tab]}
-      onBack={tab === "test" ? () => setTab("profile") : null}
+      onBack={
+        tab === "test" ? () => setTab("profile") : tab === "likes" ? () => setTab("deck") : null
+      }
       footer={<TabBar tab={tab} onChange={setTab} />}
     >
       <GlobalStyle />

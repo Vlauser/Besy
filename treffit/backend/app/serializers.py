@@ -174,6 +174,7 @@ async def chat_out(session: AsyncSession, chat: Chat, viewer: User, last_message
         revealed=chat.has_revealed(viewer.id) or not settings.blind_mode,
         remaining_to_reveal=chat_service.remaining_to_reveal(chat, viewer.id),
         sent_count=chat.sent_count(viewer.id),
+        has_conversation=(chat.msg_count_a + chat.msg_count_b) > 0,
         unread=chat.unread_a if viewer.id == chat.user_a_id else chat.unread_b,
         last_message=message_out(last_message, viewer.id) if last_message else None,
         last_message_at=chat.last_message_at,
