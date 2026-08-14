@@ -154,11 +154,36 @@ async def test_a_pass_never_matches(user_factory):
     assert result["matched"] is False
 
 
-async def test_swiped_profiles_leave_the_deck(user_factory):
+async def test_the_deck_does_not_run_out(user_factory):
+    """Пропущенный возвращается, когда показывать больше некого.
+
+    Пустая колода — тупик: человеку нечего делать, и он уходит. «Мимо»
+    означает «не сейчас», а не «никогда больше».
+    """
     her, him = await make_pair(user_factory)
     assert len((await her.get("/discover")).json()) == 1
     await her.post(f"/discover/{him.id}/swipe", json={"action": "pass"})
+    again = (await her.get("/discover")).json()
+    assert [c["id"] for c in again] == [him.id]
+
+
+async def test_a_liked_profile_does_not_come_back(user_factory):
+    """Его лайк ещё ждёт ответа — предлагать передумать нельзя."""
+    her, him = await make_pair(user_factory)
+    await her.post(f"/discover/{him.id}/swipe", json={"action": "like"})
     assert (await her.get("/discover")).json() == []
+
+
+async def test_fresh_faces_come_before_repeats(user_factory):
+    """Сначала те, кого человек ещё не видел."""
+    her = await user_factory(630, gender="female", seeking="male")
+    seen = await user_factory(631, gender="male", seeking="female")
+    await her.post(f"/discover/{seen.id}/swipe", json={"action": "pass"})
+
+    fresh = await user_factory(632, gender="male", seeking="female")
+    order = [c["id"] for c in (await her.get("/discover")).json()]
+    assert order[0] == fresh.id
+    assert seen.id in order
 
 
 async def test_cannot_swipe_yourself(user_factory):

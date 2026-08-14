@@ -9,7 +9,7 @@ from sqlalchemy import and_, func, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..models import Block, DeckCard, Event, Swipe, User, UserEvent
+from ..models import Block, DeckCard, Event, Swipe, SwipeAction, User, UserEvent
 
 # Canonical test definition. The frontend fetches this from GET /test/cards
 # so the two can never drift apart.
@@ -87,13 +87,25 @@ def _birth_date_bounds(age_min: int, age_max: int) -> tuple[date, date]:
     return oldest, youngest
 
 
-def candidate_query(user: User):
-    """Base SELECT of users this user is allowed to see in discovery."""
+def candidate_query(user: User, *, exclude_swiped: bool = True):
+    """Кого этому человеку вообще можно показать.
+
+    `exclude_swiped=False` оставляет в выборке тех, кого он уже пропустил, —
+    это нужно, чтобы колода не кончалась. Лайкнутые исключены всегда: их
+    лайк ещё ждёт ответа, и показывать такого человека снова значит
+    предлагать передумать за спиной у того, кто уже ответил.
+    """
     age_min = max(settings.min_age, user.seeking_age_min)
     age_max = max(age_min, user.seeking_age_max)
     oldest, youngest = _birth_date_bounds(age_min, age_max)
 
-    already_swiped = select(Swipe.target_id).where(Swipe.actor_id == user.id)
+    if exclude_swiped:
+        skip = select(Swipe.target_id).where(Swipe.actor_id == user.id)
+    else:
+        skip = select(Swipe.target_id).where(
+            Swipe.actor_id == user.id,
+            Swipe.action.in_([SwipeAction.like.value, SwipeAction.superlike.value]),
+        )
     blocked_by_me = select(Block.blocked_id).where(Block.user_id == user.id)
     blocked_me = select(Block.user_id).where(Block.blocked_id == user.id)
 
@@ -104,7 +116,7 @@ def candidate_query(user: User):
         User.onboarded_at.is_not(None),
         User.birth_date.is_not(None),
         User.birth_date.between(oldest, youngest),
-        not_(User.id.in_(already_swiped)),
+        not_(User.id.in_(skip)),
         not_(User.id.in_(blocked_by_me)),
         not_(User.id.in_(blocked_me)),
     )
@@ -119,23 +131,49 @@ def candidate_query(user: User):
     return q
 
 
-async def find_candidates(session: AsyncSession, user: User, limit: int) -> list[User]:
-    """Candidates ordered by compatibility, computed in Python.
-
-    Scoring reads both users' answer maps, which SQL cannot rank cheaply, so
-    a recency-bounded slice is pulled and sorted in memory.
-    """
-    pool_size = max(limit * 5, 100)
-    rows = await session.execute(candidate_query(user).order_by(User.last_active_at.desc()).limit(pool_size))
-    pool = list(rows.scalars())
+def _by_compatibility(user: User, pool: list[User], limit: int) -> list[User]:
+    """Отсортировать по совпадению. Считается в Python: сравнение ответов
+    SQL дёшево не ранжирует."""
     scored = []
     for candidate in pool:
-        pct, flags = compute_compatibility(
+        pct, _ = compute_compatibility(
             user.test_answers, candidate.test_answers, user.interests, candidate.interests
         )
-        scored.append((pct, flags, candidate))
-    scored.sort(key=lambda item: (item[0], item[2].last_active_at), reverse=True)
-    return [c for _, _, c in scored[:limit]]
+        scored.append((pct, candidate))
+    scored.sort(key=lambda item: (item[0], item[1].last_active_at), reverse=True)
+    return [c for _, c in scored[:limit]]
+
+
+async def find_candidates(session: AsyncSession, user: User, limit: int) -> list[User]:
+    """Кандидаты по убыванию совпадения. Колода не кончается.
+
+    Сначала те, кого человек ещё не видел. Если их не набирается, добираем
+    ранее пропущенными — начиная с тех, кого пропустили давнее всего.
+
+    Пустая колода — это тупик: человеку нечего делать, и он уходит. У живых
+    приложений её не бывает, и «мимо» там означает «не сейчас», а не
+    «никогда больше». Лайкнутые обратно не возвращаются: их лайк ещё ждёт
+    ответа.
+    """
+    pool_size = max(limit * 5, 100)
+    rows = await session.execute(
+        candidate_query(user).order_by(User.last_active_at.desc()).limit(pool_size)
+    )
+    fresh = _by_compatibility(user, list(rows.scalars()), limit)
+    if len(fresh) >= limit:
+        return fresh
+
+    seen = {c.id for c in fresh}
+    # Давние «мимо» вперёд: только что пропущенный не должен возвращаться
+    # следующей же карточкой.
+    repeat_rows = await session.execute(
+        candidate_query(user, exclude_swiped=False)
+        .join(Swipe, and_(Swipe.target_id == User.id, Swipe.actor_id == user.id))
+        .where(not_(User.id.in_(seen or {0})))
+        .order_by(Swipe.created_at.asc())
+        .limit(limit - len(fresh))
+    )
+    return fresh + list(repeat_rows.scalars())
 
 
 async def score_pair(session: AsyncSession, a: User, b: User) -> tuple[int, list[str], int | None]:

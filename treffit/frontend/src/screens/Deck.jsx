@@ -21,12 +21,19 @@ export function Deck({ config, onMatch, onOpenLikes, onOpenCandidate, onError })
   // Ids already acted on. A refill can outrun the swipe request, and the
   // server only filters people it has recorded a swipe for — without this
   // the same profile comes back a second time.
-  const decided = useRef(new Set());
+  // Чей свайп прямо сейчас в пути. Дозагрузка может обогнать запрос, а
+  // сервер фильтрует только то, что успел записать, — без этого человек
+  // приходит вторым экземпляром.
+  //
+  // Именно «в пути», а не «решённые навсегда»: колода намеренно повторяет
+  // ранее пропущенных, и вечное множество вычёркивало бы их вместе с
+  // повторами — список снова кончался бы.
+  const pending = useRef(new Set());
 
   const load = useCallback(
     async (append = false) => {
       try {
-        const fresh = (await endpoints.discover(10)).filter((card) => !decided.current.has(card.id));
+        const fresh = (await endpoints.discover(10)).filter((card) => !pending.current.has(card.id));
         setCards((current) => {
           if (!append) return fresh;
           const known = new Set(current.map((card) => card.id));
@@ -53,7 +60,7 @@ export function Deck({ config, onMatch, onOpenLikes, onOpenCandidate, onError })
   async function decide(candidate, action) {
     if (busy) return;
     setBusy(true);
-    decided.current.add(candidate.id);
+    pending.current.add(candidate.id);
     setCards((current) => current.filter((card) => card.id !== candidate.id));
     try {
       const result = await endpoints.swipe(candidate.id, action);
@@ -64,10 +71,12 @@ export function Deck({ config, onMatch, onOpenLikes, onOpenCandidate, onError })
       }
     } catch (error) {
       // Put the card back so a failed swipe is not silently lost.
-      decided.current.delete(candidate.id);
       setCards((current) => [candidate, ...current]);
       onError(error.detail || error.message);
     } finally {
+      // Сервер уже знает про свайп — дальше он сам решает, показывать ли
+      // этого человека снова.
+      pending.current.delete(candidate.id);
       setBusy(false);
     }
   }

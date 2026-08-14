@@ -93,9 +93,14 @@ async def swipe(
         session.add(Swipe(actor_id=user.id, target_id=target_id, action=payload.action.value))
         if is_like:
             likes_today += 1
-    elif existing.action != payload.action.value:
+    else:
         # Allow upgrading pass → like, but never spend a second like slot.
-        existing.action = payload.action.value
+        if existing.action != payload.action.value:
+            existing.action = payload.action.value
+        # Отметка времени сдвигается при любом повторе: по ней колода решает,
+        # кого показать снова. Без этого только что пропущенный возвращался
+        # бы следующей же карточкой — он и оставался бы самым давним.
+        existing.created_at = datetime.now(timezone.utc)
     await session.flush()
 
     # Any unscratched card for this person is now spent.
