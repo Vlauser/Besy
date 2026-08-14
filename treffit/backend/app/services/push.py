@@ -22,6 +22,11 @@ PREVIEW_LIMIT = 80
 
 
 async def send(telegram_id: int, text: str) -> bool:
+    # У живого пользователя telegram_id всегда положительный; отрицательный
+    # означает демо-анкету (scripts/demo_users), а в Telegram — вдобавок не
+    # человека, а группу. Писать туда нельзя ни в том, ни в другом смысле.
+    if telegram_id <= 0:
+        return False
     return await bot.send_message(telegram_id, text, keyboard=bot.webapp_keyboard())
 
 
