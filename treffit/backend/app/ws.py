@@ -41,10 +41,22 @@ class ConnectionManager:
         try:
             import redis.asyncio as aioredis
 
-            self._redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+            # RESP2 задаём явно. Клиент по умолчанию здоровается командой
+            # HELLO, которой нет в Redis до шестой версии: рукопожатие
+            # падает, и обмен между воркерами молча выключается — притом
+            # что сам Redis жив и отвечает.
+            self._redis = aioredis.from_url(
+                settings.redis_url, decode_responses=True, protocol=2
+            )
             await self._redis.ping()
-        except Exception:  # noqa: BLE001 - degrade instead of refusing to boot
-            logger.exception("Realtime: Redis недоступен, остаёмся на in-process хабе")
+        except Exception as exc:  # noqa: BLE001 - degrade instead of refusing to boot
+            # Не «недоступен»: причина бывает и в версии, и в пароле, и в
+            # протоколе. Пишем, что именно ответил сервер.
+            logger.error(
+                "Realtime: Redis не подошёл (%s), остаёмся на in-process хабе. "
+                "При нескольких воркерах события между ними ходить не будут.",
+                exc,
+            )
             self._redis = None
             return
         self._pubsub_task = asyncio.create_task(self._consume())
