@@ -146,6 +146,7 @@ export function Deck({ config, onMatch, onOpenLikes, onOpenCandidate, onError })
       </div>
 
       <SwipeControls
+        compatibility={visible[0]?.compatibility_pct}
         disabled={busy}
         onPass={() => decide(top, "pass")}
         onSuperlike={() => decide(top, "superlike")}

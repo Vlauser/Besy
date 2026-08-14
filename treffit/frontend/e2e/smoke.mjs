@@ -76,11 +76,11 @@ async function likeByName(page, needle, attempts = 6) {
     const name = (await page.locator("h3").first().textContent().catch(() => "")) || "";
     if (!name) return false;
     if (name.includes(needle)) {
-      await page.click("button:has-text('♥')");
+      await page.click("button[aria-label='Лайк']");
       await page.waitForTimeout(1600);
       return true;
     }
-    await page.click("button:has-text('✕')");
+    await page.click("button[aria-label='Пропустить']");
     await page.waitForTimeout(1300);
   }
   return false;

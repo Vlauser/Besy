@@ -1,9 +1,9 @@
 import React, { useRef, useState } from "react";
-import { Check, Flag, MapPin, Star } from "lucide-react";
+import { Check, Flag, Heart, MapPin, Star, X } from "lucide-react";
 
 import { mediaUrl } from "../api/client";
 import { haptic } from "../lib/telegram";
-import { FALLBACK_GRADIENT, T } from "../theme";
+import { FALLBACK_GRADIENT, T, gradient } from "../theme";
 
 // Насколько палец может сместиться, чтобы это всё ещё считалось касанием.
 const TAP_SLOP = 8;
@@ -211,12 +211,6 @@ export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, dep
                 <p className="text-xs mt-0.5" style={{ color: "#8BE8C4" }}>сейчас онлайн</p>
               )}
             </div>
-            <div
-              className="rounded-full px-3 py-1.5 text-sm font-bold flex-shrink-0"
-              style={{ background: T.coral, color: "#fff" }}
-            >
-              {candidate.compatibility_pct}%
-            </div>
           </div>
 
           {candidate.bio && (
@@ -276,34 +270,88 @@ function Stamp({ label, color, rotate, opacity, side }) {
   );
 }
 
-export function SwipeControls({ onPass, onSuperlike, onLike, disabled }) {
-  const buttons = [
-    { key: "pass", icon: "✕", onClick: onPass, color: T.danger, size: 56 },
-    { key: "super", icon: <Star size={22} fill={T.gold} color={T.gold} />, onClick: onSuperlike, color: T.gold, size: 48 },
-    { key: "like", icon: "♥", onClick: onLike, color: T.coral, size: 56 },
-  ];
+/**
+ * Кнопки под колодой.
+ *
+ * Центральная крупнее и со свечением: суперлайк — редкое действие, и
+ * равноправный третий кружок его не выделял никак. Процент совпадения
+ * висит здесь же, а не в углу карточки: это главное, что мы знаем о
+ * человеке до знакомства, и прятать его мелким шрифтом в тени фотографии
+ * значит выбрасывать собственную же работу.
+ */
+export function SwipeControls({ onPass, onSuperlike, onLike, compatibility, disabled }) {
   return (
-    <div className="flex items-center justify-center gap-5 py-4">
-      {buttons.map((button) => (
-        <button
-          key={button.key}
-          onClick={button.onClick}
+    <div className="flex items-end justify-center gap-6 pt-3 pb-6">
+      <RoundButton onClick={onPass} disabled={disabled} size={62} label="Пропустить">
+        <X size={26} color={T.danger} strokeWidth={2.6} />
+      </RoundButton>
+
+      <div className="flex flex-col items-center">
+        <RoundButton
+          onClick={onSuperlike}
           disabled={disabled}
-          className="rounded-full flex items-center justify-center active:scale-90 transition-transform duration-150 disabled:opacity-40"
-          style={{
-            width: button.size,
-            height: button.size,
-            background: T.surface,
-            border: `1px solid ${T.line}`,
-            boxShadow: "0 8px 18px -10px rgba(30,40,90,0.4)",
-            color: button.color,
-            fontSize: button.size * 0.42,
-            lineHeight: 1,
-          }}
+          size={74}
+          label="Суперлайк"
+          accent
         >
-          {button.icon}
-        </button>
-      ))}
+          <Star size={30} color="#fff" fill="#fff" />
+        </RoundButton>
+        {typeof compatibility === "number" && (
+          <span
+            className="rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
+            style={{
+              background: gradient.action,
+              // Наезжает на кнопку снизу, но поверх неё, а не под: иначе
+              // цифру срезает краем кружка.
+              marginTop: -11,
+              position: "relative",
+              zIndex: 1,
+              border: `2px solid ${T.bg}`,
+              boxShadow: "0 6px 14px -6px rgba(61,107,255,0.7)",
+            }}
+          >
+            {compatibility}%
+          </span>
+        )}
+      </div>
+
+      <RoundButton onClick={onLike} disabled={disabled} size={62} label="Лайк">
+        <Heart size={26} color={T.coral} fill={T.coral} />
+      </RoundButton>
     </div>
+  );
+}
+
+function RoundButton({ children, onClick, disabled, size, label, accent }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className="rounded-full flex items-center justify-center flex-shrink-0 transition-transform duration-150 disabled:opacity-40"
+      style={{
+        width: size,
+        height: size,
+        background: accent ? gradient.action : T.surface,
+        border: accent ? "none" : `1px solid ${T.line}`,
+        // Цветное свечение у акцентной, обычная тень у остальных: иначе
+        // три кружка читаются как один ряд одинаковых.
+        boxShadow: accent
+          ? "0 12px 26px -8px rgba(61,107,255,0.75), 0 0 0 6px rgba(61,107,255,0.10)"
+          : "0 10px 22px -12px rgba(30,40,90,0.5)",
+        transform: "scale(1)",
+      }}
+      onPointerDown={(event) => {
+        event.currentTarget.style.transform = "scale(0.88)";
+      }}
+      onPointerUp={(event) => {
+        event.currentTarget.style.transform = "scale(1)";
+      }}
+      onPointerLeave={(event) => {
+        event.currentTarget.style.transform = "scale(1)";
+      }}
+    >
+      {children}
+    </button>
   );
 }
