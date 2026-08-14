@@ -7,6 +7,7 @@
     python -m scripts.admin verify <tg_id>      подтвердить анкету
     python -m scripts.admin queue               открытые заявки на верификацию
     python -m scripts.admin events              что лежит в афише и что из этого видно
+    python -m scripts.admin deck <tg_id>        почему в колоде столько людей
 
 Запускать от пользователя сервиса, с переменными из .env:
 
@@ -56,6 +57,77 @@ async def cmd_status() -> None:
             f"\nЗаявок на верификацию: "
             f"{await count(Verification, Verification.status == VerificationStatus.submitted.value)}"
         )
+
+
+async def cmd_deck(telegram_id: int) -> None:
+    """Разобрать, из кого складывается колода.
+
+    «Пока никого нового» имеет с десяток причин — от незаполненных анкет у
+    остальных до того, что человек уже всех лайкнул. Считаем по шагам, а не
+    гадаем.
+    """
+    from app.models import Swipe, SwipeAction
+    from app.services import matching
+
+    async with SessionLocal() as session:
+        user = await _find(session, telegram_id)
+        print(
+            f"{user.first_name}: {user.gender or 'пол не указан'}, "
+            f"ищет {user.seeking_gender} {user.seeking_age_min}–{user.seeking_age_max}, "
+            f"город «{user.city or 'не указан'}»"
+        )
+        if not user.onboarded_at:
+            print("\nАнкета не заполнена — поиск для неё закрыт.")
+            return
+
+        async def count(query):
+            return int(await session.scalar(select(func.count()).select_from(query.subquery())) or 0)
+
+        in_city = select(User).where(
+            User.id != user.id,
+            User.is_active.is_(True),
+            User.is_banned.is_(False),
+            User.onboarded_at.is_not(None),
+            User.city == user.city,
+        )
+        liked = select(Swipe.target_id).where(
+            Swipe.actor_id == user.id,
+            Swipe.action.in_([SwipeAction.like.value, SwipeAction.superlike.value]),
+        )
+        passed = select(Swipe.target_id).where(
+            Swipe.actor_id == user.id, Swipe.action == SwipeAction.pass_.value
+        )
+
+        print(f"\nВ городе заполненных анкет, кроме своей: {await count(in_city)}")
+        print(f"  проходят фильтры (пол, возраст, блокировки): {await count(matching.candidate_query(user))}")
+        print(f"  уже лайкнуты — в колоду не вернутся: {await count(select(User).where(User.id.in_(liked)))}")
+        print(f"  пропущены — вернутся, когда новых не останется: {await count(select(User).where(User.id.in_(passed)))}")
+
+        # Чаще всего колода пуста не из-за фильтров, а потому что вокруг
+        # просто никого нет: остальные либо в других городах, либо бросили
+        # анкету на полпути. Без этих двух строк «0 в городе» — тупик.
+        others = select(User).where(User.id != user.id, User.is_active.is_(True), User.is_banned.is_(False))
+        unfinished = await count(others.where(User.onboarded_at.is_(None)))
+        elsewhere = await session.execute(
+            select(User.city, func.count())
+            .where(User.id != user.id, User.onboarded_at.is_not(None), User.city != user.city)
+            .group_by(User.city)
+            .order_by(func.count().desc())
+        )
+        rows = elsewhere.all()
+        if rows:
+            listed = ", ".join(f"{city or 'без города'} — {n}" for city, n in rows[:8])
+            print(f"\nЗаполненные анкеты в других городах: {listed}")
+        if unfinished:
+            print(f"Не дозаполнили анкету (в поиске их нет): {unfinished}")
+
+        found = await matching.find_candidates(session, user, 10)
+        print(f"\nКолода сейчас отдаёт: {len(found)}")
+        for candidate in found[:10]:
+            print(f"  {candidate.first_name}, {candidate.age}")
+        if not found:
+            print("  Пусто. Смотрите строки выше: скорее всего некого показывать")
+            print("  или все подходящие уже лайкнуты.")
 
 
 async def cmd_events() -> None:
@@ -206,6 +278,10 @@ async def main() -> None:
         await cmd_queue()
     elif command == "events":
         await cmd_events()
+    elif command == "deck":
+        if len(args) < 2:
+            sys.exit("Укажите telegram_id")
+        await cmd_deck(int(args[1]))
     elif command == "verify":
         if len(args) < 2:
             sys.exit("Укажите telegram_id")
