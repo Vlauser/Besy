@@ -7,3 +7,8 @@ User=treffit
 WorkingDirectory=/srv/treffit/backend
 EnvironmentFile=/srv/treffit/backend/.env
 ExecStart=/srv/treffit/backend/scripts/backup.sh
+
+# Дамп базы вместе с фотографиями в полторы минуты — умолчание systemd для
+# oneshot — не уложится, как только данных станет чуть больше. Обрыв на
+# середине оставил бы битый архив и ни одной внятной ошибки.
+TimeoutStartSec=1h

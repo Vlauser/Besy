@@ -8,3 +8,8 @@ User=treffit
 WorkingDirectory=/srv/treffit/backend
 EnvironmentFile=/srv/treffit/backend/.env
 ExecStart=/srv/treffit/backend/.venv/bin/python -m scripts.sync_events
+
+# Десять городов по десять страниц — это минуты, а не секунды: у Москвы и
+# Петербурга источник отвечает медленно и просит повторов. Умолчание
+# systemd для oneshot — полторы минуты, и обход обрывался бы на середине.
+TimeoutStartSec=30min
