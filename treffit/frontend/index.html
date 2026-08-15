@@ -5,6 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Treffit</title>
     <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
+    <script>
+      // Telegram держит свою заглушку — серый квадрат из четырёх плиток —
+      // пока страница не скажет, что она жива. Раньше это говорил React,
+      // то есть после загрузки и разбора всего бандла: на мобильном
+      // интернете человек столько и смотрел в заглушку.
+      //
+      // Здесь SDK уже разобран (скрипт выше блокирующий), а бандла ещё нет,
+      // и это самый ранний момент, когда сигнал вообще возможен.
+      try {
+        window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.ready();
+      } catch (error) {
+        // Вне Telegram объекта нет, и это не ошибка.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
