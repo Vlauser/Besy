@@ -39,17 +39,52 @@ export function getInitData() {
   return webApp()?.initData || "";
 }
 
+/** Ниже этого высота — не экран, а промежуточное состояние анимации. */
+const MIN_SENSIBLE_HEIGHT = 320;
+
 export function getViewportHeight() {
-  const app = webApp();
-  if (app?.viewportStableHeight) return app.viewportStableHeight;
-  return typeof window !== "undefined" ? window.innerHeight : 720;
+  const own = typeof window !== "undefined" ? window.innerHeight : 720;
+  const reported = webApp()?.viewportStableHeight || 0;
+
+  // Пока веб-вью разворачивается, Telegram отдаёт переходную высоту — при
+  // повторном открытии это бывают десятки пикселей. Раньше мы записывали её
+  // как есть, и она залипала: приложение схлопывалось в полоску, таб-бар
+  // оказывался под самой шапкой, а под ним пустота. Событий, которые это
+  // исправили бы, дальше не приходило.
+  if (reported >= MIN_SENSIBLE_HEIGHT) return reported;
+  if (own >= MIN_SENSIBLE_HEIGHT) return own;
+  return Math.max(reported, own, MIN_SENSIBLE_HEIGHT);
 }
 
 export function onViewportChange(handler) {
   const app = webApp();
-  if (!app?.onEvent) return () => {};
-  app.onEvent("viewportChanged", handler);
-  return () => app.offEvent("viewportChanged", handler);
+  const cleanups = [];
+
+  if (app?.onEvent) {
+    app.onEvent("viewportChanged", handler);
+    cleanups.push(() => app.offEvent("viewportChanged", handler));
+  }
+  if (typeof window === "undefined") return () => {};
+
+  // Своих событий Telegram при повторном открытии может не прислать вовсе:
+  // веб-вью не перезагружается, и мини-апп остаётся с той высотой, что была
+  // в момент сворачивания. Поэтому слушаем ещё и браузерные сигналы.
+  const revive = () => {
+    // Вернувшись, разворачиваемся заново: Telegram способен восстановить
+    // окно свёрнутым, и одной пересчитанной высоты тогда мало.
+    if (!document.hidden) app?.expand?.();
+    handler();
+  };
+  window.addEventListener("resize", revive);
+  window.addEventListener("focus", revive);
+  document.addEventListener("visibilitychange", revive);
+  cleanups.push(() => {
+    window.removeEventListener("resize", revive);
+    window.removeEventListener("focus", revive);
+    document.removeEventListener("visibilitychange", revive);
+  });
+
+  return () => cleanups.forEach((stop) => stop());
 }
 
 /** Сколько сверху и снизу занято чужим — вырезом экрана и шапкой Telegram.

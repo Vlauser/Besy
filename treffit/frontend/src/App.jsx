@@ -76,13 +76,22 @@ export default function App() {
 
   const boot = useCallback(async () => {
     try {
-      const productConfig = await endpoints.config();
+      // Оба запроса сразу: они друг от друга не зависят, а по очереди это
+      // два круга по сети до первого кадра — на мобильном интернете
+      // приложение столько и висело пустым.
+      const [productConfig, session] = await Promise.all([
+        endpoints.config(),
+        endpoints.me().then(
+          (value) => ({ ok: true, value }),
+          (error) => ({ ok: false, error })
+        ),
+      ]);
       setConfig(productConfig);
 
       let profile = null;
-      try {
-        profile = await endpoints.me();
-      } catch {
+      if (session.ok) {
+        profile = session.value;
+      } else {
         if (!isTelegram()) {
           // Три разных случая, и путать их нельзя: обычный браузер при
           // разработке, запуск не как Mini App, и прод без dev-входа.
