@@ -24,6 +24,33 @@ export function isTelegram() {
   return Boolean(webApp()?.initData);
 }
 
+/** Дождаться SDK, но не дольше отведённого срока.
+ *
+ *  Скрипт Telegram грузится с чужого домена и был блокирующим: пока он не
+ *  пришёл, браузер не шёл дальше по странице, и приложение не начинало
+ *  грузиться вовсе. Там, где `telegram.org` недоступен, это давало белый
+ *  экран без единого признака жизни — ни ошибки, ни подсказки.
+ *
+ *  Теперь скрипт асинхронный, а ждём его мы сами и ограниченное время. Не
+ *  дождались — запускаемся всё равно и говорим, что именно не загрузилось.
+ */
+export function waitForSdk(timeoutMs = 3000) {
+  if (hasTelegramSdk()) return Promise.resolve(true);
+  if (typeof window === "undefined") return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    // Опрос, а не onload: так работает независимо от того, каким путём
+    // скрипт добрался до страницы и добрался ли вообще.
+    const tick = () => {
+      if (hasTelegramSdk()) resolve(true);
+      else if (Date.now() >= deadline) resolve(false);
+      else setTimeout(tick, 50);
+    };
+    tick();
+  });
+}
+
 export function initTelegram() {
   const app = webApp();
   if (!app) return;

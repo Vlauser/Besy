@@ -4,7 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Treffit</title>
-    <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
+    <script>
+      // Telegram держит свою заглушку, пока страница не скажет, что она
+      // жива. Говорим это сразу, как только пришёл SDK, — не дожидаясь
+      // бандла.
+      window.__tgReady = function () {
+        try {
+          window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.ready();
+        } catch (error) {
+          /* вне Telegram объекта нет, и это не ошибка */
+        }
+      };
+    </script>
+    <!--
+      async обязателен. Блокирующим этот скрипт останавливал разбор всей
+      страницы до ответа чужого домена: там, где telegram.org недоступен,
+      человек видел белый экран и ничего больше. Приложение теперь ждёт SDK
+      само и ограниченное время — см. waitForSdk в lib/telegram.js.
+    -->
+    <script async src="https://telegram.org/js/telegram-web-app.js?63" onload="window.__tgReady()"></script>
     <script>
       // Telegram держит свою заглушку — серый квадрат из четырёх плиток —
       // пока страница не скажет, что она жива. Раньше это говорил React,

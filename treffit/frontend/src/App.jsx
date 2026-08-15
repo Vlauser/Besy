@@ -28,6 +28,7 @@ import {
   haptic,
   initTelegram,
   hasTelegramSdk,
+  waitForSdk,
   isTelegram,
   onSafeAreaChange,
   onViewportChange,
@@ -45,6 +46,9 @@ const TABS = [
   { key: "chats", label: "Чаты", icon: MessageCircle },
   { key: "profile", label: "Профиль", icon: UserIcon },
 ];
+
+// Сколько ждём скрипт Telegram, прежде чем запуститься без него.
+const SDK_WAIT_MS = 3000;
 
 const TAB_TITLES = {
   deck: "Поиск",
@@ -74,7 +78,7 @@ export default function App() {
 
   /* ---------------- boot: config + session ---------------- */
 
-  const boot = useCallback(async () => {
+  const boot = useCallback(async (sdkMissing = false) => {
     try {
       // Оба запроса сразу: они друг от друга не зависят, а по очереди это
       // два круга по сети до первого кадра — на мобильном интернете
@@ -101,7 +105,17 @@ export default function App() {
                 "кнопкой в боте или командой /start, а не по ссылке на сайт."
             );
           } else if (productConfig.dev_auth_allowed) {
+            // Разработка: SDK тут не бывает никогда, и сообщать о нём
+            // нечего — нужен обычный вход по списку.
             setNeedsDevLogin(true);
+          } else if (sdkMissing) {
+            // Отличать это от «открыто вне Telegram» важно: там человек
+            // сам зашёл по ссылке, а здесь он всё сделал правильно, просто
+            // не загрузился служебный скрипт с telegram.org.
+            setFatal(
+              "Не удалось загрузить служебный скрипт Telegram. Проверьте " +
+                "соединение и откройте приложение заново."
+            );
           } else {
             setFatal(
               "Приложение открыто вне Telegram. Запустите его через бота."
@@ -124,14 +138,28 @@ export default function App() {
     }
   }, []);
 
+  // Ждём SDK ограниченное время и стартуем в любом случае. Раньше ждать
+  // было незачем: скрипт был блокирующим, и к этому моменту он либо был,
+  // либо страница не дошла бы сюда вовсе.
+  const [sdkSettled, setSdkSettled] = useState(false);
   useEffect(() => {
-    initTelegram();
-    boot();
-    return () => realtime.disconnect();
+    let alive = true;
+    waitForSdk(SDK_WAIT_MS).then((arrived) => {
+      if (!alive) return;
+      setSdkSettled(true);
+      initTelegram();
+      boot(!arrived);
+    });
+    return () => {
+      alive = false;
+      realtime.disconnect();
+    };
   }, [boot]);
 
-  useEffect(() => onViewportChange(() => setHeight(getViewportHeight())), []);
-  useEffect(() => onSafeAreaChange(() => setInsets(getSafeAreaInsets())), []);
+  // Подписки переустанавливаем, когда SDK доехал: в момент первого показа
+  // его ещё нет, и своих событий Telegram нам тогда не отдал бы.
+  useEffect(() => onViewportChange(() => setHeight(getViewportHeight())), [sdkSettled]);
+  useEffect(() => onSafeAreaChange(() => setInsets(getSafeAreaInsets())), [sdkSettled]);
 
   // Re-authenticate only when a session we were actually using got rejected.
   const signedIn = Boolean(me);
