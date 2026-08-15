@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarClock, ChevronRight, MapPin, PartyPopper, Plus, Trash2, X } from "lucide-react";
 
 import { endpoints, mediaUrl } from "../api/client";
-import { Avatar, Button, EmptyState, Loading, Sheet, Spinner } from "../components/ui";
+import { Avatar, Button, Loading, Sheet, Spinner } from "../components/ui";
 import { haptic, showConfirm } from "../lib/telegram";
 import { T } from "../theme";
 
@@ -90,7 +90,12 @@ export function Meetups({ me, onError }) {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2 flex-shrink-0">
+      {/* Панель, а не строка навесу: с фоном и границей она принадлежит
+          разделу, а не висит сама по себе поверх пустоты. */}
+      <div
+        className="flex items-center justify-between gap-2 px-4 py-2.5 flex-shrink-0"
+        style={{ background: T.surface, borderBottom: `1px solid ${T.line}` }}
+      >
         <button
           onClick={() => setShowingMine(true)}
           className="flex items-center gap-1.5 text-sm font-semibold active:scale-95 transition-transform"
@@ -120,15 +125,10 @@ export function Meetups({ me, onError }) {
       {loading ? (
         <Loading label="Смотрим, что затевают…" />
       ) : !cards.length ? (
-        <EmptyState
-          icon={PartyPopper}
+        <EmptyCard
           title={me?.city ? `В городе ${me.city} пока тихо` : "Пока тихо"}
-          hint="Здесь события, которые придумали сами люди. Заведите своё — кнопка «плюс» сверху."
-          action={
-            <div className="w-full max-w-xs">
-              <Button onClick={() => setCreating(true)}>Создать событие</Button>
-            </div>
-          }
+          hint="Здесь события, которые придумывают сами люди: сходить куда-то компанией, поиграть вечером, обсудить что-нибудь."
+          onCreate={() => setCreating(true)}
         />
       ) : (
         <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-3 space-y-3">
@@ -154,6 +154,35 @@ export function Meetups({ me, onError }) {
         }}
         onError={onError}
       />
+    </div>
+  );
+}
+
+/**
+ * Пусто — но не пустой экран.
+ *
+ * Общая заглушка центрируется по всей высоте, и на телефоне это полэкрана
+ * ничего сверху и столько же снизу: раздел выглядит недоделанным, а не
+ * пустым. Здесь карточка стоит там же, где стояла бы первая настоящая, —
+ * сразу под панелью.
+ */
+function EmptyCard({ title, hint, onCreate }) {
+  return (
+    <div className="px-4 pt-3">
+      <div
+        className="rounded-3xl px-5 py-6 text-center"
+        style={{ background: T.surface, border: `1px solid ${T.line}` }}
+      >
+        <div
+          className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3.5"
+          style={{ background: T.surfaceSoft }}
+        >
+          <PartyPopper size={24} color={T.coral} />
+        </div>
+        <p className="font-display text-lg" style={{ color: T.ink }}>{title}</p>
+        <p className="text-sm mt-1.5 mb-5" style={{ color: T.muted }}>{hint}</p>
+        {onCreate && <Button onClick={onCreate}>Создать событие</Button>}
+      </div>
     </div>
   );
 }
@@ -406,8 +435,7 @@ function MyMeetups({ onBack, onError }) {
       </div>
 
       {!items.length ? (
-        <EmptyState
-          icon={PartyPopper}
+        <EmptyCard
           title="Вы пока ничего не заводили"
           hint="Своё событие видят люди из вашего города. Откликнувшихся вы увидите здесь."
         />
