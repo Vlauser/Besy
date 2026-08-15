@@ -22,6 +22,56 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Сторож.
+      //
+      // Если приложение не ожило за отведённое время, человек видит серый
+      // квадрат Telegram и не может сделать ровно ничего — ни понять, что
+      // случилось, ни перезапустить. Так и выглядел сбой после нескольких
+      // открытий подряд.
+      //
+      // Этот код нарочно обычный, без сборки и без зависимостей: он обязан
+      // работать именно тогда, когда бандл не загрузился.
+      (function () {
+        var WAIT_MS = 8000;
+        setTimeout(function () {
+          var root = document.getElementById("root");
+          if (window.__treffitMounted || (root && root.childElementCount > 0)) return;
+
+          root.innerHTML =
+            '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;' +
+            'justify-content:center;gap:14px;padding:32px;text-align:center;background:#F5F5F7;' +
+            'font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif">' +
+            '<p style="margin:0;font-size:17px;font-weight:700;color:#101014">Не удалось загрузить</p>' +
+            '<p style="margin:0;font-size:14px;line-height:1.45;color:#8A8A93;max-width:280px">' +
+            'Приложение не открылось за восемь секунд. Обычно помогает повторная попытка.</p>' +
+            '<button id="treffit-retry" style="margin-top:6px;border:0;border-radius:999px;' +
+            'padding:13px 30px;font-size:15px;font-weight:700;color:#fff;background:#12B76A">' +
+            'Обновить</button></div>';
+          document.getElementById("treffit-retry").onclick = function () {
+            location.reload();
+          };
+
+          // Сообщаем на сервер: без этого сбой снова останется без следа.
+          try {
+            var script = document.querySelector('script[src*="/assets/index-"]');
+            fetch("/api/client-errors", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              keepalive: true,
+              body: JSON.stringify({
+                message: "приложение не смонтировалось за " + WAIT_MS + " мс",
+                source: "сторож страницы",
+                bundle: script ? script.getAttribute("src").split("/").pop() : null,
+                path: location.pathname,
+              }),
+            }).catch(function () {});
+          } catch (error) {
+            /* связи нет — тогда и сообщать некуда */
+          }
+        }, WAIT_MS);
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

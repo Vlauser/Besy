@@ -357,6 +357,21 @@ class MeetupResponderOut(BaseModel):
     chat_id: int | None = None
 
 
+class ClientErrorIn(BaseModel):
+    """Сообщение об ошибке из браузера.
+
+    Все поля с потолком по длине: ручка открытая, и принимать сюда
+    килобайты чужого текста нельзя. Стек обрезаем щедрее остального — без
+    него сообщение чаще всего бесполезно.
+    """
+
+    message: str = Field(max_length=500)
+    source: str | None = Field(default=None, max_length=200)
+    stack: str | None = Field(default=None, max_length=4000)
+    bundle: str | None = Field(default=None, max_length=120)
+    path: str | None = Field(default=None, max_length=200)
+
+
 # --------------------------- safety & payments ---------------------------
 
 
