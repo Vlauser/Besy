@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   Flame,
   MessageCircle,
+  PartyPopper,
   User as UserIcon,
 } from "lucide-react";
 
@@ -15,6 +16,7 @@ import { Deck } from "./screens/Deck";
 import { Likes } from "./screens/Likes";
 import { DevLogin } from "./screens/DevLogin";
 import { Events } from "./screens/Events";
+import { Meetups } from "./screens/Meetups";
 import { Onboarding } from "./screens/Onboarding";
 import { Profile } from "./screens/Profile";
 import { Test } from "./screens/Test";
@@ -35,14 +37,19 @@ import { FALLBACK_GRADIENT, T, gradient } from "./theme";
 
 const TABS = [
   { key: "deck", label: "Поиск", icon: Flame },
-  { key: "events", label: "События", icon: Calendar },
+  // «Мероприятия» — афиша города, она приходит извне. «События» заводят
+  // сами люди. Раньше афиша называлась событиями, и для пользовательских
+  // событий не осталось бы слова.
+  { key: "events", label: "Мероприятия", icon: Calendar },
+  { key: "meetups", label: "События", icon: PartyPopper },
   { key: "chats", label: "Чаты", icon: MessageCircle },
   { key: "profile", label: "Профиль", icon: UserIcon },
 ];
 
 const TAB_TITLES = {
   deck: "Поиск",
-  events: "События",
+  events: "Мероприятия",
+  meetups: "События",
   chats: "Чаты",
   profile: "Профиль",
   test: "Мини-тест",
@@ -216,6 +223,8 @@ export default function App() {
   let body = null;
   if (tab === "events") {
     body = <Events onError={notify} />;
+  } else if (tab === "meetups") {
+    body = <Meetups me={me} onError={notify} />;
   } else if (tab === "deck") {
     body = (
       <Deck

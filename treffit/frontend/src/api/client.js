@@ -115,6 +115,19 @@ export const api = {
     formData.append("file", file);
     return request("POST", path, { formData });
   },
+  /** Форма с полями и, возможно, файлом — одним запросом. */
+  form: (path, fields, files = {}) => {
+    const formData = new FormData();
+    Object.entries(fields).forEach(([key, value]) => {
+      // Пустое поле не отправляем: сервер отличает «не прислали» от
+      // «прислали пустую строку», и второе ему пришлось бы разбирать.
+      if (value !== undefined && value !== null && value !== "") formData.append(key, value);
+    });
+    Object.entries(files).forEach(([key, file]) => {
+      if (file) formData.append(key, file);
+    });
+    return request("POST", path, { formData });
+  },
 };
 
 /** Photo URLs come back path-only; the token rides in the query because
@@ -172,6 +185,14 @@ export const endpoints = {
   sendMessage: (id, bodyText) => api.post(`/chats/${id}/messages`, { body: bodyText }),
   markRead: (id) => api.post(`/chats/${id}/read`),
   chatPhoto: (id) => api.get(`/chats/${id}/photo`),
+
+  meetups: () => api.get("/meetups"),
+  myMeetups: () => api.get("/meetups/mine"),
+  createMeetup: (fields, image) => api.form("/meetups", fields, { image }),
+  cancelMeetup: (id) => api.delete(`/meetups/${id}`),
+  respondToMeetup: (id, action) => api.post(`/meetups/${id}/respond`, { action }),
+  meetupResponses: (id) => api.get(`/meetups/${id}/responses`),
+  acceptResponder: (id, userId) => api.post(`/meetups/${id}/responses/${userId}/accept`),
 
   events: () => api.get("/events"),
   attend: (id) => api.post(`/events/${id}/attend`),
