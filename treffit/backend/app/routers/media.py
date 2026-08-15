@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..deps import CREDENTIALS_ERROR, current_user, load_user
-from ..models import ModerationStatus, Photo, User
+from ..models import Meetup, ModerationStatus, Photo, User
 from ..security import decode_access_token
 from ..serializers import can_view_photos
 from ..services import media
@@ -74,6 +74,42 @@ async def get_photo(
         # Private: a shared cache must never hand this to another viewer.
         headers={"Cache-Control": "private, max-age=3600"},
     )
+
+
+@router.get("/meetups/{meetup_id}")
+async def get_meetup_image(
+    meetup_id: int,
+    token: str | None = Query(default=None),
+    thumb: bool = Query(default=False),
+    authorization: str | None = Header(default=None),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Обложка события.
+
+    Правило проще, чем у анкетных фото: событие — публичное приглашение, и
+    скрывать его картинку от тех, кто видит саму карточку, незачем. Но
+    непроверенную модератором обложку не отдаём никому, кроме автора, —
+    ровно как с фотографиями.
+    """
+    meetup = await session.get(Meetup, meetup_id)
+    if meetup is None or not meetup.file_path:
+        raise HTTPException(status_code=404, detail="Картинка не найдена")
+
+    viewer = await _viewer(authorization, token, session)
+    # То же правило, что и в карточке: прячем только отклонённое. Иначе
+    # ссылка в ленте вела бы на 404.
+    if viewer.id != meetup.author_id and meetup.moderation_status == ModerationStatus.rejected.value:
+        raise HTTPException(status_code=404, detail="Картинка не найдена")
+
+    relative = meetup.thumb_path if (thumb and meetup.thumb_path) else meetup.file_path
+    try:
+        path = media.absolute_path(relative)
+    except media.PhotoError as exc:
+        raise HTTPException(status_code=404, detail="Файл недоступен") from exc
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Файл недоступен")
+
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.get("/photos/{photo_id}/meta")

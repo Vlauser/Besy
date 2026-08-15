@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     reveal_threshold: int = 3
     min_age: int = 18
     max_photos: int = 6
+    # Сколько своих событий можно держать открытыми разом. Без потолка одна
+    # учётная запись забивает ленту города целиком.
+    max_open_meetups: int = 5
     daily_like_limit: int = 50
     daily_like_limit_premium: int = 500
     deck_page_size: int = 20

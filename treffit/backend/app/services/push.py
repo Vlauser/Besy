@@ -92,6 +92,23 @@ async def notify_match(recipient: User, other: User) -> bool:
     )
 
 
+async def notify_meetup_response(author: User, responder: User, topic: str) -> bool:
+    """Автору события — что на него откликнулись.
+
+    Имя называем: отклик и так виден автору в списке, скрывать его в
+    уведомлении незачем. Тему обрезаем — она бывает длинной.
+    """
+    if not settings.push_enabled or not author.is_active or author.is_banned:
+        return False
+    if await manager.is_online_anywhere(author.id):
+        return False
+    return await send(
+        author.telegram_id,
+        f"🎟 <b>{_escape(responder.first_name)}</b> откликнулся(ась) на ваше событие "
+        f"«{_escape(_preview(topic))}»",
+    )
+
+
 async def notify_moderation(user: User, approved: bool, reason: str | None = None) -> bool:
     if not settings.push_enabled:
         return False

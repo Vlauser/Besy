@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -283,6 +284,77 @@ class LiveNeighbourOut(BaseModel):
     first_name: str
     gradient: str
     distance_m: int
+
+
+# --------------------------- события от людей ---------------------------
+
+
+class MeetupAuthorOut(BaseModel):
+    """Автор события в карточке. Ровно столько, сколько нужно решить,
+    откликаться ли, — не вся анкета."""
+
+    id: int
+    first_name: str
+    age: int | None = None
+    is_verified: bool = False
+    photo_url: str | None = None
+    gradient: str = "linear-gradient(135deg,#B9C6FF,#6E85E8)"
+
+
+class MeetupOut(BaseModel):
+    id: int
+    city: str
+    address: str
+    starts_at: datetime
+    topic: str
+    description: str | None = None
+    image_url: str | None = None
+    gradient: str
+    author: MeetupAuthorOut
+    # Заполняется только для своих событий: чужие счётчики автора не
+    # касаются.
+    responses: int | None = None
+    mine: bool = False
+
+
+class MeetupIn(BaseModel):
+    city: str = Field(max_length=64)
+    address: str = Field(min_length=3, max_length=255)
+    starts_at: datetime
+    topic: str = Field(min_length=3, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("city")
+    @classmethod
+    def known_city(cls, value: str) -> str:
+        city = cities.normalize(value)
+        if not city:
+            raise ValueError("Непонятный город")
+        return city
+
+    @field_validator("starts_at")
+    @classmethod
+    def not_in_the_past(cls, value: datetime) -> datetime:
+        moment = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        # Небольшой запас: пока человек заполняет форму, время уходит.
+        if moment < datetime.now(timezone.utc) - timedelta(minutes=5):
+            raise ValueError("Событие не может начинаться в прошлом")
+        return moment
+
+
+class MeetupResponseIn(BaseModel):
+    action: Literal["interested", "pass"]
+
+
+class MeetupResponderOut(BaseModel):
+    user_id: int
+    first_name: str
+    age: int | None = None
+    is_verified: bool = False
+    photo_url: str | None = None
+    gradient: str = "linear-gradient(135deg,#B9C6FF,#6E85E8)"
+    accepted: bool = False
+    chat_id: int | None = None
 
 
 # --------------------------- safety & payments ---------------------------

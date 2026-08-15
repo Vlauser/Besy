@@ -386,6 +386,65 @@ class Block(Base):
     __table_args__ = (UniqueConstraint("user_id", "blocked_id", name="uq_blocks_pair"),)
 
 
+class Meetup(Base):
+    """Событие, которое завёл сам пользователь.
+
+    Не то же самое, что `Event`: тот приходит из афиши, он про город целиком
+    и существует независимо от нас. Здесь — приглашение конкретного
+    человека: «иду на это, ищу компанию». Поэтому у него есть автор,
+    короткий срок жизни и отклики, а у афишного события ничего этого нет.
+    """
+
+    __tablename__ = "meetups"
+
+    id: Mapped[int] = mapped_column(PkType, primary_key=True)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    city: Mapped[str] = mapped_column(String(64), nullable=False)
+    address: Mapped[str] = mapped_column(String(255), nullable=False)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    topic: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+
+    # Картинка хранится как фото анкеты и проходит ту же модерацию: чужой
+    # снимок в ленте ничем не безопаснее чужого снимка в профиле.
+    file_path: Mapped[str | None] = mapped_column(String(255))
+    thumb_path: Mapped[str | None] = mapped_column(String(255))
+    blur_gradient: Mapped[str] = mapped_column(String(128), default="linear-gradient(135deg,#B9C6FF,#6E85E8)")
+    moderation_status: Mapped[str] = mapped_column(
+        String(16), default=ModerationStatus.approved.value, nullable=False
+    )
+    moderation_reason: Mapped[str | None] = mapped_column(String(255))
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    author: Mapped[User] = relationship(foreign_keys=[author_id])
+
+    __table_args__ = (Index("ix_meetups_feed", "city", "is_active", "starts_at"),)
+
+
+class MeetupResponse(Base):
+    """Отклик на чужое событие.
+
+    Отклик — это ещё не знакомство: автор видит откликнувшихся и сам решает,
+    кому открыть переписку. Иначе любой желающий попадал бы в личку к
+    автору, а от согласия обеих сторон не осталось бы ничего.
+    """
+
+    __tablename__ = "meetup_responses"
+
+    id: Mapped[int] = mapped_column(PkType, primary_key=True)
+    meetup_id: Mapped[int] = mapped_column(ForeignKey("meetups.id", ondelete="CASCADE"), index=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    responder: Mapped[User] = relationship(foreign_keys=[user_id])
+
+    __table_args__ = (UniqueConstraint("meetup_id", "user_id", name="uq_meetup_responses_pair"),)
+
+
 class Report(Base):
     __tablename__ = "reports"
 
