@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { CalendarClock, ChevronRight, MapPin, PartyPopper, Plus, Trash2, X } from "lucide-react";
+import { CalendarClock, ChevronRight, MapPin, Plus, Trash2, Users, X } from "lucide-react";
 
 import { endpoints, mediaUrl } from "../api/client";
 import { Avatar, Button, Loading, Sheet, Spinner } from "../components/ui";
@@ -177,7 +177,7 @@ function EmptyCard({ title, hint, onCreate }) {
           className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3.5"
           style={{ background: T.surfaceSoft }}
         >
-          <PartyPopper size={24} color={T.coral} />
+          <Users size={24} color={T.coral} />
         </div>
         <p className="font-display text-lg" style={{ color: T.ink }}>{title}</p>
         <p className="text-sm mt-1.5 mb-5" style={{ color: T.muted }}>{hint}</p>

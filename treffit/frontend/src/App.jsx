@@ -4,8 +4,8 @@ import {
   ChevronLeft,
   Flame,
   MessageCircle,
-  PartyPopper,
   User as UserIcon,
+  Users,
 } from "lucide-react";
 
 import { endpoints, mediaUrl, onUnauthorized, setToken } from "./api/client";
@@ -41,7 +41,7 @@ const TABS = [
   // сами люди. Раньше афиша называлась событиями, и для пользовательских
   // событий не осталось бы слова.
   { key: "events", label: "Мероприятия", icon: Calendar },
-  { key: "meetups", label: "События", icon: PartyPopper },
+  { key: "meetups", label: "События", icon: Users },
   { key: "chats", label: "Чаты", icon: MessageCircle },
   { key: "profile", label: "Профиль", icon: UserIcon },
 ];
@@ -424,10 +424,17 @@ function TabBar({ tab, onChange }) {
               haptic.select();
               onChange(key);
             }}
-            className="flex-1 flex flex-col items-center gap-0.5 py-2.5 active:scale-95 transition-transform"
+            className="flex-1 min-w-0 flex flex-col items-center gap-0.5 px-0.5 py-2.5 active:scale-95 transition-transform"
           >
-            <Icon size={19} color={active ? T.coral : T.muted} strokeWidth={active ? 2.4 : 2} />
-            <span className="text-[10px] font-semibold" style={{ color: active ? T.coral : T.muted }}>
+            {/* Коробка фиксированной высоты: у глифов разная вертикальная
+                масса, и без неё подписи стоят ровно, а иконки — вразнобой. */}
+            <span className="h-5 flex items-center justify-center">
+              <Icon size={19} color={active ? T.coral : T.muted} strokeWidth={active ? 2.4 : 2} />
+            </span>
+            <span
+              className="text-[10px] font-semibold leading-none truncate max-w-full"
+              style={{ color: active ? T.coral : T.muted }}
+            >
               {label}
             </span>
           </button>
