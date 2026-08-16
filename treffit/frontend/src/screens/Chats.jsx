@@ -183,7 +183,10 @@ export function ChatList({ onOpenChat, requests, onError }) {
               src={photo?.url ? mediaUrl(photo.url) : null}
               grad={photo?.gradient || FALLBACK_GRADIENT}
               size={48}
-              verified={chat.revealed}
+              // Галочка везде означает подтверждённую анкету. Здесь она
+              // стояла по `revealed`, а он при выключенном слепом режиме
+              // всегда истина — значок доставался каждому.
+              verified={chat.other.is_verified}
               online={chat.other.is_online}
             />
             <div className="flex-1 min-w-0">

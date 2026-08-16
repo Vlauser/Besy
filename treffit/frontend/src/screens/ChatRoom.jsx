@@ -6,6 +6,7 @@ import { CompatRing } from "../components/CompatRing";
 import { MessageList } from "../components/MessageList";
 import { ScratchPhoto } from "../components/Scratch";
 import { Avatar, Button, Loading, Pill, Sheet } from "../components/ui";
+import { partnerStatus } from "../lib/chatStatus";
 import { realtime } from "../lib/realtime";
 import { haptic, showConfirm } from "../lib/telegram";
 import { FALLBACK_GRADIENT, T, gradient } from "../theme";
@@ -225,7 +226,13 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
 
   const photo = chat.other.photos?.[0];
   const photoSrc = photo?.url ? mediaUrl(photo.url) : null;
-  const remaining = chat.remaining_to_reveal;
+  const status = partnerStatus({
+    typing,
+    blindMode: config.blind_mode,
+    revealed: chat.revealed,
+    remaining: chat.remaining_to_reveal,
+    online: chat.other.is_online,
+  });
 
   return (
     <div className="flex flex-col h-full">
@@ -243,7 +250,11 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
             src={photoSrc}
             grad={photo?.gradient || FALLBACK_GRADIENT}
             size={44}
-            verified={chat.revealed}
+            // Галочка во всём приложении означает подтверждённую анкету.
+            // Здесь она стояла по `revealed`, и с выключенным слепым
+            // режимом её получал каждый собеседник — приложение молча
+            // утверждало о человеке то, чего не проверяло.
+            verified={chat.other.is_verified}
             online={chat.other.is_online}
           />
           <div className="flex-1 min-w-0">
@@ -251,16 +262,18 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
               {chat.other.first_name}
               {chat.other.age ? `, ${chat.other.age}` : ""}
             </p>
-            <p className="text-xs truncate" style={{ color: typing ? T.coral : chat.revealed ? T.gold : T.muted }}>
-              {typing
-                ? "печатает…"
-                : chat.revealed
-                ? "фото открыто"
-                : config.blind_mode
-                ? `ещё ${remaining} сообщ. до фото`
-                : chat.other.is_online
-                ? "онлайн"
-                : "не в сети"}
+            <p
+              className="text-xs truncate"
+              style={{
+                color:
+                  status.tone === "typing"
+                    ? T.coral
+                    : status.tone === "precious"
+                    ? T.gold
+                    : T.muted,
+              }}
+            >
+              {status.text}
             </p>
           </div>
           <ChevronRight size={16} color={T.muted} className="flex-shrink-0" />
@@ -418,7 +431,7 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
       >
         <PartnerProfile
           partner={chat.other}
-          remaining={config.blind_mode && !chat.revealed ? remaining : 0}
+          remaining={config.blind_mode && !chat.revealed ? chat.remaining_to_reveal : 0}
           onZoom={setZoomed}
         />
       </Sheet>
