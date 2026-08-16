@@ -159,9 +159,9 @@ await page_.route(
 );
 
 await page_.goto(BASE_URL, { waitUntil: "domcontentloaded" });
-const tab = (name) => page_.locator("button").filter({ hasText: new RegExp(`^${name}$`) }).last();
-await tab("Чаты").waitFor({ timeout: 15000 });
-await tab("Чаты").click();
+const tab = (name) => page_.locator(`[data-tab="${name}"]`);
+await tab("chats").waitFor({ timeout: 15000 });
+await tab("chats").click();
 
 await page_.locator("text=Аня").first().click();
 // Точное совпадение: `text=` ищет подстроку, и «сообщение 1» поймало бы

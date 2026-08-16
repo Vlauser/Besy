@@ -88,6 +88,9 @@ await page.route(
     if (path === "/api/me") return json(route, ME);
     if (path === "/api/likes/incoming/count") return json(route, { count: 0 });
     if (path === "/api/payments/products") return json(route, { items: [] });
+    // Раньше STALLED: этот путь начинается с /api/chats, и без явной
+    // ветки запрос за числом непрочитанного повис бы вместе со списком.
+    if (path === "/api/chats/unread-count") return json(route, { count: 3 });
     if (STALLED.some((prefix) => path.startsWith(prefix))) {
       await new Promise((resolve) => setTimeout(resolve, 30000));
       return route.abort();
@@ -100,8 +103,8 @@ await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
 
 // Именно кнопка нижней панели и точное совпадение: «Поиск» встречается и
 // в подписях профиля («возраст поиска»), а text= ищет подстроку.
-const tab = (name) => page.locator("button").filter({ hasText: new RegExp(`^${name}$`) }).last();
-await tab("Поиск").waitFor({ timeout: 15000 });
+const tab = (name) => page.locator(`[data-tab="${name}"]`);
+await tab("deck").waitFor({ timeout: 15000 });
 
 /* ---------------- заготовки вместо спиннеров ---------------- */
 
@@ -112,26 +115,31 @@ check("спиннера на колоде нет", await page.locator(".animate-
 
 const screen = () => page.locator("#root div.min-h-full").first().getAttribute("class");
 
-await tab("Мероприятия").click();
+await tab("events").click();
 await page.waitForTimeout(60);
 check("вперёд по панели — сдвиг справа", /screen-in-fwd/.test((await screen()) || ""));
 check("на афише тоже заготовки", (await page.locator(".skeleton").count()) > 0);
 
-await tab("Профиль").click();
+await tab("profile").click();
 await page.waitForTimeout(400);
-await tab("Поиск").click();
+await tab("deck").click();
 await page.waitForTimeout(60);
 check("назад по панели — сдвиг слева", /screen-in-back/.test((await screen()) || ""));
 
 /* ---------------- блик на главной кнопке ---------------- */
 
-await tab("События").click();
+await tab("meetups").click();
 await page.waitForTimeout(400);
 check("у главной кнопки есть блик", (await page.locator(".sheen").count()) > 0);
 
+/* ---------------- значок непрочитанного ---------------- */
+
+check("на вкладке чатов горит число непрочитанного", await tab("chats").innerText(), "3\nЧаты");
+check("на других вкладках значка нет", (await tab("deck").innerText()).trim(), "Поиск");
+
 if (SHOTS) {
   await page.screenshot({ path: `${SHOTS}/meetups.png` });
-  await tab("Поиск").click();
+  await tab("deck").click();
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${SHOTS}/deck-skeleton.png` });
 }

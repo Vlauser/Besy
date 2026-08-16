@@ -114,7 +114,7 @@ export function Deck({ config, homeCity, onMatch, onOpenLikes, onOpenCandidate, 
   const top = visible[0];
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 px-4 pt-3 pb-2">
+    <div className="flex flex-col flex-1 min-h-0 px-4 pt-7 pb-2">
       {likedMe > 0 && (
         <button
           onClick={onOpenLikes}

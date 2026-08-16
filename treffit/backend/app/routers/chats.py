@@ -151,6 +151,29 @@ async def list_chats(
     return out
 
 
+@router.get("/chats/unread-count")
+async def count_unread_chats(
+    user: User = Depends(onboarded_user), session: AsyncSession = Depends(get_session)
+) -> dict:
+    """Сколько чатов ждут ответа.
+
+    Нужен значку на вкладке «Чаты»: он обязан гореть и тогда, когда человек
+    находится на другом экране, а тянуть ради одного числа весь список —
+    несоразмерно.
+    """
+    total = await session.scalar(
+        select(func.count())
+        .select_from(Chat)
+        .where(
+            or_(
+                (Chat.user_a_id == user.id) & (Chat.unread_a > 0),
+                (Chat.user_b_id == user.id) & (Chat.unread_b > 0),
+            )
+        )
+    )
+    return {"count": int(total or 0)}
+
+
 @router.get("/chats/{chat_id}", response_model=ChatOut)
 async def read_chat(
     chat_id: int, user: User = Depends(onboarded_user), session: AsyncSession = Depends(get_session)

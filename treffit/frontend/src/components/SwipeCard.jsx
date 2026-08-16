@@ -138,9 +138,17 @@ export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, dep
         background: T.surface,
         borderRadius: 28,
         boxShadow: "0 24px 50px -20px rgba(16,16,20,0.4)",
+        // Карточки за верхней прижаты к её верхнему краю: при обычном
+        // центре уменьшение съедало сверху ровно столько, сколько давал
+        // сдвиг, и стопка выглядела одной карточкой. С origin по верху
+        // сжимается только низ, и над верхней остаётся видимая полоска —
+        // сразу понятно, что за ней есть ещё.
+        transformOrigin: depth ? "top center" : "center",
         transform:
           exitTransform ||
-          `translate(${drag.x}px, ${drag.y * 0.35}px) rotate(${rotation}deg) scale(${1 - depth * 0.04}) translateY(${depth * 10}px)`,
+          (depth
+            ? `translateY(${-depth * 10}px) scale(${1 - depth * 0.045})`
+            : `translate(${drag.x}px, ${drag.y * 0.35}px) rotate(${rotation}deg)`),
         // Пока палец на экране — никакой анимации, карточка обязана идти
         // за ним ровно. Улетает быстро и с разгоном, возвращается пружиной
         // с лёгким перелётом: так она ощущается предметом, а не картинкой.
@@ -247,6 +255,32 @@ export function SwipeCard({ candidate, onDecide, onOpen, interactive = true, dep
               ))}
             </div>
           )}
+
+          {/* Интересы приходили с сервера и не показывались нигде: именно
+              их люди и разглядывают, решая. Показываем те, что не повторяют
+              уже написанное в общих ответах. */}
+          {(() => {
+            const shared = new Set((candidate.shared_flags || []).map((f) => f.toLowerCase()));
+            const tags = (candidate.interests || []).filter((t) => !shared.has(t.toLowerCase()));
+            if (!tags.length) return null;
+            return (
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {tags.slice(0, 3).map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full px-2.5 py-1 text-xs"
+                    style={{
+                      background: "rgba(255,255,255,0.12)",
+                      color: "rgba(255,255,255,0.92)",
+                      border: "1px solid rgba(255,255,255,0.22)",
+                    }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
 
           {candidate.event && (
             <div className="flex items-center gap-1.5 mt-2">

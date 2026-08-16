@@ -96,6 +96,9 @@ const TABS = [
 // Сколько ждём скрипт Telegram, прежде чем запуститься без него.
 const SDK_WAIT_MS = 3000;
 
+// Пауза, за которую очередь входящих схлопывается в один запрос за числом.
+const UNREAD_DEBOUNCE_MS = 500;
+
 // Какой заготовкой закрывать вкладку, пока её кусок едет.
 const FALLBACK_KIND = {
   deck: "deck",
@@ -128,6 +131,10 @@ export default function App() {
   // момент перехода: в самой отрисовке прошлой вкладки уже нет.
   const [tabMotion, setTabMotion] = useState("screen-in");
   const [activeChatId, setActiveChatId] = useState(null);
+  // Сколько чатов ждут ответа. Значок на вкладке обязан гореть и тогда,
+  // когда человек на другом экране, поэтому число живёт здесь, а не в
+  // списке чатов.
+  const [unreadChats, setUnreadChats] = useState(0);
   const [candidate, setCandidate] = useState(null);
   const [matchPopup, setMatchPopup] = useState(null);
   const [toast, setToast] = useState(null);
@@ -247,6 +254,32 @@ export default function App() {
       boot();
     });
   }, [boot, signedIn]);
+
+  /* ---------------- значок непрочитанного ---------------- */
+
+  const refreshUnread = useCallback(() => {
+    // Молча: значок — не то, ради чего стоит показывать ошибку.
+    endpoints.unreadChats().then((data) => setUnreadChats(data.count)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!signedIn) return undefined;
+    refreshUnread();
+    // Выход из чата — момент, когда прочитанное уже отмечено на сервере.
+    let timer = null;
+    const stop = realtime.subscribe((event) => {
+      if (!["message", "read"].includes(event.type)) return;
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        refreshUnread();
+      }, UNREAD_DEBOUNCE_MS);
+    });
+    return () => {
+      stop();
+      clearTimeout(timer);
+    };
+  }, [signedIn, refreshUnread, activeChatId]);
 
   /* ---------------- realtime notifications ---------------- */
 
@@ -417,7 +450,7 @@ export default function App() {
       onBack={
         tab === "test" ? () => changeTab("profile") : tab === "likes" ? () => changeTab("deck") : null
       }
-      footer={<TabBar tab={tab} onChange={changeTab} />}
+      footer={<TabBar tab={tab} onChange={changeTab} badges={{ chats: unreadChats }} />}
     >
       <GlobalStyle />
       {/* min-h-full даёт нижнюю границу, flex-shrink-0 не даёт сжаться ниже
@@ -522,7 +555,7 @@ function Shell({ height, insets, title, onBack, footer, bare, children }) {
   );
 }
 
-function TabBar({ tab, onChange }) {
+function TabBar({ tab, onChange, badges = {} }) {
   return (
     <div
       className="flex items-stretch flex-shrink-0"
@@ -533,6 +566,10 @@ function TabBar({ tab, onChange }) {
         return (
           <button
             key={key}
+            // Метка для проверок: подпись вкладки для этого не годится —
+            // рядом с ней живёт значок непрочитанного, и точное совпадение
+            // по тексту ломается, стоит значку зажечься.
+            data-tab={key}
             onClick={() => {
               haptic.select();
               onChange(key);
@@ -541,8 +578,23 @@ function TabBar({ tab, onChange }) {
           >
             {/* Коробка фиксированной высоты: у глифов разная вертикальная
                 масса, и без неё подписи стоят ровно, а иконки — вразнобой. */}
-            <span className="h-5 flex items-center justify-center">
+            <span className="h-5 flex items-center justify-center relative">
               <Icon size={19} color={active ? T.coral : T.muted} strokeWidth={active ? 2.4 : 2} />
+              {badges[key] > 0 && (
+                <span
+                  className="absolute text-[10px] font-bold rounded-full px-1 text-white text-center"
+                  style={{
+                    left: "calc(50% + 5px)",
+                    top: -5,
+                    minWidth: 16,
+                    lineHeight: "15px",
+                    background: T.coral,
+                    border: "2px solid #FFFFFF",
+                  }}
+                >
+                  {badges[key] > 99 ? "99+" : badges[key]}
+                </span>
+              )}
             </span>
             <span
               className="text-[10px] font-semibold leading-none truncate max-w-full"

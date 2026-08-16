@@ -179,6 +179,7 @@ export const endpoints = {
 
   matches: () => api.get("/matches"),
   chats: () => api.get("/chats"),
+  unreadChats: () => api.get("/chats/unread-count"),
   chat: (id) => api.get(`/chats/${id}`),
   messages: (id, beforeId) =>
     api.get(`/chats/${id}/messages${beforeId ? `?before_id=${beforeId}` : ""}`),

@@ -91,3 +91,21 @@ async def test_chat_list_still_carries_partner_photos_and_preview(user_factory):
         assert chat["other"]["first_name"].startswith("Партнёр")
         assert chat["last_message"]["body"].startswith("привет")
         assert chat["other"]["is_online"] is False
+
+
+async def test_unread_count_reflects_only_chats_waiting_for_an_answer(user_factory):
+    viewer = await matched_chats(user_factory, 8000, partners=3)
+    # В каждом из трёх чатов лежит по сообщению от партнёра.
+    assert (await viewer.get("/chats/unread-count")).json() == {"count": 3}
+
+    chats = (await viewer.get("/chats")).json()
+    await viewer.post(f"/chats/{chats[0]['id']}/read")
+    assert (await viewer.get("/chats/unread-count")).json() == {"count": 2}
+
+
+async def test_unread_count_is_not_swallowed_by_the_chat_route(user_factory):
+    """«unread-count» не должен уехать в обработчик /chats/{chat_id}."""
+    viewer = await matched_chats(user_factory, 9000, partners=1)
+    response = await viewer.get("/chats/unread-count")
+    assert response.status_code == 200, response.text
+    assert set(response.json()) == {"count"}
