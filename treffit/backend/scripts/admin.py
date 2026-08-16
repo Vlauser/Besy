@@ -8,6 +8,7 @@
     python -m scripts.admin queue               открытые заявки на верификацию
     python -m scripts.admin events              что лежит в афише и что из этого видно
     python -m scripts.admin deck <tg_id>        почему в колоде столько людей
+    python -m scripts.admin meetups <tg_id>     почему в «Событиях» столько карточек
     python -m scripts.admin reset-swipes <tg_id>  вернуть всех в колоду (отладка)
 
 Запускать от пользователя сервиса, с переменными из .env:
@@ -27,6 +28,7 @@ from app.config import settings
 from app.db import SessionLocal
 from app.models import Event, ModerationStatus, Photo, User, Verification, VerificationStatus
 from app.services import review, verification as verification_service
+from app.timeutil import as_utc
 
 
 async def cmd_status() -> None:
@@ -197,6 +199,78 @@ async def cmd_deck(telegram_id: int) -> None:
                 counted += 1
         if not counted:
             print("    Причин не нашлось — похоже, в базе больше вообще никого нет.")
+
+
+async def cmd_meetups(telegram_id: int) -> None:
+    """Почему этот человек видит в «Событиях» именно столько.
+
+    Лента прячет карточки по нескольким причинам сразу, и по экрану их не
+    различить: своё событие, уже отвеченное, чужой город, начавшееся. Здесь
+    перечислены все события с ответом по каждому.
+    """
+    from app.models import Block, Meetup, MeetupResponse
+
+    async with SessionLocal() as session:
+        user = await _find(session, telegram_id)
+        now = datetime.now(timezone.utc)
+        print(f"{user.first_name}: город «{user.city or 'не указан'}», сейчас {now:%H:%M UTC}")
+
+        answered = dict(
+            (
+                await session.execute(
+                    select(MeetupResponse.meetup_id, MeetupResponse.action).where(
+                        MeetupResponse.user_id == user.id
+                    )
+                )
+            ).all()
+        )
+        blocked = set(
+            (
+                await session.execute(
+                    select(Block.blocked_id).where(Block.user_id == user.id)
+                )
+            ).scalars()
+        ) | set(
+            (
+                await session.execute(
+                    select(Block.user_id).where(Block.blocked_id == user.id)
+                )
+            ).scalars()
+        )
+
+        rows = await session.execute(
+            select(Meetup).order_by(Meetup.starts_at.desc()).limit(40)
+        )
+        meetups = list(rows.scalars())
+        if not meetups:
+            print("\nСобытий в базе нет вообще.")
+            return
+
+        shown = 0
+        print(f"\nВсего событий в базе: {len(meetups)}")
+        for meetup in meetups:
+            author = await session.get(User, meetup.author_id)
+            when = as_utc(meetup.starts_at)
+            if not meetup.is_active:
+                reason = "снято автором"
+            elif meetup.author_id == user.id:
+                reason = "ваше собственное"
+            elif when and when < now:
+                reason = f"уже началось ({when:%d.%m %H:%M UTC})"
+            elif meetup.city != user.city:
+                reason = f"другой город — {meetup.city}"
+            elif meetup.author_id in blocked:
+                reason = "между вами блокировка"
+            elif meetup.id in answered:
+                choice = "откликнулись" if answered[meetup.id] == "interested" else "пропустили"
+                reason = f"вы уже {choice}"
+            else:
+                reason = None
+                shown += 1
+            mark = "видно" if reason is None else f"скрыто: {reason}"
+            print(f"  «{meetup.topic}» от {author.first_name if author else '?'} — {mark}")
+
+        print(f"\nВ ленте у него сейчас: {shown}")
 
 
 async def cmd_events() -> None:
@@ -391,6 +465,10 @@ async def main() -> None:
         await cmd_queue()
     elif command == "events":
         await cmd_events()
+    elif command == "meetups":
+        if len(args) < 2:
+            sys.exit("Укажите telegram_id")
+        await cmd_meetups(int(args[1]))
     elif command == "deck":
         if len(args) < 2:
             sys.exit("Укажите telegram_id")
