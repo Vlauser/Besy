@@ -447,6 +447,21 @@ async def cmd_reset_swipes(telegram_id: int) -> None:
         print("Матчи, чаты и сообщения не тронуты.")
 
 
+def _telegram_id(args: list[str]) -> int:
+    """Разобрать telegram_id из аргументов, внятно ругаясь на мусор.
+
+    Команды копируют из переписки, и в аргумент регулярно попадает то
+    кусок соседней строки, то угловые скобки из примера. Голый трейсбек
+    про int() в этот момент не помогает никому.
+    """
+    if len(args) < 2:
+        sys.exit("Укажите telegram_id: например, 1084773795")
+    raw = args[1].strip().lstrip("<").rstrip(">")
+    if not raw.lstrip("-").isdigit():
+        sys.exit(f"«{args[1]}» — это не telegram_id. Нужно число, например 1084773795")
+    return int(raw)
+
+
 async def main() -> None:
     args = sys.argv[1:]
     if not args:
@@ -458,29 +473,19 @@ async def main() -> None:
     elif command == "photos":
         await cmd_photos(int(args[1]) if len(args) > 1 else 10)
     elif command == "premium":
-        if len(args) < 2:
-            sys.exit("Укажите telegram_id")
-        await cmd_premium(int(args[1]), enable=(len(args) < 3 or args[2] != "off"))
+        await cmd_premium(_telegram_id(args), enable=(len(args) < 3 or args[2] != "off"))
     elif command == "queue":
         await cmd_queue()
     elif command == "events":
         await cmd_events()
     elif command == "meetups":
-        if len(args) < 2:
-            sys.exit("Укажите telegram_id")
-        await cmd_meetups(int(args[1]))
+        await cmd_meetups(_telegram_id(args))
     elif command == "deck":
-        if len(args) < 2:
-            sys.exit("Укажите telegram_id")
-        await cmd_deck(int(args[1]))
+        await cmd_deck(_telegram_id(args))
     elif command == "reset-swipes":
-        if len(args) < 2:
-            sys.exit("Укажите telegram_id")
-        await cmd_reset_swipes(int(args[1]))
+        await cmd_reset_swipes(_telegram_id(args))
     elif command == "verify":
-        if len(args) < 2:
-            sys.exit("Укажите telegram_id")
-        await cmd_verify(int(args[1]))
+        await cmd_verify(_telegram_id(args))
     else:
         sys.exit(__doc__)
 
