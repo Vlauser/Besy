@@ -329,25 +329,31 @@ function Stamp({ label, color, rotate, opacity, side }) {
  */
 export function SwipeControls({ onPass, onSuperlike, onLike, onUndo, canUndo, compatibility, disabled }) {
   return (
-    <div className="flex items-end justify-center gap-4 pt-3 pb-6">
-      {/* Отмена стоит с краю и меньше остальных: она нужна редко, и
-          промахнуться по ней вместо «пропустить» было бы издевательством
-          над тем, ради чего она сделана. Кнопка не исчезает, когда
-          отменять нечего, — прыгающий ряд хуже, чем гашёная кнопка. */}
+    // Общая линия — по центрам кружков, а не по низу. При выравнивании по
+    // нижнему краю маленькая отмена проваливалась вниз, а звезда, у
+    // которой снизу висит процент, наоборот приподнималась: четыре кнопки
+    // стояли на четырёх разных уровнях.
+    <div className="flex items-center justify-center gap-4 pt-3 pb-6">
+      {/* Отмена с краю и меньше остальных: нужна редко, и промахнуться по
+          ней вместо «пропустить» было бы издевательством над тем, ради
+          чего она сделана. Кнопка не исчезает, когда отменять нечего, —
+          прыгающий ряд хуже, чем гашёная кнопка. */}
       <RoundButton
         onClick={onUndo}
         disabled={disabled || !canUndo}
-        size={46}
+        size={48}
         label="Вернуть предыдущую"
       >
-        <RotateCcw size={19} color={T.muted} strokeWidth={2.4} />
+        <RotateCcw size={20} color={T.muted} strokeWidth={2.4} />
       </RoundButton>
 
       <RoundButton onClick={onPass} disabled={disabled} size={62} label="Пропустить">
         <X size={26} color={T.danger} strokeWidth={2.6} />
       </RoundButton>
 
-      <div className="flex flex-col items-center">
+      {/* Процент вынесен из потока: пока он был обычным элементом колонки,
+          он занимал место снизу и сдвигал саму звезду вверх. */}
+      <div className="relative flex-shrink-0">
         <RoundButton
           onClick={onSuperlike}
           disabled={disabled}
@@ -359,14 +365,12 @@ export function SwipeControls({ onPass, onSuperlike, onLike, onUndo, canUndo, co
         </RoundButton>
         {typeof compatibility === "number" && (
           <span
-            className="rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
+            className="absolute rounded-full px-2.5 py-0.5 text-xs font-bold text-white whitespace-nowrap"
             style={{
               background: gradient.action,
-              // Наезжает на кнопку снизу, но поверх неё, а не под: иначе
-              // цифру срезает краем кружка.
-              marginTop: -11,
-              position: "relative",
-              zIndex: 1,
+              left: "50%",
+              bottom: -9,
+              transform: "translateX(-50%)",
               border: `2px solid ${T.bg}`,
               boxShadow: "0 6px 14px -6px rgba(61,107,255,0.7)",
             }}

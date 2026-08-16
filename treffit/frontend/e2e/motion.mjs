@@ -193,6 +193,31 @@ check("отмена ушла на сервер", undoCalls, 1);
 check("вернувшаяся анкета снова сверху", (await page.getByText("Аня, 25").count()) > 0);
 check("повторно отменять нечего", await undoButton.isDisabled());
 
+/* ---------------- ряд кнопок стоит ровно ---------------- */
+
+// Кнопки разного размера, и выравнивание по нижнему краю разносило их по
+// четырём разным уровням: маленькая отмена проваливалась, а звезда с
+// процентом под ней приподнималась. Проверяем то, что видно глазом, —
+// центры кружков на одной линии.
+const centers = await page.evaluate(() =>
+  ["Вернуть предыдущую", "Пропустить", "Суперлайк", "Лайк"].map((label) => {
+    const box = document.querySelector(`[aria-label="${label}"]`).getBoundingClientRect();
+    return Math.round(box.top + box.height / 2);
+  })
+);
+check(
+  `центры кнопок на одной линии (${centers.join(", ")})`,
+  Math.max(...centers) - Math.min(...centers) <= 1
+);
+
+// И сам ряд по центру экрана, а не смещён в сторону.
+const rowOffset = await page.evaluate(() => {
+  const first = document.querySelector('[aria-label="Вернуть предыдущую"]').getBoundingClientRect();
+  const last = document.querySelector('[aria-label="Лайк"]').getBoundingClientRect();
+  return Math.abs((first.left + last.right) / 2 - window.innerWidth / 2);
+});
+check(`ряд по центру экрана (сдвиг ${Math.round(rowOffset)}px)`, rowOffset <= 2);
+
 console.log(results.join("\n"));
 console.log(failures ? `\n${failures} проверок не прошло` : "\nвсё прошло");
 await browser.close();
