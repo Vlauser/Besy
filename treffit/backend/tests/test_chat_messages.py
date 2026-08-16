@@ -190,3 +190,34 @@ async def test_a_deleted_photo_stops_being_served(user_factory):
     url = sent["photo_url"]
     await her.delete(f"/chats/{chat}/messages/{sent['id']}")
     assert (await him.get(url)).status_code == 404
+
+
+async def test_a_quote_of_your_own_message_says_you(user_factory):
+    """«Собеседник» на своей же реплике читается как чужая."""
+    her, him, chat = await matched_pair(user_factory)
+    first = (await her.post(f"/chats/{chat}/messages", json={"body": "мысль"})).json()["message"]
+    answer = (
+        await her.post(f"/chats/{chat}/messages", json={"body": "и ещё", "reply_to_id": first["id"]})
+    ).json()["message"]
+    assert answer["reply_to"]["author"] == "Вы"
+
+    # А тому же сообщению у собеседника — имя автора.
+    seen = (await him.get(f"/chats/{chat}/messages")).json()
+    quoted = next(m for m in seen if m["id"] == answer["id"])
+    assert quoted["reply_to"]["author"] == "Аня"
+
+
+async def test_the_chat_list_survives_a_reply(user_factory):
+    """Список чатов достаёт сообщение ради превью, без цитаты.
+
+    Обращение к незагруженной связи в этот момент — ленивая подгрузка в
+    асинхронном коде, то есть 500 на весь список. Проверяем именно её.
+    """
+    her, him, chat = await matched_pair(user_factory)
+    first = (await her.post(f"/chats/{chat}/messages", json={"body": "раз"})).json()["message"]
+    await him.post(f"/chats/{chat}/messages", json={"body": "два", "reply_to_id": first["id"]})
+
+    for actor in (her, him):
+        response = await actor.get("/chats")
+        assert response.status_code == 200, response.text
+        assert len(response.json()) == 1

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, Flag, MapPin, Send, Shield, X } from "lucide-react";
+import { ChevronRight, Flag, ImagePlus, MapPin, Pencil, Send, Shield, X } from "lucide-react";
 
 import { endpoints, mediaUrl } from "../api/client";
 import { CompatRing } from "../components/CompatRing";
+import { MessageList } from "../components/MessageList";
 import { ScratchPhoto } from "../components/Scratch";
 import { Avatar, Button, Loading, Pill, Sheet } from "../components/ui";
 import { realtime } from "../lib/realtime";
@@ -28,7 +29,12 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [zoomed, setZoomed] = useState(null);
+  // На что отвечаем и что правим. Одновременно не бывает: правка своего
+  // сообщения и ответ на чужое — разные намерения.
+  const [replyTo, setReplyTo] = useState(null);
+  const [editing, setEditing] = useState(null);
   const bottomRef = useRef(null);
+  const fileRef = useRef(null);
   const typingTimer = useRef(null);
 
   const load = useCallback(async () => {
@@ -58,6 +64,20 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
         );
         endpoints.markRead(chatId).catch(() => {});
       }
+      if (event.type === "message_edited") {
+        setMessages((current) =>
+          current.map((message) => (message.id === event.message.id ? event.message : message))
+        );
+      }
+      if (event.type === "message_deleted") {
+        setMessages((current) =>
+          current.map((message) =>
+            message.id === event.message_id
+              ? { ...message, deleted: true, body: "", photo_url: null }
+              : message
+          )
+        );
+      }
       if (event.type === "typing") {
         setTyping(event.state);
         clearTimeout(typingTimer.current);
@@ -73,10 +93,31 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
   async function send() {
     const body = text.trim();
     if (!body || sending) return;
+
+    if (editing) {
+      const target = editing;
+      setSending(true);
+      setText("");
+      setEditing(null);
+      try {
+        const saved = await endpoints.editMessage(chatId, target.id, body);
+        setMessages((current) => current.map((m) => (m.id === saved.id ? saved : m)));
+      } catch (error) {
+        setText(body);
+        setEditing(target);
+        onError(error.detail || error.message);
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     setSending(true);
     setText("");
+    const quoted = replyTo;
+    setReplyTo(null);
     try {
-      const result = await endpoints.sendMessage(chatId, body);
+      const result = await endpoints.sendMessage(chatId, body, quoted?.id ?? null);
       setMessages((current) => [
         ...current,
         result.message,
@@ -100,10 +141,45 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
       }
     } catch (error) {
       setText(body);
+      setReplyTo(quoted);
       onError(error.detail || error.message);
     } finally {
       setSending(false);
     }
+  }
+
+  async function sendPhoto(file) {
+    if (!file || sending) return;
+    setSending(true);
+    const quoted = replyTo;
+    setReplyTo(null);
+    try {
+      const result = await endpoints.sendChatPhoto(chatId, file, text.trim(), quoted?.id ?? null);
+      setText("");
+      setMessages((current) => [...current, result.message]);
+      haptic.light();
+    } catch (error) {
+      setReplyTo(quoted);
+      onError(error.detail || error.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function removeMessage(message) {
+    if (!(await showConfirm("Удалить сообщение? Оно исчезнет у обоих."))) return;
+    try {
+      const gone = await endpoints.deleteMessage(chatId, message.id);
+      setMessages((current) => current.map((m) => (m.id === gone.id ? gone : m)));
+    } catch (error) {
+      onError(error.detail || error.message);
+    }
+  }
+
+  function startEditing(message) {
+    setReplyTo(null);
+    setEditing(message);
+    setText(message.body);
   }
 
   function handleTyping(value) {
@@ -198,10 +274,18 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-3 space-y-2">
-        {messages.map((message) => (
-          <Bubble key={message.id} message={message} />
-        ))}
+      <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-3">
+        <MessageList
+          messages={messages}
+          onReply={(message) => {
+            setEditing(null);
+            setReplyTo(message);
+            haptic.light();
+          }}
+          onEdit={startEditing}
+          onDelete={removeMessage}
+          onOpenPhoto={setZoomed}
+        >
 
         {revealPhoto && (
           <div className="py-4 pop-in">
@@ -231,10 +315,61 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
             ))}
           </div>
         )}
+        </MessageList>
         <div ref={bottomRef} />
       </div>
 
-      <div className="px-3 py-2.5 flex items-end gap-2" style={{ background: T.surface, borderTop: `1px solid ${T.line}` }}>
+      <div style={{ background: T.surface, borderTop: `1px solid ${T.line}` }}>
+        {(replyTo || editing) && (
+          <div className="flex items-center gap-2 px-3 pt-2">
+            <div
+              className="flex-1 min-w-0 pl-2 py-1 rounded"
+              style={{ borderLeft: `2px solid ${T.coral}`, background: T.surfaceSoft }}
+            >
+              <p className="text-xs font-semibold" style={{ color: T.coralDeep }}>
+                {editing ? "Изменение" : `Ответ ${replyTo.mine ? "себе" : "собеседнику"}`}
+              </p>
+              <p className="text-xs truncate" style={{ color: T.muted }}>
+                {(editing || replyTo).body || "фотография"}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setReplyTo(null);
+                if (editing) setText("");
+                setEditing(null);
+              }}
+              aria-label="Отменить"
+              className="p-1.5 rounded-full active:scale-90 transition-transform flex-shrink-0"
+              style={{ background: T.surfaceSoft }}
+            >
+              <X size={14} color={T.muted} />
+            </button>
+          </div>
+        )}
+
+        <div className="px-3 py-2.5 flex items-end gap-2">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            sendPhoto(event.target.files?.[0]);
+            event.target.value = "";
+          }}
+        />
+        {!editing && (
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={sending}
+            aria-label="Отправить фото"
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform disabled:opacity-40"
+            style={{ background: T.surfaceSoft }}
+          >
+            <ImagePlus size={18} color={T.muted} />
+          </button>
+        )}
         <textarea
           value={text}
           onChange={(event) => handleTyping(event.target.value)}
@@ -256,8 +391,9 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
           className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform disabled:opacity-40"
           style={{ background: gradient.action }}
         >
-          <Send size={17} color="#fff" />
+          {editing ? <Pencil size={16} color="#fff" /> : <Send size={17} color="#fff" />}
         </button>
+        </div>
       </div>
 
       <Sheet
@@ -445,28 +581,3 @@ function PhotoViewer({ src, onClose }) {
   );
 }
 
-function Bubble({ message }) {
-  if (message.type === "system") {
-    return (
-      <p className="text-xs text-center py-2 px-6" style={{ color: T.muted }}>
-        {message.body}
-      </p>
-    );
-  }
-  const mine = message.mine;
-  return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-      <div
-        // break-words — чтобы ссылка без пробелов рвалась, а не растягивала чат.
-        className="max-w-[78%] rounded-2xl px-3.5 py-2 text-sm break-words whitespace-pre-wrap"
-        style={
-          mine
-            ? { background: gradient.action, color: "#fff", borderBottomRightRadius: 6 }
-            : { background: T.surface, color: T.ink, border: `1px solid ${T.line}`, borderBottomLeftRadius: 6 }
-        }
-      >
-        {message.body}
-      </div>
-    </div>
-  );
-}

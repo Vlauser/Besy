@@ -126,12 +126,16 @@ async def read_messages(
     session: AsyncSession = Depends(get_session),
 ) -> list[MessageOut]:
     chat = await _load_chat(session, chat_id, user)
-    q = select(Message).where(Message.chat_id == chat.id)
+    # Цитаты грузим сразу: сериализатор берёт их только у загруженной
+    # связи, иначе в ленте не осталось бы ни одного ответа.
+    q = select(Message).options(selectinload(Message.reply_to)).where(Message.chat_id == chat.id)
     if before_id:
         q = q.where(Message.id < before_id)
     rows = await session.execute(q.order_by(desc(Message.id)).limit(limit))
     messages = list(rows.scalars())[::-1]
-    return [message_out(m, user.id) for m in messages]
+    partner = await session.get(User, chat.other_id(user.id))
+    partner_name = partner.first_name if partner else "Собеседник"
+    return [message_out(m, user.id, partner_name=partner_name) for m in messages]
 
 
 @router.post("/chats/{chat_id}/messages", response_model=SendMessageOut, status_code=status.HTTP_201_CREATED)
@@ -155,9 +159,9 @@ async def send_message(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await session.commit()
 
-    await manager.send(other_id, {"type": "message", "chat_id": chat.id, "message": message_out(message, other_id).model_dump(mode="json")})
+    await manager.send(other_id, {"type": "message", "chat_id": chat.id, "message": message_out(message, other_id, partner_name=user.first_name).model_dump(mode="json")})
     if system_message is not None:
-        payload_sys = message_out(system_message, other_id).model_dump(mode="json")
+        payload_sys = message_out(system_message, other_id, partner_name=user.first_name).model_dump(mode="json")
         await manager.send(other_id, {"type": "message", "chat_id": chat.id, "message": payload_sys})
     if reveal_unlocked:
         await manager.send(user.id, {"type": "reveal", "chat_id": chat.id})
@@ -167,10 +171,12 @@ async def send_message(
         await session.commit()
 
     return SendMessageOut(
-        message=message_out(message, user.id),
+        message=message_out(message, user.id, partner_name=other.first_name),
         reveal_unlocked=reveal_unlocked,
         remaining_to_reveal=chat_service.remaining_to_reveal(chat, user.id),
-        system_message=message_out(system_message, user.id) if system_message else None,
+        system_message=message_out(system_message, user.id, partner_name=other.first_name)
+        if system_message
+        else None,
     )
 
 
@@ -215,16 +221,18 @@ async def send_photo(
 
     await manager.send(
         other_id,
-        {"type": "message", "chat_id": chat.id, "message": message_out(message, other_id).model_dump(mode="json")},
+        {"type": "message", "chat_id": chat.id, "message": message_out(message, other_id, partner_name=user.first_name).model_dump(mode="json")},
     )
     if await push.notify_new_message(chat, user, other, caption or "фотография"):
         await session.commit()
 
     return SendMessageOut(
-        message=message_out(message, user.id),
+        message=message_out(message, user.id, partner_name=other.first_name),
         reveal_unlocked=reveal_unlocked,
         remaining_to_reveal=chat_service.remaining_to_reveal(chat, user.id),
-        system_message=message_out(system_message, user.id) if system_message else None,
+        system_message=message_out(system_message, user.id, partner_name=other.first_name)
+        if system_message
+        else None,
     )
 
 
@@ -254,11 +262,16 @@ async def edit_message(
     await session.commit()
 
     other_id = chat.other_id(user.id)
+    partner = await session.get(User, other_id)
     await manager.send(
         other_id,
-        {"type": "message_edited", "chat_id": chat.id, "message": message_out(message, other_id).model_dump(mode="json")},
+        {
+            "type": "message_edited",
+            "chat_id": chat.id,
+            "message": message_out(message, other_id, partner_name=user.first_name).model_dump(mode="json"),
+        },
     )
-    return message_out(message, user.id)
+    return message_out(message, user.id, partner_name=partner.first_name if partner else "Собеседник")
 
 
 @router.delete("/chats/{chat_id}/messages/{message_id}", response_model=MessageOut)

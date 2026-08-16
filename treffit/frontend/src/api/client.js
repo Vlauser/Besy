@@ -182,7 +182,13 @@ export const endpoints = {
   chat: (id) => api.get(`/chats/${id}`),
   messages: (id, beforeId) =>
     api.get(`/chats/${id}/messages${beforeId ? `?before_id=${beforeId}` : ""}`),
-  sendMessage: (id, bodyText) => api.post(`/chats/${id}/messages`, { body: bodyText }),
+  sendMessage: (id, bodyText, replyToId = null) =>
+    api.post(`/chats/${id}/messages`, { body: bodyText, reply_to_id: replyToId }),
+  sendChatPhoto: (id, file, caption = "", replyToId = null) =>
+    api.form(`/chats/${id}/photo-messages`, { caption, reply_to_id: replyToId }, { file }),
+  editMessage: (chatId, messageId, bodyText) =>
+    api.patch(`/chats/${chatId}/messages/${messageId}`, { body: bodyText }),
+  deleteMessage: (chatId, messageId) => api.delete(`/chats/${chatId}/messages/${messageId}`),
   markRead: (id) => api.post(`/chats/${id}/read`),
   chatPhoto: (id) => api.get(`/chats/${id}/photo`),
 

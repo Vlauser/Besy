@@ -6,7 +6,7 @@ is exactly one place deciding whether a URL is emitted.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import inspect as sa_inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -145,7 +145,7 @@ async def candidate_out(
 QUOTE_LIMIT = 90
 
 
-def _quote(message, viewer_id: int, author_name: str) -> ReplyQuoteOut | None:
+def _quote(message, viewer_id: int, partner_name: str) -> ReplyQuoteOut | None:
     """Цитата для ответа. Удалённое остаётся видимым как «сообщение
     удалено» — иначе ответ повисает без всякого повода."""
     if message is None:
@@ -158,26 +158,30 @@ def _quote(message, viewer_id: int, author_name: str) -> ReplyQuoteOut | None:
         preview = message.body
     if len(preview) > QUOTE_LIMIT:
         preview = preview[: QUOTE_LIMIT - 1].rstrip() + "…"
+    mine = message.sender_id == viewer_id
     return ReplyQuoteOut(
         id=message.id,
-        author=author_name,
+        # Своё имя в цитате читается как чужое: «Вы» короче и понятнее.
+        author="Вы" if mine else partner_name,
         preview=preview,
-        mine=message.sender_id == viewer_id,
+        mine=mine,
     )
 
 
-def message_out(message, viewer_id: int, *, names: dict[int, str] | None = None) -> MessageOut:
+def message_out(message, viewer_id: int, *, partner_name: str = "Собеседник") -> MessageOut:
     """Сообщение для клиента.
 
     Удалённое отдаём без тела: раз человек его убрал, содержимое не должно
     доехать даже в поле, которое интерфейс не покажет.
     """
     deleted = message.deleted_at is not None
-    names = names or {}
-    quote = _quote(
-        getattr(message, "reply_to", None),
-        viewer_id,
-        names.get(getattr(getattr(message, "reply_to", None), "sender_id", None), "Собеседник"),
+    # Цитату берём, только если связь уже загружена. В списке чатов
+    # сообщение достают ради превью, без неё, — и обращение к связи там
+    # означало бы ленивую подгрузку в асинхронном коде, то есть падение.
+    quote = (
+        _quote(message.reply_to, viewer_id, partner_name)
+        if "reply_to" not in sa_inspect(message).unloaded
+        else None
     )
     return MessageOut(
         id=message.id,
