@@ -418,10 +418,11 @@ function CreateMeetup({ open, city, onClose, onCreated, onError }) {
           maxLength={255}
         />
 
-        <div className="flex gap-2">
-          <Field type="date" label="Дата" value={form.date} onChange={(date) => setForm((f) => ({ ...f, date }))} />
-          <Field type="time" label="Время" value={form.time} onChange={(time) => setForm((f) => ({ ...f, time }))} />
-        </div>
+        <WhenPicker
+          date={form.date}
+          time={form.time}
+          onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+        />
 
         <Field
           label="Описание"
@@ -471,18 +472,102 @@ function CreateMeetup({ open, city, onClose, onCreated, onError }) {
   );
 }
 
+/** Ближайшие дни и вечерние часы одним касанием.
+ *
+ *  Нативные поля даты и времени на телефоне — это выпадающий барабан на
+ *  два экрана ради «сегодня в девять», и они же разъезжались вширь:
+ *  собственная ширина у них больше колонки, и форму уводило вбок.
+ *  Барабан остался под кнопкой «другое» — для дальних дат он удобнее.
+ */
+function WhenPicker({ date, time, onChange }) {
+  const [custom, setCustom] = useState(false);
+
+  const days = [0, 1, 2].map((shift) => {
+    const day = new Date();
+    day.setDate(day.getDate() + shift);
+    const value = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(
+      day.getDate()
+    ).padStart(2, "0")}`;
+    const label = shift === 0 ? "Сегодня" : shift === 1 ? "Завтра" : "Послезавтра";
+    return [value, label];
+  });
+  const hours = ["18:00", "19:00", "20:00", "21:00", "22:00"];
+  const known = days.some(([value]) => value === date) && (!time || hours.includes(time));
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs" style={{ color: T.muted }}>Когда</p>
+
+      {!custom && (
+        <>
+          <div className="flex gap-1.5">
+            {days.map(([value, label]) => (
+              <Chip key={value} active={date === value} onClick={() => onChange({ date: value })}>
+                {label}
+              </Chip>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {hours.map((value) => (
+              <Chip key={value} active={time === value} onClick={() => onChange({ time: value })}>
+                {value}
+              </Chip>
+            ))}
+          </div>
+        </>
+      )}
+
+      {custom && (
+        <div className="flex gap-2">
+          <Field type="date" label="Дата" value={date} onChange={(value) => onChange({ date: value })} />
+          <Field type="time" label="Время" value={time} onChange={(value) => onChange({ time: value })} />
+        </div>
+      )}
+
+      <button
+        onClick={() => setCustom((value) => !value)}
+        className="text-xs font-semibold active:scale-95 transition-transform"
+        style={{ color: T.coralDeep }}
+      >
+        {custom ? "← Ближайшие дни" : "Другая дата или время"}
+      </button>
+
+      {!custom && !known && (date || time) && (
+        <p className="text-xs" style={{ color: T.muted }}>
+          Выбрано: {date || "дата не выбрана"} {time || ""}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Chip({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-full px-3 py-1.5 text-sm font-semibold active:scale-95 transition-transform"
+      style={{
+        background: active ? T.ink : T.surfaceSoft,
+        color: active ? "#fff" : T.muted,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function Field({ label, value, onChange, type = "text", rows, ...rest }) {
   const shared = {
     value,
     onChange: (event) => onChange(event.target.value),
-    className: "w-full rounded-2xl px-3.5 py-2.5 outline-none",
+    className: "w-full min-w-0 rounded-2xl px-3.5 py-2.5 outline-none",
     // 16px, иначе Safari на iOS увеличивает страницу при фокусе и вёрстка
     // разъезжается по горизонтали.
     style: { background: T.surfaceSoft, color: T.ink, border: `1px solid ${T.line}`, fontSize: 16 },
     ...rest,
   };
   return (
-    <label className="block flex-1">
+    <label className="block flex-1 min-w-0">
       <span className="block text-xs mb-1.5" style={{ color: T.muted }}>{label}</span>
       {rows ? <textarea rows={rows} {...shared} /> : <input type={type} {...shared} />}
     </label>

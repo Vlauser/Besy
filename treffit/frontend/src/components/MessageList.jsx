@@ -157,6 +157,10 @@ function Bubble({ message, last, onReply, onMenu, onOpenPhoto }) {
 
   function begin(event) {
     if (message.deleted) return;
+    // Захват указателя обязателен. Без него pointermove уходит тому
+    // элементу, над которым палец сейчас, а не тому, где начался жест:
+    // за пальцем едет вся лента, а ответ прилетает соседнему сообщению.
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     start.current = { x: event.clientX, y: event.clientY };
     armed.current = false;
     timer.current = setTimeout(() => {
@@ -176,23 +180,26 @@ function Bubble({ message, last, onReply, onMenu, onOpenPhoto }) {
       return;
     }
     if (Math.abs(dx) > 6) cancelPress();
-    if (dx <= 0) {
-      setShift(0);
-      return;
-    }
-    // За порогом палец идёт туго: резинка вместо упора.
-    const pulled = dx > REPLY_TRIGGER ? REPLY_TRIGGER + (dx - REPLY_TRIGGER) * 0.35 : dx;
+
+    // Тянуть можно в любую сторону: Telegram на iOS отвечает свайпом
+    // влево, на Android — вправо, и заставлять человека переучиваться
+    // ради нашей догадки о его привычке незачем.
+    const distance = Math.abs(dx);
+    const direction = Math.sign(dx);
+    const pulled =
+      distance > REPLY_TRIGGER ? REPLY_TRIGGER + (distance - REPLY_TRIGGER) * 0.35 : distance;
     const next = Math.min(pulled, REPLY_LIMIT);
     if (next >= REPLY_TRIGGER && !armed.current) {
       armed.current = true;
       haptic.light();
     }
     if (next < REPLY_TRIGGER) armed.current = false;
-    setShift(next);
+    setShift(next * direction);
   }
 
-  function end() {
+  function end(event) {
     cancelPress();
+    event?.currentTarget?.releasePointerCapture?.(event.pointerId);
     const fire = armed.current;
     start.current = null;
     armed.current = false;
@@ -213,14 +220,15 @@ function Bubble({ message, last, onReply, onMenu, onOpenPhoto }) {
     >
       {/* Стрелка проявляется по мере натяжения — видно, что будет дальше. */}
       <span
-        className="absolute left-0 top-1/2 flex items-center justify-center rounded-full"
+        className="absolute top-1/2 flex items-center justify-center rounded-full"
         style={{
+          [shift < 0 ? "right" : "left"]: 0,
           width: 28,
           height: 28,
           marginTop: -14,
           background: T.surfaceSoft,
-          opacity: Math.min(1, shift / REPLY_TRIGGER),
-          transform: `scale(${0.6 + Math.min(1, shift / REPLY_TRIGGER) * 0.4})`,
+          opacity: Math.min(1, Math.abs(shift) / REPLY_TRIGGER),
+          transform: `scale(${0.6 + Math.min(1, Math.abs(shift) / REPLY_TRIGGER) * 0.4})`,
           pointerEvents: "none",
         }}
       >
