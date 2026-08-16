@@ -77,7 +77,13 @@ def remaining_to_reveal(chat: Chat, user_id: int) -> int:
 
 
 async def post_message(
-    session: AsyncSession, chat: Chat, sender: User, body: str
+    session: AsyncSession,
+    chat: Chat,
+    sender: User,
+    body: str,
+    *,
+    reply_to_id: int | None = None,
+    photo: dict | None = None,
 ) -> tuple[Message, bool, Message | None]:
     """Append a message and apply the reveal rule.
 
@@ -86,13 +92,35 @@ async def post_message(
     earned the reveal.
     """
     text = (body or "").strip()
-    if not text:
+    # У фотографии подпись необязательна — у текста тело и есть сообщение.
+    if not text and photo is None:
         raise ValueError("Сообщение пустое")
     if len(text) > MAX_MESSAGE_LENGTH:
         raise ValueError("Сообщение слишком длинное")
 
+    quoted: Message | None = None
+    if reply_to_id is not None:
+        # Отвечать можно только на сообщение из этого же чата: иначе по id
+        # утекала бы чужая переписка.
+        quoted = await session.get(Message, reply_to_id)
+        if quoted is None or quoted.chat_id != chat.id:
+            raise ValueError("Сообщение, на которое вы отвечаете, не найдено")
+
     now = datetime.now(timezone.utc)
-    message = Message(chat_id=chat.id, sender_id=sender.id, type=MessageType.text.value, body=text)
+    message = Message(
+        chat_id=chat.id,
+        sender_id=sender.id,
+        type=MessageType.photo.value if photo else MessageType.text.value,
+        body=text,
+        reply_to_id=reply_to_id,
+        file_path=(photo or {}).get("file_path"),
+        thumb_path=(photo or {}).get("thumb_path"),
+        blur_gradient=(photo or {}).get("blur_gradient"),
+    )
+    # Связь присваиваем сразу: иначе сериализатор полезет за цитатой уже
+    # после коммита, а это ленивая подгрузка в асинхронном коде — то есть
+    # MissingGreenlet вместо ответа.
+    message.reply_to = quoted
     session.add(message)
 
     is_a = sender.id == chat.user_a_id

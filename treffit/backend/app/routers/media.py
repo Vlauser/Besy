@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..deps import CREDENTIALS_ERROR, current_user, load_user
-from ..models import Meetup, ModerationStatus, Photo, User
+from ..models import Chat, Meetup, Message, ModerationStatus, Photo, User
 from ..security import decode_access_token
 from ..serializers import can_view_photos
 from ..services import media
@@ -102,6 +102,40 @@ async def get_meetup_image(
         raise HTTPException(status_code=404, detail="Картинка не найдена")
 
     relative = meetup.thumb_path if (thumb and meetup.thumb_path) else meetup.file_path
+    try:
+        path = media.absolute_path(relative)
+    except media.PhotoError as exc:
+        raise HTTPException(status_code=404, detail="Файл недоступен") from exc
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Файл недоступен")
+
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
+@router.get("/messages/{message_id}")
+async def get_message_photo(
+    message_id: int,
+    token: str | None = Query(default=None),
+    thumb: bool = Query(default=False),
+    authorization: str | None = Header(default=None),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Фотография из переписки.
+
+    Правило самое строгое в приложении: файл видят только двое участников
+    чата. Ни модерация, ни правила раскрытия анкетных фото здесь ни при
+    чём — это личная переписка.
+    """
+    message = await session.get(Message, message_id)
+    if message is None or not message.file_path or message.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Файл не найден")
+
+    viewer = await _viewer(authorization, token, session)
+    chat = await session.get(Chat, message.chat_id)
+    if chat is None or viewer.id not in (chat.user_a_id, chat.user_b_id):
+        raise HTTPException(status_code=404, detail="Файл не найден")
+
+    relative = message.thumb_path if (thumb and message.thumb_path) else message.file_path
     try:
         path = media.absolute_path(relative)
     except media.PhotoError as exc:

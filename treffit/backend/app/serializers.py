@@ -11,8 +11,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from .config import settings
-from .models import Chat, Event, Photo, User
-from .schemas import CandidateOut, ChatOut, EventOut, MeOut, MessageOut, PhotoOut
+from .models import Chat, Event, MessageType, Photo, User
+from .schemas import (
+    CandidateOut,
+    ChatOut,
+    EventOut,
+    MeOut,
+    MessageOut,
+    PhotoOut,
+    ReplyQuoteOut,
+)
 from .services import chats as chat_service
 from .ws import manager
 
@@ -134,16 +142,61 @@ async def candidate_out(
     )
 
 
-def message_out(message, viewer_id: int) -> MessageOut:
+QUOTE_LIMIT = 90
+
+
+def _quote(message, viewer_id: int, author_name: str) -> ReplyQuoteOut | None:
+    """Цитата для ответа. Удалённое остаётся видимым как «сообщение
+    удалено» — иначе ответ повисает без всякого повода."""
+    if message is None:
+        return None
+    if message.deleted_at:
+        preview = "сообщение удалено"
+    elif message.type == MessageType.photo.value:
+        preview = f"📷 {message.body}" if message.body else "📷 фотография"
+    else:
+        preview = message.body
+    if len(preview) > QUOTE_LIMIT:
+        preview = preview[: QUOTE_LIMIT - 1].rstrip() + "…"
+    return ReplyQuoteOut(
+        id=message.id,
+        author=author_name,
+        preview=preview,
+        mine=message.sender_id == viewer_id,
+    )
+
+
+def message_out(message, viewer_id: int, *, names: dict[int, str] | None = None) -> MessageOut:
+    """Сообщение для клиента.
+
+    Удалённое отдаём без тела: раз человек его убрал, содержимое не должно
+    доехать даже в поле, которое интерфейс не покажет.
+    """
+    deleted = message.deleted_at is not None
+    names = names or {}
+    quote = _quote(
+        getattr(message, "reply_to", None),
+        viewer_id,
+        names.get(getattr(getattr(message, "reply_to", None), "sender_id", None), "Собеседник"),
+    )
     return MessageOut(
         id=message.id,
         chat_id=message.chat_id,
         sender_id=message.sender_id,
         type=message.type,
-        body=message.body,
+        body="" if deleted else message.body,
         sent_at=message.sent_at,
         read_at=message.read_at,
         mine=message.sender_id == viewer_id,
+        edited=message.edited_at is not None and not deleted,
+        deleted=deleted,
+        photo_url=(
+            f"/media/messages/{message.id}"
+            if message.file_path and not deleted
+            else None
+        ),
+        gradient=message.blur_gradient,
+        reply_to=quote,
     )
 
 

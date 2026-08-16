@@ -71,6 +71,7 @@ class ModerationStatus(StrEnum):
 
 class MessageType(StrEnum):
     text = "text"
+    photo = "photo"
     system = "system"
 
 
@@ -355,8 +356,25 @@ class Message(Base):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Удалённое сообщение не стираем из таблицы: на него могут ссылаться
+    # ответы, и дыра в переписке читалась бы хуже, чем честное «удалено».
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Ответ на сообщение. SET NULL, а не CASCADE: удаление цитаты не должно
+    # уносить с собой ответы на неё.
+    reply_to_id: Mapped[int | None] = mapped_column(
+        ForeignKey("messages.id", ondelete="SET NULL"), index=True
+    )
+
+    # Фотография в сообщении. Файл хранится и отдаётся так же, как анкетный
+    # снимок, — через media, а не статикой.
+    file_path: Mapped[str | None] = mapped_column(String(255))
+    thumb_path: Mapped[str | None] = mapped_column(String(255))
+    blur_gradient: Mapped[str | None] = mapped_column(String(128))
 
     chat: Mapped[Chat] = relationship(back_populates="messages")
+    reply_to: Mapped["Message | None"] = relationship(remote_side=[id], lazy="selectin")
 
     __table_args__ = (Index("ix_messages_chat_id_desc", "chat_id", "id"),)
 

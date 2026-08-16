@@ -207,6 +207,15 @@ class MatchOut(BaseModel):
     other: CandidateOut
 
 
+class ReplyQuoteOut(BaseModel):
+    """Цитата в ответе: ровно столько, сколько влезает в одну строку."""
+
+    id: int
+    author: str
+    preview: str
+    mine: bool = False
+
+
 class MessageOut(ORMModel):
     id: int
     chat_id: int
@@ -216,9 +225,19 @@ class MessageOut(ORMModel):
     sent_at: datetime
     read_at: datetime | None
     mine: bool = False
+    edited: bool = False
+    deleted: bool = False
+    photo_url: str | None = None
+    gradient: str | None = None
+    reply_to: ReplyQuoteOut | None = None
 
 
 class MessageIn(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)
+    reply_to_id: int | None = None
+
+
+class MessageEditIn(BaseModel):
     body: str = Field(min_length=1, max_length=2000)
 
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -8,10 +10,11 @@ from sqlalchemy.orm import selectinload
 from ..config import settings
 from ..db import get_session
 from ..deps import onboarded_user
-from ..models import Chat, Event, Match, Message, User
+from ..models import Chat, Event, Match, Message, MessageType, User
 from ..schemas import (
     ChatOut,
     MatchOut,
+    MessageEditIn,
     MessageIn,
     MessageOut,
     PhotoRevealOut,
@@ -27,6 +30,7 @@ from ..serializers import (
     visible_photos,
 )
 from ..services import chats as chat_service
+from ..services import media
 from ..services import push
 from ..ws import manager
 
@@ -145,7 +149,7 @@ async def send_message(
 
     try:
         message, reveal_unlocked, system_message = await chat_service.post_message(
-            session, chat, user, payload.body
+            session, chat, user, payload.body, reply_to_id=payload.reply_to_id
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -168,6 +172,127 @@ async def send_message(
         remaining_to_reveal=chat_service.remaining_to_reveal(chat, user.id),
         system_message=message_out(system_message, user.id) if system_message else None,
     )
+
+
+@router.post(
+    "/chats/{chat_id}/photo-messages",
+    response_model=SendMessageOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def send_photo(
+    chat_id: int,
+    file: UploadFile = File(...),
+    caption: str = Form(default=""),
+    reply_to_id: int | None = Form(default=None),
+    user: User = Depends(onboarded_user),
+    session: AsyncSession = Depends(get_session),
+) -> SendMessageOut:
+    """Фотография в переписке.
+
+    Проходит ту же обработку, что и анкетная: обрезка EXIF, уменьшение,
+    градиент. Модерация здесь не нужна — это личная переписка двоих, а не
+    витрина; на дурное поведение есть жалоба и блокировка.
+    """
+    chat = await _load_chat(session, chat_id, user)
+    other_id = chat.other_id(user.id)
+    other = await session.get(User, other_id)
+    if other is None or not other.is_active or other.is_banned:
+        raise HTTPException(status_code=410, detail="Собеседник недоступен")
+
+    try:
+        stored = media.store_photo(await file.read(), user.id)
+    except media.PhotoError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
+        message, reveal_unlocked, system_message = await chat_service.post_message(
+            session, chat, user, caption, reply_to_id=reply_to_id, photo=stored
+        )
+    except ValueError as exc:
+        media.delete_files(stored["file_path"], stored["thumb_path"])
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await session.commit()
+
+    await manager.send(
+        other_id,
+        {"type": "message", "chat_id": chat.id, "message": message_out(message, other_id).model_dump(mode="json")},
+    )
+    if await push.notify_new_message(chat, user, other, caption or "фотография"):
+        await session.commit()
+
+    return SendMessageOut(
+        message=message_out(message, user.id),
+        reveal_unlocked=reveal_unlocked,
+        remaining_to_reveal=chat_service.remaining_to_reveal(chat, user.id),
+        system_message=message_out(system_message, user.id) if system_message else None,
+    )
+
+
+@router.patch("/chats/{chat_id}/messages/{message_id}", response_model=MessageOut)
+async def edit_message(
+    chat_id: int,
+    message_id: int,
+    payload: MessageEditIn,
+    user: User = Depends(onboarded_user),
+    session: AsyncSession = Depends(get_session),
+) -> MessageOut:
+    """Поправить своё сообщение. Чужое и удалённое — нельзя."""
+    chat = await _load_chat(session, chat_id, user)
+    message = await session.get(Message, message_id)
+    if message is None or message.chat_id != chat.id or message.sender_id != user.id:
+        raise HTTPException(status_code=404, detail="Сообщение не найдено")
+    if message.deleted_at is not None:
+        raise HTTPException(status_code=409, detail="Сообщение удалено")
+    if message.type == MessageType.system.value:
+        raise HTTPException(status_code=422, detail="Это служебное сообщение")
+
+    text = payload.body.strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="Сообщение пустое")
+    message.body = text
+    message.edited_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    other_id = chat.other_id(user.id)
+    await manager.send(
+        other_id,
+        {"type": "message_edited", "chat_id": chat.id, "message": message_out(message, other_id).model_dump(mode="json")},
+    )
+    return message_out(message, user.id)
+
+
+@router.delete("/chats/{chat_id}/messages/{message_id}", response_model=MessageOut)
+async def delete_message(
+    chat_id: int,
+    message_id: int,
+    user: User = Depends(onboarded_user),
+    session: AsyncSession = Depends(get_session),
+) -> MessageOut:
+    """Удалить своё сообщение — у обоих.
+
+    Строку из таблицы не убираем: на неё могут ссылаться ответы, и дыра в
+    переписке читалась бы хуже, чем честное «сообщение удалено». Тело и
+    файл стираем — «удалить» должно означать удалить.
+    """
+    chat = await _load_chat(session, chat_id, user)
+    message = await session.get(Message, message_id)
+    if message is None or message.chat_id != chat.id or message.sender_id != user.id:
+        raise HTTPException(status_code=404, detail="Сообщение не найдено")
+    if message.deleted_at is not None:
+        return message_out(message, user.id)
+
+    media.delete_files(message.file_path, message.thumb_path)
+    message.deleted_at = datetime.now(timezone.utc)
+    message.body = ""
+    message.file_path = message.thumb_path = None
+    await session.commit()
+
+    other_id = chat.other_id(user.id)
+    await manager.send(
+        other_id,
+        {"type": "message_deleted", "chat_id": chat.id, "message_id": message.id},
+    )
+    return message_out(message, user.id)
 
 
 @router.post("/chats/{chat_id}/read", response_model=ChatOut)
