@@ -11,6 +11,13 @@ import { realtime } from "../lib/realtime";
 import { haptic, showConfirm } from "../lib/telegram";
 import { FALLBACK_GRADIENT, T, gradient } from "../theme";
 
+// Сколько сообщений отдаёт сервер за раз — им же меряем, есть ли ещё.
+const PAGE = 50;
+// На сколько можно отойти от низа и всё ещё считаться «внизу».
+const BOTTOM_SLACK = 80;
+// На каком расстоянии до верха начинать догрузку.
+const LOAD_OLDER_AT = 160;
+
 const REPORT_REASONS = [
   ["spam", "Спам или реклама"],
   ["fake", "Фейковая анкета"],
@@ -37,6 +44,13 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
   const bottomRef = useRef(null);
   const fileRef = useRef(null);
   const typingTimer = useRef(null);
+  const scrollRef = useRef(null);
+  // Пролистан ли разговор до низа. От этого зависит, дёргать ли его вниз
+  // на новое сообщение: человека, читающего старое, дёргать нельзя.
+  const atBottom = useRef(true);
+  const fetchingOlder = useRef(false);
+  const [hasOlder, setHasOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -46,6 +60,8 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
       ]);
       setChat(chatData);
       setMessages(history);
+      // Полная страница значит, что выше почти наверняка есть ещё.
+      setHasOlder(history.length >= PAGE);
       await endpoints.markRead(chatId);
     } catch (error) {
       onError(error.detail || error.message);
@@ -93,8 +109,47 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
   }, [chatId]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (atBottom.current) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, typing]);
+
+  /** Догрузить страницу переписки выше текущей.
+   *
+   *  Сервер умел отдавать её с самого начала, а клиент брал только
+   *  последние пятьдесят сообщений и на этом останавливался: длинная
+   *  переписка просто обрывалась вверху без всякого признака, что там
+   *  что-то было.
+   */
+  async function loadOlder() {
+    const box = scrollRef.current;
+    if (!box || fetchingOlder.current || !hasOlder || !messages.length) return;
+    fetchingOlder.current = true;
+    setLoadingOlder(true);
+    const heightBefore = box.scrollHeight;
+    try {
+      const older = await endpoints.messages(chatId, messages[0].id);
+      if (older.length < PAGE) setHasOlder(false);
+      if (older.length) {
+        setMessages((current) => [...older, ...current]);
+        // Вставка сверху сдвигает содержимое вниз. Возвращаем прокрутку на
+        // ту же строку, иначе разговор прыгает под пальцем.
+        requestAnimationFrame(() => {
+          box.scrollTop += box.scrollHeight - heightBefore;
+        });
+      }
+    } catch {
+      // Молча: это догрузка на прокрутке, а не действие человека.
+    } finally {
+      fetchingOlder.current = false;
+      setLoadingOlder(false);
+    }
+  }
+
+  function handleScroll() {
+    const box = scrollRef.current;
+    if (!box) return;
+    atBottom.current = box.scrollHeight - box.scrollTop - box.clientHeight < BOTTOM_SLACK;
+    if (box.scrollTop < LOAD_OLDER_AT) loadOlder();
+  }
 
   async function send() {
     const body = text.trim();
@@ -122,6 +177,9 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
     setText("");
     const quoted = replyTo;
     setReplyTo(null);
+    // Своё сообщение всегда показываем: если человек читал старое, отправка
+    // — это явное намерение вернуться к концу разговора.
+    atBottom.current = true;
     try {
       const result = await endpoints.sendMessage(chatId, body, quoted?.id ?? null);
       setMessages((current) => [
@@ -159,6 +217,7 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
     setSending(true);
     const quoted = replyTo;
     setReplyTo(null);
+    atBottom.current = true;
     try {
       const result = await endpoints.sendChatPhoto(chatId, file, text.trim(), quoted?.id ?? null);
       setText("");
@@ -301,7 +360,16 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-3">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto no-scrollbar px-4 py-3"
+      >
+        {loadingOlder && (
+          <p className="text-center text-xs py-2" style={{ color: T.muted }}>
+            Загружаем…
+          </p>
+        )}
         <MessageList
           messages={messages}
           onReply={(message) => {
