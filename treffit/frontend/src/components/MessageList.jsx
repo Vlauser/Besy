@@ -146,6 +146,10 @@ function Bubble({ message, last, onReply, onMenu, onOpenPhoto }) {
   const start = useRef(null);
   const armed = useRef(false);
   const timer = useRef(null);
+  // Ось решается один раз и больше не пересматривается. Без этого жест
+  // жил во время прокрутки: палец уходил вниз, взвод оставался, и на
+  // отпускании прилетал ответ случайному сообщению.
+  const axis = useRef(null);
   const mine = message.mine;
 
   function cancelPress() {
@@ -163,6 +167,7 @@ function Bubble({ message, last, onReply, onMenu, onOpenPhoto }) {
     event.currentTarget.setPointerCapture?.(event.pointerId);
     start.current = { x: event.clientX, y: event.clientY };
     armed.current = false;
+    axis.current = null;
     timer.current = setTimeout(() => {
       timer.current = null;
       haptic.medium();
@@ -174,12 +179,21 @@ function Bubble({ message, last, onReply, onMenu, onOpenPhoto }) {
     if (!start.current) return;
     const dx = event.clientX - start.current.x;
     const dy = event.clientY - start.current.y;
-    // Вертикальное движение — это прокрутка списка, не наш жест.
-    if (Math.abs(dy) > Math.abs(dx)) {
+
+    if (axis.current === null) {
+      // Пока палец не прошёл порог, направление неизвестно: ждём.
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return;
+      axis.current = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
       cancelPress();
-      return;
+      if (axis.current === "y") {
+        // Это прокрутка. Жест закончен — и закончен насовсем, иначе
+        // отпускание после долгой прокрутки сработает как ответ.
+        start.current = null;
+        armed.current = false;
+        setShift(0);
+        return;
+      }
     }
-    if (Math.abs(dx) > 6) cancelPress();
 
     // Тянуть можно в любую сторону: Telegram на iOS отвечает свайпом
     // влево, на Android — вправо, и заставлять человека переучиваться
