@@ -7,6 +7,7 @@ import { MessageList } from "../components/MessageList";
 import { ScratchPhoto } from "../components/Scratch";
 import { Avatar, Button, Loading, Pill, Sheet } from "../components/ui";
 import { partnerStatus } from "../lib/chatStatus";
+import { openers } from "../lib/openers";
 import { realtime } from "../lib/realtime";
 import { haptic, showConfirm } from "../lib/telegram";
 import { FALLBACK_GRADIENT, T, gradient } from "../theme";
@@ -370,6 +371,38 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
             Загружаем…
           </p>
         )}
+        {/* Пустой чат — то место, где разговор чаще всего и не начинается.
+            Подсказку кладём в поле ввода, а не отправляем: человек должен
+            иметь возможность переписать её под себя, иначе это не его
+            фраза, а наша. */}
+        {!messages.length && chat && (
+          <div className="pt-2 pb-4">
+            <p className="text-xs text-center mb-3" style={{ color: T.muted }}>
+              С чего начать
+            </p>
+            <div className="space-y-2">
+              {openers(chat.other).map((line) => (
+                <button
+                  key={line}
+                  onClick={() => {
+                    handleTyping(line);
+                    haptic.light();
+                  }}
+                  className="w-full text-left rounded-2xl px-3.5 py-2.5 text-sm active:scale-[0.98]"
+                  style={{
+                    background: T.surface,
+                    border: `1px solid ${T.line}`,
+                    color: T.ink,
+                    transition: "transform 140ms cubic-bezier(0.22, 1, 0.36, 1)",
+                  }}
+                >
+                  {line}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <MessageList
           messages={messages}
           onReply={(message) => {

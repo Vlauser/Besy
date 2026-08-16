@@ -3,15 +3,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..config import settings
 from ..db import get_session
 from ..deps import onboarded_user
-from ..models import Block, DeckCard, Event, Swipe, SwipeAction, User
-from ..schemas import CandidateOut, DeckCardOut, SwipeIn, SwipeOut
+from ..models import Block, DeckCard, Event, Match, Swipe, SwipeAction, User
+from ..schemas import CandidateOut, DeckCardOut, SwipeIn, SwipeOut, UndoOut
 from ..serializers import candidate_out
 from ..services import chats as chat_service
 from ..services import matching, push
@@ -152,6 +152,69 @@ async def swipe(
         chat_id=chat_id,
         likes_left=max(0, allowed - likes_today),
         candidate=card,
+    )
+
+
+@router.post("/discover/undo", response_model=UndoOut)
+async def undo_last_swipe(
+    user: User = Depends(onboarded_user), session: AsyncSession = Depends(get_session)
+) -> UndoOut:
+    """Вернуть последнюю анкету обратно в колоду.
+
+    Промахнуться пальцем — самое обычное дело, а решение до сих пор было
+    безвозвратным: пропущенный возвращался неизвестно когда, лайк не
+    отменялся вовсе.
+
+    Совпавшую пару так не разобрать. Другой человек уже видит чат и мог
+    успеть написать; отматывать за двоих то, что случилось у обоих, —
+    не отмена ошибки, а вмешательство в чужой экран.
+    """
+    last = await session.scalar(
+        select(Swipe)
+        .where(Swipe.actor_id == user.id)
+        .order_by(desc(Swipe.created_at), desc(Swipe.id))
+        .limit(1)
+    )
+    if last is None:
+        raise HTTPException(status_code=404, detail="Отменять нечего")
+
+    match = await session.scalar(
+        select(Match).where(
+            or_(
+                (Match.user_a_id == user.id) & (Match.user_b_id == last.target_id),
+                (Match.user_a_id == last.target_id) & (Match.user_b_id == user.id),
+            ),
+            Match.is_active.is_(True),
+        )
+    )
+    if match is not None:
+        raise HTTPException(status_code=409, detail="Совпадение уже случилось — его не отменить")
+
+    target = await session.scalar(
+        select(User).options(selectinload(User.photos)).where(User.id == last.target_id)
+    )
+    await session.delete(last)
+    await session.commit()
+
+    if target is None or not target.is_active or target.is_banned:
+        # Свайп снят, но показывать некого: человек успел уйти.
+        raise HTTPException(status_code=410, detail="Анкета больше недоступна")
+
+    # Лимит лайков считается по самим свайпам, поэтому снятый лайк
+    # возвращает и потраченную попытку — отдельно ничего чинить не нужно.
+    likes_today = await matching.daily_like_count(session, user.id)
+    pct, flags, event_id = await matching.score_pair(session, user, target)
+    event = await session.get(Event, event_id) if event_id else None
+    return UndoOut(
+        candidate=await candidate_out(
+            session,
+            user.id,
+            target,
+            compatibility_pct=pct,
+            shared_flags=flags,
+            event=event,
+        ),
+        likes_left=max(0, _likes_allowed(user) - likes_today),
     )
 
 

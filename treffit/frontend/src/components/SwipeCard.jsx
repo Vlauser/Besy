@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Check, Heart, MapPin, Star, X } from "lucide-react";
+import { Check, Heart, MapPin, RotateCcw, Star, X } from "lucide-react";
 
 import { mediaUrl } from "../api/client";
 import { haptic } from "../lib/telegram";
@@ -327,9 +327,22 @@ function Stamp({ label, color, rotate, opacity, side }) {
  * человеке до знакомства, и прятать его мелким шрифтом в тени фотографии
  * значит выбрасывать собственную же работу.
  */
-export function SwipeControls({ onPass, onSuperlike, onLike, compatibility, disabled }) {
+export function SwipeControls({ onPass, onSuperlike, onLike, onUndo, canUndo, compatibility, disabled }) {
   return (
-    <div className="flex items-end justify-center gap-6 pt-3 pb-6">
+    <div className="flex items-end justify-center gap-4 pt-3 pb-6">
+      {/* Отмена стоит с краю и меньше остальных: она нужна редко, и
+          промахнуться по ней вместо «пропустить» было бы издевательством
+          над тем, ради чего она сделана. Кнопка не исчезает, когда
+          отменять нечего, — прыгающий ряд хуже, чем гашёная кнопка. */}
+      <RoundButton
+        onClick={onUndo}
+        disabled={disabled || !canUndo}
+        size={46}
+        label="Вернуть предыдущую"
+      >
+        <RotateCcw size={19} color={T.muted} strokeWidth={2.4} />
+      </RoundButton>
+
       <RoundButton onClick={onPass} disabled={disabled} size={62} label="Пропустить">
         <X size={26} color={T.danger} strokeWidth={2.6} />
       </RoundButton>

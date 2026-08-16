@@ -171,6 +171,7 @@ export const endpoints = {
 
   discover: (limit = 10) => api.get(`/discover?limit=${limit}`),
   swipe: (userId, action) => api.post(`/discover/${userId}/swipe`, { action }),
+  undoSwipe: () => api.post("/discover/undo"),
   incomingLikes: () => api.get("/discover/likes"),
   incomingLikesCount: () => api.get("/discover/likes/count"),
 

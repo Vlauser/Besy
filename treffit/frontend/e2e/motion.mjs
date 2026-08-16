@@ -65,7 +65,26 @@ const ME = {
 
 // Эти запросы держим висящими: пока они в пути, на экране должны стоять
 // заготовки — ради них тест и написан.
-const STALLED = ["/api/discover", "/api/chats", "/api/events"];
+const STALLED = ["/api/chats", "/api/events"];
+
+// Колода нужна живой: на ней проверяется отмена свайпа.
+const person = (id, name) => ({
+  id,
+  first_name: name,
+  age: 25,
+  city: "Москва",
+  bio: null,
+  interests: [],
+  compatibility_pct: 70,
+  shared_flags: [],
+  event: null,
+  is_verified: false,
+  is_online: false,
+  photos: [],
+  photos_locked: false,
+});
+const DECK = [person(11, "Аня"), person(12, "Марина")];
+let undoCalls = 0;
 
 const browser = await chromium.launch({ executablePath: CHROME_PATH });
 const context = await browser.newContext({ viewport: { width: 430, height: 860 }, hasTouch: true });
@@ -91,6 +110,13 @@ await page.route(
     // Раньше STALLED: этот путь начинается с /api/chats, и без явной
     // ветки запрос за числом непрочитанного повис бы вместе со списком.
     if (path === "/api/chats/unread-count") return json(route, { count: 3 });
+    if (path === "/api/discover") return json(route, DECK);
+    if (path === "/api/discover/likes/count") return json(route, { count: 0 });
+    if (path.endsWith("/swipe")) return json(route, { matched: false, likes_left: 40 });
+    if (path === "/api/discover/undo") {
+      undoCalls += 1;
+      return json(route, { candidate: DECK[0], likes_left: 41 });
+    }
     if (STALLED.some((prefix) => path.startsWith(prefix))) {
       await new Promise((resolve) => setTimeout(resolve, 30000));
       return route.abort();
@@ -108,8 +134,13 @@ await tab("deck").waitFor({ timeout: 15000 });
 
 /* ---------------- заготовки вместо спиннеров ---------------- */
 
-check("на колоде показаны заготовки", (await page.locator(".skeleton").count()) > 0);
-check("спиннера на колоде нет", await page.locator(".animate-spin").count(), 0);
+// Колода отвечает сразу, поэтому заготовки смотрим там, где запрос висит.
+await tab("events").click();
+await page.waitForTimeout(200);
+check("на афише показаны заготовки", (await page.locator(".skeleton").count()) > 0);
+check("спиннера при этом нет", await page.locator(".animate-spin").count(), 0);
+await tab("deck").click();
+await page.waitForTimeout(300);
 
 /* ---------------- направление перехода ---------------- */
 
@@ -143,6 +174,24 @@ if (SHOTS) {
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${SHOTS}/deck-skeleton.png` });
 }
+
+/* ---------------- отмена свайпа ---------------- */
+
+await tab("deck").click();
+await page.waitForTimeout(400);
+const undoButton = page.locator('[aria-label="Вернуть предыдущую"]');
+check("кнопка отмены есть", await undoButton.count(), 1);
+check("до первого свайпа отменять нечего", await undoButton.isDisabled());
+
+await page.locator('[aria-label="Пропустить"]').click();
+await page.waitForTimeout(400);
+check("после свайпа отмена оживает", await undoButton.isEnabled());
+
+await undoButton.click();
+await page.waitForTimeout(500);
+check("отмена ушла на сервер", undoCalls, 1);
+check("вернувшаяся анкета снова сверху", (await page.getByText("Аня, 25").count()) > 0);
+check("повторно отменять нечего", await undoButton.isDisabled());
 
 console.log(results.join("\n"));
 console.log(failures ? `\n${failures} проверок не прошло` : "\nвсё прошло");

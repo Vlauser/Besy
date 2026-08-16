@@ -186,6 +186,13 @@ class SwipeIn(BaseModel):
     action: SwipeAction
 
 
+class UndoOut(BaseModel):
+    """Возвращённая анкета плюс восстановленный остаток лайков."""
+
+    candidate: CandidateOut
+    likes_left: int
+
+
 class SwipeOut(BaseModel):
     matched: bool
     match_id: int | None = None

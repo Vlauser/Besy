@@ -81,6 +81,8 @@ const PARTNER = {
 // Всего сообщений в переписке и размер страницы — как на сервере.
 const TOTAL = 130;
 const PAGE = 50;
+// Насколько задерживаем догрузку, чтобы успеть снять мерку до вставки.
+const PAGE_DELAY_MS = 400;
 
 function message(id) {
   return {
@@ -123,6 +125,20 @@ const CHAT = {
   started_at: "2026-01-01T10:00:00Z",
 };
 
+// Второй чат — пустой: в нём проверяются подсказки первой фразы.
+const FRESH_PARTNER = { ...PARTNER, id: 3, first_name: "Ольга", interests: ["Кофе"] };
+const FRESH = {
+  ...CHAT,
+  id: 2,
+  // Флаг ровно такой, какой отдаёт сервер, — на выдуманном коротком
+  // подстановка целой фразы в шаблон осталась бы незамеченной.
+  other: { ...FRESH_PARTNER, shared_flags: ["Оба выбрали «спонтанность»"] },
+  has_conversation: false,
+  last_message: null,
+  last_message_at: null,
+  unread: 0,
+};
+
 const browser = await chromium.launch({ executablePath: CHROME_PATH });
 const context = await browser.newContext({ viewport: { width: 430, height: 860 }, hasTouch: true });
 const page_ = await context.newPage();
@@ -146,11 +162,23 @@ await page_.route(
     if (path === "/api/me") return json(route, ME);
     if (path === "/api/likes/incoming/count") return json(route, { count: 0 });
     if (path === "/api/payments/products") return json(route, { items: [] });
-    if (path === "/api/chats") return json(route, [CHAT]);
+    if (path === "/api/chats") return json(route, [CHAT, FRESH]);
+    if (path === "/api/chats/unread-count") return json(route, { count: 0 });
     if (path === "/api/chats/1") return json(route, CHAT);
+    if (path === "/api/chats/2") return json(route, FRESH);
+    if (path === "/api/chats/2/messages") return json(route, []);
+    if (path === "/api/chats/2/read") return route.fulfill({ status: 204, body: "" });
     if (path === "/api/chats/1/messages") {
       const before = url.searchParams.get("before_id");
       historyCalls.push(before);
+      // Догрузку намеренно притормаживаем: без паузы страница успевает
+      // прийти раньше, чем тест снимет мерку, и проверять становится
+      // нечего.
+      if (before) {
+        return new Promise((resolve) =>
+          setTimeout(() => resolve(json(route, page(before))), PAGE_DELAY_MS)
+        );
+      }
       return json(route, page(before));
     }
     if (path === "/api/chats/1/read") return route.fulfill({ status: 204, body: "" });
@@ -179,20 +207,25 @@ const box = page_.locator("div.overflow-y-auto").last();
 
 /* ---------------- догрузка вверх ---------------- */
 
-// Запоминаем, на каком сообщении стоит взгляд, чтобы поймать прыжок.
-const anchor = page_.locator(`text=сообщение ${TOTAL - PAGE + 2}`).first();
+// Мерку снимаем с конкретного сообщения: именно оно обязано остаться на
+// месте, когда сверху вставится пятьдесят новых. Проверять scrollTop
+// бессмысленно — он меняется по замыслу, и его значение ни о чём не
+// говорит.
+const anchor = said(TOTAL - PAGE + 2).first();
 await box.evaluate((el) => el.scrollTo({ top: 0 }));
-await page_.waitForTimeout(900);
+await page_.waitForTimeout(PAGE_DELAY_MS / 2);
+const before = (await anchor.boundingBox())?.y;
+await page_.waitForTimeout(PAGE_DELAY_MS + 700);
 
 check("догрузка ушла на сервер по before_id", paged().length >= 1);
 check("старые сообщения появились", (await said(TOTAL - PAGE - 5).count()) > 0);
 
-// Прокрутка должна была уехать вниз ровно на высоту вставки: сообщение,
-// на которое человек смотрел, обязано остаться там же, где было.
-const stillThere = await anchor.count();
-check("прежнее сообщение никуда не делось", stillThere > 0);
-const scrolledAway = await box.evaluate((el) => el.scrollTop);
-check("прокрутка не осталась в самом верху", scrolledAway > 0);
+const after = (await anchor.boundingBox())?.y;
+check("прежнее сообщение никуда не делось", typeof after === "number");
+check(
+  "и осталось на том же месте экрана",
+  typeof before === "number" && typeof after === "number" && Math.abs(after - before) < 40
+);
 
 /* ---------------- конец истории ---------------- */
 
@@ -205,6 +238,26 @@ const callsAtStart = paged().length;
 await box.evaluate((el) => el.scrollTo({ top: 0 }));
 await page_.waitForTimeout(700);
 check("в начале переписки запросы прекращаются", paged().length, callsAtStart);
+
+/* ---------------- подсказки первой фразы ---------------- */
+
+await page_.goto(BASE_URL, { waitUntil: "domcontentloaded" });
+await tab("chats").waitFor({ timeout: 15000 });
+await tab("chats").click();
+await page_.waitForTimeout(600);
+await page_.locator("text=Ольга").first().click();
+await page_.waitForTimeout(800);
+
+check("в пустом чате есть подсказки", (await page_.getByText("С чего начать").count()) > 0);
+const hint = page_.locator("button", { hasText: "спонтанность" }).first();
+check("подсказка построена на общем ответе теста", (await hint.count()) > 0);
+check("и не повторяет фразу сервера дважды", !/оба выбрали «оба/i.test(await hint.innerText()));
+
+await hint.click();
+await page_.waitForTimeout(300);
+const draft = await page_.locator("textarea, input[type=text]").last().inputValue();
+check("подсказка попадает в поле, а не отправляется", draft.includes("спонтанность"));
+check("сообщение не ушло само", (await page_.getByText("С чего начать").count()) > 0);
 
 console.log(results.join("\n"));
 console.log(failures ? `\n${failures} проверок не прошло` : "\nвсё прошло");

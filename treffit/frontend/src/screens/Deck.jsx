@@ -57,6 +57,31 @@ export function Deck({ config, homeCity, onMatch, onOpenLikes, onOpenCandidate, 
     endpoints.incomingLikesCount().then((data) => setLikedMe(data.count)).catch(() => {});
   }, []);
 
+  /** Кого вернёт отмена. Держим у себя, чтобы кнопка не была живой там,
+   *  где отменять нечего: свайпов в этой сессии не было, или последний уже
+   *  отменён, или он обернулся совпадением — такое не разбирается. */
+  const [undoable, setUndoable] = useState(null);
+
+  async function undo() {
+    if (busy || !undoable) return;
+    setBusy(true);
+    try {
+      const { candidate, likes_left: left } = await endpoints.undoSwipe();
+      if (typeof left === "number") setLikesLeft(left);
+      setCards((current) =>
+        current.some((card) => card.id === candidate.id) ? current : [candidate, ...current]
+      );
+      haptic.light();
+    } catch (error) {
+      onError(error.detail || error.message);
+    } finally {
+      // В любом исходе отменять больше нечего: либо получилось, либо сервер
+      // объяснил, почему нельзя, и повтор ответит тем же.
+      setUndoable(null);
+      setBusy(false);
+    }
+  }
+
   async function decide(candidate, action) {
     if (busy) return;
     setBusy(true);
@@ -65,6 +90,8 @@ export function Deck({ config, homeCity, onMatch, onOpenLikes, onOpenCandidate, 
     try {
       const result = await endpoints.swipe(candidate.id, action);
       if (typeof result.likes_left === "number") setLikesLeft(result.likes_left);
+      // Совпадение отменить нельзя: чат уже открыт у обоих.
+      setUndoable(result.matched ? null : candidate);
       if (result.matched) {
         haptic.success();
         onMatch({ ...result, candidate: result.candidate || candidate });
@@ -163,6 +190,8 @@ export function Deck({ config, homeCity, onMatch, onOpenLikes, onOpenCandidate, 
       <SwipeControls
         compatibility={visible[0]?.compatibility_pct}
         disabled={busy}
+        canUndo={Boolean(undoable)}
+        onUndo={undo}
         onPass={() => decide(top, "pass")}
         onSuperlike={() => decide(top, "superlike")}
         onLike={() => decide(top, "like")}
