@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarClock, Check, ChevronRight, MapPin, Plus, Trash2, Users, X } from "lucide-react";
 
 import { endpoints, mediaUrl } from "../api/client";
-import { Avatar, Button, Loading, Sheet, Spinner } from "../components/ui";
+import { Avatar, Button, CardSkeleton, Sheet, Spinner } from "../components/ui";
 import { haptic, showConfirm } from "../lib/telegram";
 import { T } from "../theme";
 
@@ -151,7 +151,7 @@ export function Meetups({ me, onError }) {
       </div>
 
       {current === null ? (
-        <Loading label="Смотрим, что затевают…" />
+        <CardSkeleton rows={3} />
       ) : !current.length ? (
         <EmptyCard
           title={EMPTY[section].title(me?.city)}

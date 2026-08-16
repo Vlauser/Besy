@@ -67,6 +67,9 @@ export default function App() {
   const [config, setConfig] = useState(null);
   const [me, setMe] = useState(null);
   const [tab, setTab] = useState("deck");
+  // Куда поехал экран при последней смене вкладки. Направление считаем в
+  // момент перехода: в самой отрисовке прошлой вкладки уже нет.
+  const [tabMotion, setTabMotion] = useState("screen-in");
   const [activeChatId, setActiveChatId] = useState(null);
   const [candidate, setCandidate] = useState(null);
   const [matchPopup, setMatchPopup] = useState(null);
@@ -75,6 +78,22 @@ export default function App() {
   const [insets, setInsets] = useState(getSafeAreaInsets);
 
   const notify = useCallback((message) => setToast(message), []);
+
+  /** Смена вкладки вместе с направлением её появления. */
+  const changeTab = useCallback(
+    (next) => {
+      if (next === tab) return;
+      const from = TABS.findIndex((item) => item.key === tab);
+      const to = TABS.findIndex((item) => item.key === next);
+      // «Вас лайкнули» и мини-тест в нижней панели не стоят — им сдвиг вбок
+      // не с чем соотнести, поэтому обычное появление снизу.
+      setTabMotion(
+        from < 0 || to < 0 ? "screen-in" : to > from ? "screen-in-fwd" : "screen-in-back"
+      );
+      setTab(next);
+    },
+    [tab]
+  );
 
   /* ---------------- boot: config + session ---------------- */
 
@@ -268,7 +287,7 @@ export default function App() {
         config={config}
         homeCity={me?.city}
         onMatch={setMatchPopup}
-        onOpenLikes={() => setTab("likes")}
+        onOpenLikes={() => changeTab("likes")}
         onOpenCandidate={setCandidate}
         onError={notify}
       />
@@ -294,7 +313,7 @@ export default function App() {
         config={config}
         testCards={config.test_cards}
         onUpdated={setMe}
-        onGoTest={() => setTab("test")}
+        onGoTest={() => changeTab("test")}
         onError={notify}
       />
     );
@@ -305,7 +324,7 @@ export default function App() {
         initialAnswers={me.test_answers}
         onSaved={(updated) => {
           setMe(updated);
-          setTimeout(() => setTab("deck"), 900);
+          setTimeout(() => changeTab("deck"), 900);
         }}
         onError={notify}
       />
@@ -332,15 +351,15 @@ export default function App() {
       height={height}
       title={TAB_TITLES[tab]}
       onBack={
-        tab === "test" ? () => setTab("profile") : tab === "likes" ? () => setTab("deck") : null
+        tab === "test" ? () => changeTab("profile") : tab === "likes" ? () => changeTab("deck") : null
       }
-      footer={<TabBar tab={tab} onChange={setTab} />}
+      footer={<TabBar tab={tab} onChange={changeTab} />}
     >
       <GlobalStyle />
       {/* min-h-full даёт нижнюю границу, flex-shrink-0 не даёт сжаться ниже
           содержимого: без него длинные экраны обрезались бы вместо прокрутки.
           Колонка нужна, чтобы экраны с flex-1 внутри занимали всю высоту. */}
-      <div key={tab} className="rise-in min-h-full flex flex-col flex-shrink-0">{body}</div>
+      <div key={tab} className={`${tabMotion} min-h-full flex flex-col flex-shrink-0`}>{body}</div>
 
       <Sheet open={Boolean(candidate)} onClose={() => setCandidate(null)} title="Совпадение">
         {candidate && (

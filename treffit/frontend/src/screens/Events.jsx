@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Calendar, CalendarClock, MapPin, Radio } from "lucide-react";
 
 import { endpoints } from "../api/client";
-import { EmptyState, Spinner } from "../components/ui";
+import { CardSkeleton, EmptyState, Spinner } from "../components/ui";
 import { haptic, requestLocation } from "../lib/telegram";
 import { T } from "../theme";
 
@@ -88,9 +88,9 @@ export function Events({ onError }) {
   return (
     <div className="px-4 pt-4 pb-4">
       <div>
-        {loading && (
-          <div className="flex justify-center py-6"><Spinner /></div>
-        )}
+        {/* Афиша — это картинка плюс две подписи. Заготовка повторяет
+            именно эту форму, поэтому подстановка проходит без скачка. */}
+        {loading && <CardSkeleton rows={3} poster className="pb-1" />}
 
         {!loading && !events.length && (
           <EmptyState

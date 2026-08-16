@@ -3,7 +3,7 @@ import { ChevronRight, Heart, Sparkles } from "lucide-react";
 
 import { endpoints } from "../api/client";
 import { SwipeCard, SwipeControls } from "../components/SwipeCard";
-import { Button, EmptyState, Loading } from "../components/ui";
+import { Button, DeckSkeleton, EmptyState } from "../components/ui";
 import { haptic } from "../lib/telegram";
 import { T } from "../theme";
 
@@ -88,7 +88,9 @@ export function Deck({ config, homeCity, onMatch, onOpenLikes, onOpenCandidate, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cards.length, loading, busy]);
 
-  if (loading) return <Loading label="Ищем совпадения…" />;
+  // Заготовка карточки, а не спиннер: место под колоду занято сразу, и
+  // экран не дёргается, когда анкеты доедут.
+  if (loading) return <DeckSkeleton />;
 
   if (!cards.length) {
     return (

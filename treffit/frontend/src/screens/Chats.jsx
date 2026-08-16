@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { MessageCircle } from "lucide-react";
 
 import { endpoints, mediaUrl } from "../api/client";
-import { Avatar, EmptyState, Loading } from "../components/ui";
+import { Avatar, EmptyState, ListSkeleton } from "../components/ui";
 import { realtime } from "../lib/realtime";
 import { FALLBACK_GRADIENT, T } from "../theme";
 
@@ -126,7 +126,7 @@ export function ChatList({ onOpenChat, requests, onError }) {
     endpoints.incomingLikesCount().then((data) => setLikeCount(data.count)).catch(() => {});
   }, []);
 
-  if (loading) return <Loading />;
+  if (loading) return <ListSkeleton />;
 
   const fresh = chats.filter((chat) => !chat.has_conversation);
   const started = chats.filter((chat) => chat.has_conversation);

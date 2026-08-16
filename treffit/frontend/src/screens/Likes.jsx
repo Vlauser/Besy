@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Heart, Lock, Star } from "lucide-react";
 
 import { endpoints, mediaUrl } from "../api/client";
-import { Button, EmptyState, Loading, Pill } from "../components/ui";
+import { Button, EmptyState, ListSkeleton, Pill } from "../components/ui";
 import { haptic, openInvoice } from "../lib/telegram";
 import { FALLBACK_GRADIENT, T, gradient } from "../theme";
 
@@ -91,7 +91,7 @@ export function Likes({ me, onOpenCandidate, onUpdated, onError }) {
     }
   }
 
-  if (count === null) return <Loading />;
+  if (count === null) return <ListSkeleton rows={3} />;
 
   if (count === 0) {
     return (
@@ -135,7 +135,7 @@ export function Likes({ me, onOpenCandidate, onUpdated, onError }) {
     );
   }
 
-  if (people === null) return <Loading />;
+  if (people === null) return <ListSkeleton />;
 
   return (
     <div className="px-4 pt-4 pb-6">
