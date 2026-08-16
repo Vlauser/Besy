@@ -327,12 +327,21 @@ function Stamp({ label, color, rotate, opacity, side }) {
  * человеке до знакомства, и прятать его мелким шрифтом в тени фотографии
  * значит выбрасывать собственную же работу.
  */
+// Размер боковой кнопки. Он же — ширина пустого места напротив неё.
+const SIDE = 48;
+
 export function SwipeControls({ onPass, onSuperlike, onLike, onUndo, canUndo, compatibility, disabled }) {
   return (
-    // Общая линия — по центрам кружков, а не по низу. При выравнивании по
-    // нижнему краю маленькая отмена проваливалась вниз, а звезда, у
-    // которой снизу висит процент, наоборот приподнималась: четыре кнопки
-    // стояли на четырёх разных уровнях.
+    // Две вещи держат этот ряд ровным.
+    //
+    // Первая — общая линия по центрам кружков, а не по нижнему краю: у
+    // кнопок разный размер, и по низу они вставали на четырёх разных
+    // уровнях.
+    //
+    // Вторая — пустое место справа, ровно под ширину отмены. Без него
+    // звезда, самый крупный и яркий элемент, оказывалась третьей из
+    // четырёх, то есть правее середины экрана, и весь ряд читался
+    // съехавшим. Симметрию ломает не размер кнопок, а нечётность.
     <div className="flex items-center justify-center gap-4 pt-3 pb-6">
       {/* Отмена с краю и меньше остальных: нужна редко, и промахнуться по
           ней вместо «пропустить» было бы издевательством над тем, ради
@@ -341,7 +350,7 @@ export function SwipeControls({ onPass, onSuperlike, onLike, onUndo, canUndo, co
       <RoundButton
         onClick={onUndo}
         disabled={disabled || !canUndo}
-        size={48}
+        size={SIDE}
         label="Вернуть предыдущую"
       >
         <RotateCcw size={20} color={T.muted} strokeWidth={2.4} />
@@ -383,6 +392,10 @@ export function SwipeControls({ onPass, onSuperlike, onLike, onUndo, canUndo, co
       <RoundButton onClick={onLike} disabled={disabled} size={62} label="Лайк">
         <Heart size={26} color={T.coral} fill={T.coral} />
       </RoundButton>
+
+      {/* Противовес отмене. Ничего не делает и не показывает — только
+          возвращает звезду в середину экрана. */}
+      <span aria-hidden className="flex-shrink-0" style={{ width: SIDE }} />
     </div>
   );
 }

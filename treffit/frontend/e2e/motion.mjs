@@ -210,13 +210,25 @@ check(
   Math.max(...centers) - Math.min(...centers) <= 1
 );
 
-// И сам ряд по центру экрана, а не смещён в сторону.
-const rowOffset = await page.evaluate(() => {
-  const first = document.querySelector('[aria-label="Вернуть предыдущую"]').getBoundingClientRect();
-  const last = document.querySelector('[aria-label="Лайк"]').getBoundingClientRect();
-  return Math.abs((first.left + last.right) / 2 - window.innerWidth / 2);
+// Звезда — самый крупный и яркий элемент ряда, и стоять она обязана ровно
+// посередине экрана. Пока отмена не имела противовеса справа, звезда была
+// третьей из четырёх и уезжала вправо — именно это и читалось «криво».
+const starOffset = await page.evaluate(() => {
+  const box = document.querySelector('[aria-label="Суперлайк"]').getBoundingClientRect();
+  return Math.abs(box.left + box.width / 2 - window.innerWidth / 2);
 });
-check(`ряд по центру экрана (сдвиг ${Math.round(rowOffset)}px)`, rowOffset <= 2);
+check(`звезда по центру экрана (сдвиг ${Math.round(starOffset)}px)`, starOffset <= 2);
+
+// Пропуск и лайк — пара, и стоять они должны на равном расстоянии от неё.
+const flanks = await page.evaluate(() => {
+  const at = (label) => {
+    const box = document.querySelector(`[aria-label="${label}"]`).getBoundingClientRect();
+    return box.left + box.width / 2;
+  };
+  const star = at("Суперлайк");
+  return Math.abs(star - at("Пропустить") - (at("Лайк") - star));
+});
+check(`пропуск и лайк симметричны звезде (разница ${Math.round(flanks)}px)`, flanks <= 2);
 
 console.log(results.join("\n"));
 console.log(failures ? `\n${failures} проверок не прошло` : "\nвсё прошло");
