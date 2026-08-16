@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Check, Heart, MapPin, RotateCcw, Star, X } from "lucide-react";
+import { Check, Heart, Info, MapPin, RotateCcw, Star, X } from "lucide-react";
 
 import { mediaUrl } from "../api/client";
 import { haptic } from "../lib/telegram";
@@ -330,23 +330,20 @@ function Stamp({ label, color, rotate, opacity, side }) {
 // Размер боковой кнопки. Он же — ширина пустого места напротив неё.
 const SIDE = 48;
 
-export function SwipeControls({ onPass, onSuperlike, onLike, onUndo, canUndo, compatibility, disabled }) {
+export function SwipeControls({ onPass, onSuperlike, onLike, onUndo, onOpen, canUndo, compatibility, disabled }) {
   return (
-    // Две вещи держат этот ряд ровным.
+    // Ряд зеркальный: по краям две служебные кнопки поменьше, внутри пара
+    // решений, в центре суперлайк. Пустым местом симметрию не подделать —
+    // при чётном числе кнопок акцент неизбежно уезжает от середины, и
+    // глаз читает это как перекос, даже когда всё выровнено по пикселю.
     //
-    // Первая — общая линия по центрам кружков, а не по нижнему краю: у
-    // кнопок разный размер, и по низу они вставали на четырёх разных
-    // уровнях.
-    //
-    // Вторая — пустое место справа, ровно под ширину отмены. Без него
-    // звезда, самый крупный и яркий элемент, оказывалась третьей из
-    // четырёх, то есть правее середины экрана, и весь ряд читался
-    // съехавшим. Симметрию ломает не размер кнопок, а нечётность.
-    <div className="flex items-center justify-center gap-4 pt-3 pb-6">
-      {/* Отмена с краю и меньше остальных: нужна редко, и промахнуться по
-          ней вместо «пропустить» было бы издевательством над тем, ради
-          чего она сделана. Кнопка не исчезает, когда отменять нечего, —
-          прыгающий ряд хуже, чем гашёная кнопка. */}
+    // Выравнивание — по центрам кружков, а не по нижнему краю: размеры
+    // разные, и по низу они встают на разных уровнях.
+    <div className="flex items-center justify-center gap-3.5 pt-3 pb-6">
+      {/* Отмена и анкета — по краям и меньше остальных: обе нужны редко, и
+          промахнуться по ним вместо «пропустить» было бы издевательством
+          над тем, ради чего они сделаны. Отмена не исчезает, когда
+          отменять нечего, — прыгающий ряд хуже, чем гашёная кнопка. */}
       <RoundButton
         onClick={onUndo}
         disabled={disabled || !canUndo}
@@ -393,9 +390,12 @@ export function SwipeControls({ onPass, onSuperlike, onLike, onUndo, canUndo, co
         <Heart size={26} color={T.coral} fill={T.coral} />
       </RoundButton>
 
-      {/* Противовес отмене. Ничего не делает и не показывает — только
-          возвращает звезду в середину экрана. */}
-      <span aria-hidden className="flex-shrink-0" style={{ width: SIDE }} />
+      {/* Анкета целиком. До сих пор она открывалась только тапом по
+          середине карточки — про это невозможно догадаться, и половина
+          написанного о человеке оставалась непрочитанной. */}
+      <RoundButton onClick={onOpen} disabled={disabled} size={SIDE} label="Открыть анкету">
+        <Info size={20} color={T.muted} strokeWidth={2.4} />
+      </RoundButton>
     </div>
   );
 }

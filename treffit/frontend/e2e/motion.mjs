@@ -199,11 +199,27 @@ check("повторно отменять нечего", await undoButton.isDisab
 // четырём разным уровням: маленькая отмена проваливалась, а звезда с
 // процентом под ней приподнималась. Проверяем то, что видно глазом, —
 // центры кружков на одной линии.
-const centers = await page.evaluate(() =>
-  ["Вернуть предыдущую", "Пропустить", "Суперлайк", "Лайк"].map((label) => {
+const ROW = ["Вернуть предыдущую", "Пропустить", "Суперлайк", "Лайк", "Открыть анкету"];
+
+// Сначала само наличие. Без этой проверки пропавшая кнопка роняла тест
+// стеком вместо строчки о том, что именно не так.
+const present = await page.evaluate(
+  (labels) => labels.filter((l) => document.querySelector(`[aria-label="${l}"]`)),
+  ROW
+);
+check(`все пять кнопок на месте (${present.length})`, present.length, ROW.length);
+if (present.length !== ROW.length) {
+  console.log(results.join("\n"));
+  console.log(`\nнет кнопок: ${ROW.filter((l) => !present.includes(l)).join(", ")}`);
+  await browser.close();
+  process.exit(1);
+}
+
+const centers = await page.evaluate((labels) =>
+  labels.map((label) => {
     const box = document.querySelector(`[aria-label="${label}"]`).getBoundingClientRect();
     return Math.round(box.top + box.height / 2);
-  })
+  }), ROW
 );
 check(
   `центры кнопок на одной линии (${centers.join(", ")})`,
@@ -219,16 +235,26 @@ const starOffset = await page.evaluate(() => {
 });
 check(`звезда по центру экрана (сдвиг ${Math.round(starOffset)}px)`, starOffset <= 2);
 
-// Пропуск и лайк — пара, и стоять они должны на равном расстоянии от неё.
-const flanks = await page.evaluate(() => {
+// Ряд обязан быть зеркальным: пара решений и пара служебных кнопок стоят
+// на равных расстояниях от звезды и имеют равные размеры. Пустым местом
+// это не подделать — потому четвёртая кнопка и появилась.
+const mirror = await page.evaluate((labels) => {
+  const box = (label) => document.querySelector(`[aria-label="${label}"]`).getBoundingClientRect();
   const at = (label) => {
-    const box = document.querySelector(`[aria-label="${label}"]`).getBoundingClientRect();
-    return box.left + box.width / 2;
+    const b = box(label);
+    return b.left + b.width / 2;
   };
-  const star = at("Суперлайк");
-  return Math.abs(star - at("Пропустить") - (at("Лайк") - star));
-});
-check(`пропуск и лайк симметричны звезде (разница ${Math.round(flanks)}px)`, flanks <= 2);
+  const star = at(labels[2]);
+  return {
+    inner: Math.abs(star - at(labels[1]) - (at(labels[3]) - star)),
+    outer: Math.abs(star - at(labels[0]) - (at(labels[4]) - star)),
+    innerSize: Math.abs(box(labels[1]).width - box(labels[3]).width),
+    outerSize: Math.abs(box(labels[0]).width - box(labels[4]).width),
+  };
+}, ROW);
+check(`внутренняя пара симметрична (${Math.round(mirror.inner)}px)`, mirror.inner <= 2);
+check(`внешняя пара симметрична (${Math.round(mirror.outer)}px)`, mirror.outer <= 2);
+check("пары равны по размеру", mirror.innerSize + mirror.outerSize <= 1);
 
 console.log(results.join("\n"));
 console.log(failures ? `\n${failures} проверок не прошло` : "\nвсё прошло");

@@ -192,6 +192,7 @@ export function Deck({ config, homeCity, onMatch, onOpenLikes, onOpenCandidate, 
         disabled={busy}
         canUndo={Boolean(undoable)}
         onUndo={undo}
+        onOpen={() => onOpenCandidate(top)}
         onPass={() => decide(top, "pass")}
         onSuperlike={() => decide(top, "superlike")}
         onLike={() => decide(top, "like")}
