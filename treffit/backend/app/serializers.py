@@ -122,9 +122,15 @@ async def candidate_out(
     shared_flags: list[str] | None = None,
     event: Event | None = None,
     unlocked: bool | None = None,
+    is_online: bool | None = None,
 ) -> CandidateOut:
     if unlocked is None:
         unlocked = await can_view_photos(session, viewer_id, user.id)
+    # Присутствие можно передать снаружи: список чатов спрашивает его сразу
+    # про всех собеседников, и опрашивать хаб ещё раз на каждого — лишние
+    # обращения ровно за тем же ответом.
+    if is_online is None:
+        is_online = await manager.is_online_anywhere(user.id)
     photos = visible_photos(user)
     return CandidateOut(
         id=user.id,
@@ -137,7 +143,7 @@ async def candidate_out(
         shared_flags=list(shared_flags or []),
         event=event_out(event),
         is_verified=user.is_verified,
-        is_online=await manager.is_online_anywhere(user.id),
+        is_online=is_online,
         photos=[photo_out(p, unlocked=unlocked) for p in photos],
         photos_locked=not unlocked,
     )
@@ -221,11 +227,26 @@ async def load_user_with_photos(session: AsyncSession, user_id: int) -> User | N
     return row.scalar_one_or_none()
 
 
-async def chat_out(session: AsyncSession, chat: Chat, viewer: User, last_message=None) -> ChatOut:
-    other = await load_user_with_photos(session, chat.other_id(viewer.id))
+async def chat_out(
+    session: AsyncSession,
+    chat: Chat,
+    viewer: User,
+    last_message=None,
+    *,
+    other: User | None = None,
+    event: Event | None = None,
+    is_online: bool | None = None,
+) -> ChatOut:
+    """Чат для клиента.
+
+    Собеседника, событие и присутствие можно передать готовыми: список
+    чатов достаёт их сразу на все строки, и повторять те же запросы внутри
+    каждой означало бы десятки обращений там, где хватает трёх.
+    """
+    if other is None:
+        other = await load_user_with_photos(session, chat.other_id(viewer.id))
     match = chat.match
-    event = None
-    if match and match.event_id:
+    if event is None and match and match.event_id:
         event = await session.get(Event, match.event_id)
     other_card = await candidate_out(
         session,
@@ -235,6 +256,7 @@ async def chat_out(session: AsyncSession, chat: Chat, viewer: User, last_message
         shared_flags=match.shared_flags if match else [],
         event=event,
         unlocked=chat.has_revealed(viewer.id) or not settings.blind_mode,
+        is_online=is_online,
     )
     return ChatOut(
         id=chat.id,

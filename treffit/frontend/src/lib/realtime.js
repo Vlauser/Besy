@@ -6,7 +6,7 @@
  * reveal counter has a single code path on the server.
  */
 
-import { websocketUrl } from "../api/client";
+import { websocketUrl } from "../api/client.js";
 
 const MAX_BACKOFF_MS = 15000;
 const HEARTBEAT_MS = 25000;
@@ -18,6 +18,8 @@ class Realtime {
     this.attempt = 0;
     this.heartbeat = null;
     this.closedByUs = false;
+    this.retryTimer = null;
+    this.foregroundWatched = false;
   }
 
   connect() {
@@ -25,6 +27,7 @@ class Realtime {
       return;
     }
     this.closedByUs = false;
+    this.watchForeground();
     try {
       this.socket = new WebSocket(websocketUrl());
     } catch {
@@ -53,14 +56,56 @@ class Realtime {
   }
 
   scheduleReconnect() {
+    // Один таймер на все попытки. Без этого каждый onclose и каждый
+    // неудавшийся connect добавляли свой, и после десятка сворачиваний
+    // приложение долбилось в сокет пачками вместо выдержанной паузы.
+    if (this.retryTimer) return;
     this.attempt += 1;
     const delay = Math.min(MAX_BACKOFF_MS, 500 * 2 ** Math.min(this.attempt, 5));
-    setTimeout(() => this.connect(), delay);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.connect();
+    }, delay);
+  }
+
+  /** Вернулись в приложение — проверить, жив ли сокет.
+   *
+   *  Telegram усыпляет веб-вью, а не закрывает: сокет к этому моменту уже
+   *  мёртв, но события `close` не приходило, и мы честно считали себя
+   *  подключёнными. Внешне это выглядело так, что сообщения перестают
+   *  приходить, пока приложение не перезапустишь.
+   */
+  watchForeground() {
+    if (this.foregroundWatched || typeof document === "undefined") return;
+    this.foregroundWatched = true;
+    const revive = () => {
+      if (this.closedByUs || document.hidden) return;
+      const state = this.socket?.readyState;
+      if (state === WebSocket.OPEN) {
+        // Живой на вид сокет может оказаться мёртвым: пинг это покажет,
+        // и обрыв придёт обычным путём через onclose.
+        this.send({ type: "ping" });
+        return;
+      }
+      if (state !== WebSocket.CONNECTING) {
+        // Возврат в приложение — не отказ сервера: ждать выдержанную паузу
+        // здесь незачем, подключаемся сразу.
+        this.attempt = 0;
+        clearTimeout(this.retryTimer);
+        this.retryTimer = null;
+        this.connect();
+      }
+    };
+    document.addEventListener("visibilitychange", revive);
+    window.addEventListener("focus", revive);
+    window.addEventListener("online", revive);
   }
 
   disconnect() {
     this.closedByUs = true;
     clearInterval(this.heartbeat);
+    clearTimeout(this.retryTimer);
+    this.retryTimer = null;
     this.socket?.close();
     this.socket = null;
   }

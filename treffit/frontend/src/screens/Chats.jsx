@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { MessageCircle } from "lucide-react";
 
 import { endpoints, mediaUrl } from "../api/client";
 import { Avatar, EmptyState, ListSkeleton } from "../components/ui";
 import { realtime } from "../lib/realtime";
 import { FALLBACK_GRADIENT, T } from "../theme";
+
+// Пауза, за которую очередь входящих событий схлопывается в один запрос.
+const RELOAD_DEBOUNCE_MS = 400;
 
 function preview(chat) {
   const last = chat.last_message;
@@ -105,6 +108,8 @@ export function ChatList({ onOpenChat, requests, onError }) {
   const [segment, setSegment] = useState("chats");
   const [likeCount, setLikeCount] = useState(0);
 
+  const reloadTimer = useRef(null);
+
   function load() {
     endpoints
       .chats()
@@ -115,10 +120,25 @@ export function ChatList({ onOpenChat, requests, onError }) {
 
   useEffect(() => {
     load();
-    // Any inbound event can change ordering or unread counts.
-    return realtime.subscribe((event) => {
-      if (["message", "read", "match", "reveal"].includes(event.type)) load();
+    // Любое входящее событие меняет порядок или счётчики непрочитанного,
+    // но перезапрашивать список на каждое — расточительно: переписка идёт
+    // очередями, и десяток сообщений подряд давал десяток одинаковых
+    // запросов. Схлопываем их в один.
+    const schedule = () => {
+      if (reloadTimer.current) return;
+      reloadTimer.current = setTimeout(() => {
+        reloadTimer.current = null;
+        load();
+      }, RELOAD_DEBOUNCE_MS);
+    };
+    const stop = realtime.subscribe((event) => {
+      if (["message", "read", "match", "reveal"].includes(event.type)) schedule();
     });
+    return () => {
+      stop();
+      clearTimeout(reloadTimer.current);
+      reloadTimer.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

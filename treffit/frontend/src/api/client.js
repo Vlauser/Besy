@@ -5,9 +5,9 @@
  * it must be readable synchronously before the first render.
  */
 
-import { getInitData } from "../lib/telegram";
+import { getInitData } from "../lib/telegram.js";
 
-const BASE = import.meta.env.VITE_API_URL || "/api";
+const BASE = import.meta.env?.VITE_API_URL || "/api";
 const TOKEN_KEY = "treffit.token";
 
 let token = localStorage.getItem(TOKEN_KEY) || null;

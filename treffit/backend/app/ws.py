@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 from collections import defaultdict
+from collections.abc import Iterable
 
 from fastapi import WebSocket
 
@@ -126,6 +127,25 @@ class ConnectionManager:
         if self.is_online(user_id):
             return True
         return bool(await self._redis.exists(self._presence_key(user_id)))
+
+    async def online_among(self, user_ids: Iterable[int]) -> set[int]:
+        """Кто из перечисленных сейчас в сети — одним обращением.
+
+        Список чатов спрашивал присутствие по одному человеку, и на двух
+        десятках собеседников это два десятка команд в Redis подряд. Здесь
+        всё уходит одним MGET.
+        """
+        ids = list(dict.fromkeys(user_ids))
+        if not ids:
+            return set()
+        here = {uid for uid in ids if self.is_online(uid)}
+        if self._redis is None:
+            return here
+        rest = [uid for uid in ids if uid not in here]
+        if not rest:
+            return here
+        values = await self._redis.mget([self._presence_key(uid) for uid in rest])
+        return here | {uid for uid, value in zip(rest, values) if value is not None}
 
     @staticmethod
     def _presence_key(user_id: int) -> str:

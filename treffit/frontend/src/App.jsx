@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import {
   Calendar,
   ChevronLeft,
@@ -10,17 +10,63 @@ import {
 
 import { endpoints, mediaUrl, onUnauthorized, setToken } from "./api/client";
 import { CandidateDetail } from "./components/CandidateDetail";
-import { ChatList } from "./screens/Chats";
-import { ChatRoom } from "./screens/ChatRoom";
 import { Deck } from "./screens/Deck";
-import { Likes } from "./screens/Likes";
-import { DevLogin } from "./screens/DevLogin";
-import { Events } from "./screens/Events";
-import { Meetups } from "./screens/Meetups";
-import { Onboarding } from "./screens/Onboarding";
-import { Profile } from "./screens/Profile";
-import { Test } from "./screens/Test";
-import { Avatar, Button, GlobalStyle, Loading, Sheet, Toast } from "./components/ui";
+import {
+  Avatar,
+  Button,
+  CardSkeleton,
+  DeckSkeleton,
+  GlobalStyle,
+  ListSkeleton,
+  Loading,
+  Sheet,
+  Toast,
+} from "./components/ui";
+
+/* Экраны, кроме колоды, приезжают отдельными кусками.
+ *
+ * Открывается приложение всегда на поиске, а в одном бандле лежали и
+ * анкета, и события, и переписка — всё это ждали перед первым кадром на
+ * мобильном интернете. Остальное подгружаем при первом заходе на вкладку,
+ * а заранее — в простое, чтобы к моменту нажатия оно уже было. */
+const named = (loader, name) => lazy(() => loader().then((m) => ({ default: m[name] })));
+
+const loadChats = () => import("./screens/Chats");
+const loadChatRoom = () => import("./screens/ChatRoom");
+const loadEvents = () => import("./screens/Events");
+const loadMeetups = () => import("./screens/Meetups");
+const loadProfile = () => import("./screens/Profile");
+const loadLikes = () => import("./screens/Likes");
+const loadTest = () => import("./screens/Test");
+const loadOnboarding = () => import("./screens/Onboarding");
+const loadDevLogin = () => import("./screens/DevLogin");
+
+const ChatList = named(loadChats, "ChatList");
+const ChatRoom = named(loadChatRoom, "ChatRoom");
+const Events = named(loadEvents, "Events");
+const Meetups = named(loadMeetups, "Meetups");
+const Profile = named(loadProfile, "Profile");
+const Likes = named(loadLikes, "Likes");
+const Test = named(loadTest, "Test");
+const Onboarding = named(loadOnboarding, "Onboarding");
+const DevLogin = named(loadDevLogin, "DevLogin");
+
+/** Дотянуть остальные экраны, пока человек смотрит на колоду. */
+function prefetchScreens() {
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1200));
+  idle(() => {
+    [loadChats, loadProfile, loadMeetups, loadEvents, loadChatRoom, loadLikes].forEach((load) =>
+      load().catch(() => {})
+    );
+  });
+}
+
+/** Заглушка на время, пока кусок экрана едет. */
+function ScreenFallback({ kind }) {
+  if (kind === "deck") return <DeckSkeleton />;
+  if (kind === "cards") return <CardSkeleton rows={3} />;
+  return <ListSkeleton />;
+}
 import { realtime } from "./lib/realtime";
 import {
   getSafeAreaInsets,
@@ -49,6 +95,17 @@ const TABS = [
 
 // Сколько ждём скрипт Telegram, прежде чем запуститься без него.
 const SDK_WAIT_MS = 3000;
+
+// Какой заготовкой закрывать вкладку, пока её кусок едет.
+const FALLBACK_KIND = {
+  deck: "deck",
+  events: "cards",
+  meetups: "cards",
+  chats: "list",
+  profile: "list",
+  likes: "list",
+  test: "list",
+};
 
 const TAB_TITLES = {
   deck: "Поиск",
@@ -150,6 +207,7 @@ export default function App() {
       setNeedsDevLogin(false);
       setMe(profile);
       realtime.connect();
+      prefetchScreens();
     } catch (error) {
       setFatal(error.detail || error.message);
     } finally {
@@ -233,7 +291,9 @@ export default function App() {
     return (
       <Shell height={height} insets={insets} title="Treffit">
         <GlobalStyle />
-        <DevLogin onAuthenticated={boot} onError={notify} />
+        <Suspense fallback={<Loading label="Открываем…" />}>
+          <DevLogin onAuthenticated={boot} onError={notify} />
+        </Suspense>
         <Toast message={toast} onDone={() => setToast(null)} />
       </Shell>
     );
@@ -259,6 +319,7 @@ export default function App() {
     return (
       <Shell height={height} insets={insets} title="Знакомство">
         <GlobalStyle />
+        <Suspense fallback={<Loading label="Открываем…" />}>
         {needsTest ? (
           <Test
             cards={config.test_cards}
@@ -269,6 +330,7 @@ export default function App() {
         ) : (
           <Onboarding me={me} config={config} onError={notify} onDone={async () => setMe(await endpoints.me())} />
         )}
+        </Suspense>
         <Toast message={toast} onDone={() => setToast(null)} />
       </Shell>
     );
@@ -335,12 +397,14 @@ export default function App() {
     return (
       <Shell height={height} insets={insets} title="" onBack={() => setActiveChatId(null)} bare>
         <GlobalStyle />
-        <ChatRoom
-          chatId={activeChatId}
-          config={config}
-          onLeave={() => setActiveChatId(null)}
-          onError={notify}
-        />
+        <Suspense fallback={<ListSkeleton />}>
+          <ChatRoom
+            chatId={activeChatId}
+            config={config}
+            onLeave={() => setActiveChatId(null)}
+            onError={notify}
+          />
+        </Suspense>
         <Toast message={toast} onDone={() => setToast(null)} />
       </Shell>
     );
@@ -359,7 +423,9 @@ export default function App() {
       {/* min-h-full даёт нижнюю границу, flex-shrink-0 не даёт сжаться ниже
           содержимого: без него длинные экраны обрезались бы вместо прокрутки.
           Колонка нужна, чтобы экраны с flex-1 внутри занимали всю высоту. */}
-      <div key={tab} className={`${tabMotion} min-h-full flex flex-col flex-shrink-0`}>{body}</div>
+      <div key={tab} className={`${tabMotion} min-h-full flex flex-col flex-shrink-0`}>
+        <Suspense fallback={<ScreenFallback kind={FALLBACK_KIND[tab]} />}>{body}</Suspense>
+      </div>
 
       <Sheet open={Boolean(candidate)} onClose={() => setCandidate(null)} title="Совпадение">
         {candidate && (

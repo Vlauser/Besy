@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from sqlalchemy import desc, or_, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -98,12 +98,56 @@ async def list_chats(
         .where(or_(Chat.user_a_id == user.id, Chat.user_b_id == user.id))
         .order_by(Chat.last_message_at.desc().nulls_last(), Chat.started_at.desc())
     )
+    chats = list(rows.scalars())
+    if not chats:
+        return []
+
+    # Дальше всё одним заходом на каждый вид данных. Раньше на каждый чат
+    # приходилось по запросу за последним сообщением, по запросу за
+    # собеседником с фотографиями, иногда ещё за событием и по обращению к
+    # хабу за присутствием: два десятка чатов — под сотню round-trip'ов, и
+    # экран открывался соответственно.
+    chat_ids = [chat.id for chat in chats]
+    partner_ids = [chat.other_id(user.id) for chat in chats]
+    event_ids = {chat.match.event_id for chat in chats if chat.match and chat.match.event_id}
+
+    newest = (
+        select(func.max(Message.id))
+        .where(Message.chat_id.in_(chat_ids))
+        .group_by(Message.chat_id)
+    )
+    last_rows = await session.execute(select(Message).where(Message.id.in_(newest)))
+    last_by_chat = {message.chat_id: message for message in last_rows.scalars()}
+
+    partner_rows = await session.execute(
+        select(User).options(selectinload(User.photos)).where(User.id.in_(partner_ids))
+    )
+    partners = {partner.id: partner for partner in partner_rows.scalars()}
+
+    events: dict[int, Event] = {}
+    if event_ids:
+        event_rows = await session.execute(select(Event).where(Event.id.in_(event_ids)))
+        events = {event.id: event for event in event_rows.scalars()}
+
+    online = await manager.online_among(partner_ids)
+
     out: list[ChatOut] = []
-    for chat in rows.scalars():
-        last = await session.scalar(
-            select(Message).where(Message.chat_id == chat.id).order_by(desc(Message.id)).limit(1)
+    for chat in chats:
+        partner = partners.get(chat.other_id(user.id))
+        if partner is None:
+            continue
+        event_id = chat.match.event_id if chat.match else None
+        out.append(
+            await chat_out(
+                session,
+                chat,
+                user,
+                last_message=last_by_chat.get(chat.id),
+                other=partner,
+                event=events.get(event_id) if event_id else None,
+                is_online=partner.id in online,
+            )
         )
-        out.append(await chat_out(session, chat, user, last_message=last))
     return out
 
 
