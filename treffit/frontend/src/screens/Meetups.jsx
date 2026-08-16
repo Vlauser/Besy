@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { CalendarClock, ChevronRight, MapPin, Plus, Trash2, Users, X } from "lucide-react";
+import { CalendarClock, Check, ChevronRight, MapPin, Plus, Trash2, Users, X } from "lucide-react";
 
 import { endpoints, mediaUrl } from "../api/client";
 import { Avatar, Button, Loading, Sheet, Spinner } from "../components/ui";
@@ -26,119 +26,170 @@ export function whenLabel(startsAt) {
  * отклик, а не совпадение. Переписку открывает автор, увидев, кто
  * откликнулся.
  */
+const SECTIONS = [
+  ["feed", "Лента"],
+  ["going", "Я иду"],
+  ["mine", "Мои"],
+];
+
+/**
+ * Раздел «События»: то, что затевают сами люди.
+ *
+ * Три вкладки, и каждая отвечает на свой вопрос. «Лента» — на что можно
+ * пойти. «Я иду» — куда я уже собрался: отклик убирает карточку из ленты,
+ * решение принято, но само событие человеку по-прежнему нужно, иначе
+ * отклик означал бы «забудь». «Мои» — что я завёл, как оно выглядит со
+ * стороны и кто откликнулся.
+ */
 export function Meetups({ me, onError }) {
-  const [cards, setCards] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [section, setSection] = useState("feed");
   const [creating, setCreating] = useState(false);
-  const [showingMine, setShowingMine] = useState(false);
-  const [mineCount, setMineCount] = useState(0);
-  const pending = useRef(new Set());
+  const [feed, setFeed] = useState(null);
+  const [going, setGoing] = useState(null);
+  const [mine, setMine] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const answered = useRef(new Set());
 
   const load = useCallback(async () => {
     try {
-      setCards((await endpoints.meetups()).filter((card) => !pending.current.has(card.id)));
+      const [list, plans, own] = await Promise.all([
+        endpoints.meetups(),
+        endpoints.meetupsGoing(),
+        endpoints.myMeetups(),
+      ]);
+      setFeed(list.filter((card) => !answered.current.has(card.id)));
+      setGoing(plans);
+      setMine(own);
     } catch (error) {
       onError(error.detail || error.message);
-    } finally {
-      setLoading(false);
+      setFeed((current) => current || []);
+      setGoing((current) => current || []);
+      setMine((current) => current || []);
     }
   }, [onError]);
 
-  const countMine = useCallback(async () => {
-    try {
-      const mine = await endpoints.myMeetups();
-      setMineCount(mine.reduce((sum, item) => sum + (item.responses || 0), 0));
-    } catch {
-      // Счётчик — не повод для тоста.
-    }
-  }, []);
-
   useEffect(() => {
     load();
-    countMine();
-  }, [load, countMine]);
+  }, [load]);
 
   async function decide(meetup, action) {
     if (busy) return;
     setBusy(true);
-    pending.current.add(meetup.id);
-    setCards((current) => current.filter((card) => card.id !== meetup.id));
+    answered.current.add(meetup.id);
+    setFeed((current) => (current || []).filter((card) => card.id !== meetup.id));
     haptic.light();
     try {
       await endpoints.respondToMeetup(meetup.id, action);
+      // Откликнулись — карточка переезжает в «Я иду», и её надо оттуда
+      // забрать. «Не сейчас» просто исчезает.
+      if (action === INTERESTED) setGoing(await endpoints.meetupsGoing());
     } catch (error) {
-      setCards((current) => [meetup, ...current]);
+      answered.current.delete(meetup.id);
+      setFeed((current) => [meetup, ...(current || [])]);
       onError(error.detail || error.message);
     } finally {
-      pending.current.delete(meetup.id);
       setBusy(false);
     }
   }
 
-  if (showingMine) {
-    return (
-      <MyMeetups
-        onBack={() => {
-          setShowingMine(false);
-          countMine();
-        }}
-        onError={onError}
-      />
-    );
+  async function cancel(meetup) {
+    if (!(await showConfirm(`Снять «${meetup.topic}»?`))) return;
+    try {
+      await endpoints.cancelMeetup(meetup.id);
+      load();
+    } catch (error) {
+      onError(error.detail || error.message);
+    }
   }
+
+  const waiting = (going || []).length;
+  const responses = (mine || []).reduce((sum, item) => sum + (item.responses || 0), 0);
+  const counts = { feed: 0, going: waiting, mine: responses };
+  const lists = { feed, going, mine };
+  const current = lists[section];
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Панель, а не строка навесу: с фоном и границей она принадлежит
-          разделу, а не висит сама по себе поверх пустоты. */}
       <div
-        className="flex items-center justify-between gap-2 px-4 py-2.5 flex-shrink-0"
+        className="flex items-center gap-2 px-4 py-2.5 flex-shrink-0"
         style={{ background: T.surface, borderBottom: `1px solid ${T.line}` }}
       >
-        <button
-          onClick={() => setShowingMine(true)}
-          className="flex items-center gap-1.5 text-sm font-semibold active:scale-95 transition-transform"
-          style={{ color: T.ink }}
-        >
-          Мои события
-          {mineCount > 0 && (
-            <span
-              className="rounded-full px-1.5 text-xs font-bold"
-              style={{ background: T.coral, color: "#fff" }}
-            >
-              {mineCount}
-            </span>
-          )}
-          <ChevronRight size={15} color={T.muted} />
-        </button>
+        <div className="flex-1 p-1 rounded-full flex gap-1" style={{ background: T.surfaceSoft }}>
+          {SECTIONS.map(([key, label]) => {
+            const active = section === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setSection(key)}
+                className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-full text-sm font-semibold transition-colors duration-200"
+                style={{ background: active ? T.ink : "transparent", color: active ? "#fff" : T.muted }}
+              >
+                {label}
+                {counts[key] > 0 && (
+                  <span
+                    className="text-xs font-bold rounded-full px-1.5"
+                    style={{
+                      background: active ? "rgba(255,255,255,0.22)" : T.line,
+                      color: active ? "#fff" : T.muted,
+                    }}
+                  >
+                    {counts[key]}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
         <button
           onClick={() => setCreating(true)}
           aria-label="Создать событие"
-          className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform"
           style={{ background: T.coral }}
         >
           <Plus size={19} color="#fff" strokeWidth={2.5} />
         </button>
       </div>
 
-      {loading ? (
+      {current === null ? (
         <Loading label="Смотрим, что затевают…" />
-      ) : !cards.length ? (
+      ) : !current.length ? (
         <EmptyCard
-          title={me?.city ? `В городе ${me.city} пока тихо` : "Пока тихо"}
-          hint="Здесь события, которые придумывают сами люди: сходить куда-то компанией, поиграть вечером, обсудить что-нибудь."
-          onCreate={() => setCreating(true)}
+          title={EMPTY[section].title(me?.city)}
+          hint={EMPTY[section].hint}
+          onCreate={section === "going" ? null : () => setCreating(true)}
         />
       ) : (
-        <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-3 space-y-3">
-          {cards.map((meetup) => (
+        <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-3 space-y-3">
+          {current.map((meetup) => (
             <MeetupCard
               key={meetup.id}
               meetup={meetup}
-              disabled={busy}
-              onPass={() => decide(meetup, PASS)}
-              onJoin={() => decide(meetup, INTERESTED)}
+              footer={
+                section === "feed" ? (
+                  <div className="flex gap-2 mt-3.5">
+                    <button
+                      onClick={() => decide(meetup, PASS)}
+                      disabled={busy}
+                      className="flex-1 rounded-2xl py-2.5 text-sm font-semibold active:scale-95 transition-transform disabled:opacity-40"
+                      style={{ background: T.surfaceSoft, color: T.muted }}
+                    >
+                      Не сейчас
+                    </button>
+                    <button
+                      onClick={() => decide(meetup, INTERESTED)}
+                      disabled={busy}
+                      className="flex-1 rounded-2xl py-2.5 text-sm font-bold active:scale-95 transition-transform disabled:opacity-40"
+                      style={{ background: T.coral, color: "#fff" }}
+                    >
+                      Пойду
+                    </button>
+                  </div>
+                ) : section === "going" ? (
+                  <GoingStatus meetup={meetup} />
+                ) : (
+                  <OwnFooter meetup={meetup} onCancel={() => cancel(meetup)} onError={onError} />
+                )
+              }
             />
           ))}
         </div>
@@ -150,10 +201,71 @@ export function Meetups({ me, onError }) {
         onClose={() => setCreating(false)}
         onCreated={() => {
           setCreating(false);
-          countMine();
+          setSection("mine");
+          load();
         }}
         onError={onError}
       />
+    </div>
+  );
+}
+
+const EMPTY = {
+  feed: {
+    title: (city) => (city ? `В городе ${city} пока тихо` : "Пока тихо"),
+    hint: "Здесь события, которые придумывают сами люди: сходить куда-то компанией, поиграть вечером, обсудить что-нибудь.",
+  },
+  going: {
+    title: () => "Планов пока нет",
+    hint: "Откликнитесь на событие в ленте — оно появится здесь, чтобы не потерялось.",
+  },
+  mine: {
+    title: () => "Вы пока ничего не заводили",
+    hint: "Своё событие видят люди из вашего города. Откликнувшихся вы увидите здесь.",
+  },
+};
+
+/** Что стало с откликом: автор ещё думает или уже написал. */
+function GoingStatus({ meetup }) {
+  const accepted = meetup.response_status === "accepted";
+  return (
+    <div
+      className="flex items-center gap-1.5 mt-3.5 pt-3"
+      style={{ borderTop: `1px solid ${T.line}` }}
+    >
+      <Check size={14} color={accepted ? T.coralDeep : T.muted} strokeWidth={2.6} />
+      <span className="text-sm font-semibold" style={{ color: accepted ? T.coralDeep : T.muted }}>
+        {accepted ? "Автор написал вам" : "Вы откликнулись, ждём ответа автора"}
+      </span>
+    </div>
+  );
+}
+
+/** Низ своей карточки: сколько откликов, кто именно, и как снять. */
+function OwnFooter({ meetup, onCancel, onError }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-3.5 pt-3" style={{ borderTop: `1px solid ${T.line}` }}>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setOpen((value) => !value)}
+          disabled={!meetup.responses}
+          className="flex-1 flex items-center justify-between text-sm font-semibold disabled:opacity-100"
+          style={{ color: meetup.responses ? T.coralDeep : T.muted }}
+        >
+          {meetup.responses ? `Откликнулись: ${meetup.responses}` : "Откликов пока нет"}
+          {meetup.responses > 0 && <ChevronRight size={15} color={T.muted} />}
+        </button>
+        <button
+          onClick={onCancel}
+          aria-label="Снять событие"
+          className="p-1.5 rounded-full flex-shrink-0 active:scale-90 transition-transform"
+          style={{ background: T.surfaceSoft }}
+        >
+          <Trash2 size={14} color={T.danger} />
+        </button>
+      </div>
+      {open && meetup.responses > 0 && <Responders meetupId={meetup.id} onError={onError} />}
     </div>
   );
 }
@@ -187,7 +299,9 @@ function EmptyCard({ title, hint, onCreate }) {
   );
 }
 
-function MeetupCard({ meetup, disabled, onPass, onJoin }) {
+/** Карточка события. Низ у каждого раздела свой, всё остальное общее:
+ *  автор должен видеть своё событие ровно таким, каким его видят люди. */
+function MeetupCard({ meetup, footer }) {
   const cover = meetup.image_url ? mediaUrl(meetup.image_url) : null;
   return (
     <div
@@ -234,24 +348,7 @@ function MeetupCard({ meetup, disabled, onPass, onJoin }) {
           </p>
         )}
 
-        <div className="flex gap-2 mt-3.5">
-          <button
-            onClick={onPass}
-            disabled={disabled}
-            className="flex-1 rounded-2xl py-2.5 text-sm font-semibold active:scale-95 transition-transform disabled:opacity-40"
-            style={{ background: T.surfaceSoft, color: T.muted }}
-          >
-            Не сейчас
-          </button>
-          <button
-            onClick={onJoin}
-            disabled={disabled}
-            className="flex-1 rounded-2xl py-2.5 text-sm font-bold active:scale-95 transition-transform disabled:opacity-40"
-            style={{ background: T.coral, color: "#fff" }}
-          >
-            Пойду
-          </button>
-        </div>
+        {footer}
       </div>
     </div>
   );
@@ -393,99 +490,6 @@ function Field({ label, value, onChange, type = "text", rows, ...rest }) {
 }
 
 /** Свои события и те, кто на них откликнулся. */
-function MyMeetups({ onBack, onError }) {
-  const [items, setItems] = useState(null);
-  const [openId, setOpenId] = useState(null);
-
-  const load = useCallback(async () => {
-    try {
-      setItems(await endpoints.myMeetups());
-    } catch (error) {
-      onError(error.detail || error.message);
-      setItems([]);
-    }
-  }, [onError]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  async function cancel(meetup) {
-    if (!(await showConfirm(`Снять «${meetup.topic}»?`))) return;
-    try {
-      await endpoints.cancelMeetup(meetup.id);
-      load();
-    } catch (error) {
-      onError(error.detail || error.message);
-    }
-  }
-
-  if (items === null) return <Loading label="Загружаем ваши события…" />;
-
-  return (
-    <div className="flex flex-col flex-1 min-h-0">
-      <div className="px-4 pt-3 pb-2 flex-shrink-0">
-        <button
-          onClick={onBack}
-          className="text-sm font-semibold active:scale-95 transition-transform"
-          style={{ color: T.coralDeep }}
-        >
-          ← Все события
-        </button>
-      </div>
-
-      {!items.length ? (
-        <EmptyCard
-          title="Вы пока ничего не заводили"
-          hint="Своё событие видят люди из вашего города. Откликнувшихся вы увидите здесь."
-        />
-      ) : (
-        <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-3 space-y-2.5">
-          {items.map((meetup) => (
-            <div
-              key={meetup.id}
-              className="rounded-2xl p-3.5"
-              style={{ background: T.surface, border: `1px solid ${T.line}` }}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold" style={{ color: T.ink }}>{meetup.topic}</p>
-                  <p className="text-xs mt-0.5" style={{ color: T.muted }}>
-                    {whenLabel(meetup.starts_at)} · {meetup.address}
-                  </p>
-                </div>
-                <button
-                  onClick={() => cancel(meetup)}
-                  aria-label="Снять событие"
-                  className="p-1.5 rounded-full flex-shrink-0 active:scale-90 transition-transform"
-                  style={{ background: T.surfaceSoft }}
-                >
-                  <Trash2 size={14} color={T.danger} />
-                </button>
-              </div>
-
-              <button
-                onClick={() => setOpenId(openId === meetup.id ? null : meetup.id)}
-                className="w-full flex items-center justify-between mt-2.5 pt-2.5"
-                style={{ borderTop: `1px solid ${T.line}` }}
-              >
-                <span className="text-sm font-semibold" style={{ color: meetup.responses ? T.coralDeep : T.muted }}>
-                  {meetup.responses ? `Откликнулись: ${meetup.responses}` : "Откликов пока нет"}
-                </span>
-                {meetup.responses > 0 && <ChevronRight size={15} color={T.muted} />}
-              </button>
-
-              {openId === meetup.id && meetup.responses > 0 && (
-                <Responders meetupId={meetup.id} onError={onError} />
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function Responders({ meetupId, onError }) {
   const [people, setPeople] = useState(null);
   const [busyId, setBusyId] = useState(null);

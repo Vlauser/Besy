@@ -58,7 +58,14 @@ def _author_out(user: User) -> MeetupAuthorOut:
     )
 
 
-def _meetup_out(meetup: Meetup, *, mine: bool = False, responses: int | None = None) -> MeetupOut:
+def _meetup_out(
+    meetup: Meetup,
+    *,
+    mine: bool = False,
+    responses: int | None = None,
+    response_status: str | None = None,
+    chat_id: int | None = None,
+) -> MeetupOut:
     # Прячем только то, что модерация отклонила. Прятать «на проверке» было
     # бы правильно, будь у обложек очередь модератора, — её нет, и такая
     # картинка не показалась бы уже никогда. Автомодерация здесь
@@ -76,6 +83,8 @@ def _meetup_out(meetup: Meetup, *, mine: bool = False, responses: int | None = N
         author=_author_out(meetup.author),
         responses=responses,
         mine=mine,
+        response_status=response_status,
+        chat_id=chat_id,
     )
 
 
@@ -146,6 +155,43 @@ async def mine(
         ).all()
     )
     return [_meetup_out(m, mine=True, responses=counts.get(m.id, 0)) for m in meetups]
+
+
+@router.get("/going", response_model=list[MeetupOut])
+async def going(
+    user: User = Depends(onboarded_user), session: AsyncSession = Depends(get_session)
+) -> list[MeetupOut]:
+    """События, на которые человек откликнулся и которые ещё впереди.
+
+    Из ленты откликнутое уходит — решение принято, и предлагать его снова
+    незачем. Но само событие человеку по-прежнему нужно: когда, где и чем
+    кончилось. Без этого отклик означал бы «забудь», а он означает «иду».
+    """
+    now = datetime.now(timezone.utc)
+    rows = await session.execute(
+        select(Meetup, MeetupResponse)
+        .join(MeetupResponse, MeetupResponse.meetup_id == Meetup.id)
+        .options(selectinload(Meetup.author).selectinload(User.photos))
+        .where(
+            MeetupResponse.user_id == user.id,
+            MeetupResponse.action == "interested",
+            _live(now),
+        )
+        .order_by(Meetup.starts_at.asc())
+    )
+
+    out: list[MeetupOut] = []
+    for meetup, response in rows.all():
+        match = await chat_service.find_match(session, user.id, meetup.author_id)
+        chat = await chat_service.get_chat_for_match(session, match.id) if match else None
+        out.append(
+            _meetup_out(
+                meetup,
+                response_status="accepted" if response.accepted_at else "pending",
+                chat_id=chat.id if chat else None,
+            )
+        )
+    return out
 
 
 @router.post("", response_model=MeetupOut, status_code=status.HTTP_201_CREATED)

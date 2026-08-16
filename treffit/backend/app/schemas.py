@@ -315,6 +315,10 @@ class MeetupOut(BaseModel):
     # касаются.
     responses: int | None = None
     mine: bool = False
+    # Для раздела «Я иду»: откликнулся и ждёт ответа автора или уже
+    # получил чат. У карточек из ленты пусто.
+    response_status: Literal["pending", "accepted"] | None = None
+    chat_id: int | None = None
 
 
 class MeetupIn(BaseModel):

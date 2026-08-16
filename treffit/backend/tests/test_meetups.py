@@ -240,3 +240,55 @@ async def test_blocked_people_do_not_see_each_other_s_meetups(user_factory):
     blocked = await other.post("/safety/block", json={"user_id": author.id})
     assert blocked.status_code == 204, blocked.text
     assert (await other.get("/meetups")).json() == []
+
+
+# --------------------------- «Я иду» ---------------------------
+
+
+async def test_a_responded_meetup_stays_visible(user_factory):
+    """Отклик означает «иду», а не «забудь».
+
+    Из ленты карточка уходит — решение принято. Но событие человеку
+    по-прежнему нужно: когда и где. Раньше оно исчезало насовсем.
+    """
+    author = await user_factory(2050, city="Екатеринбург")
+    other = await user_factory(2051, gender="male", seeking="female", city="Екатеринбург")
+    meetup = (await create(author, topic="Настолки")).json()
+
+    await other.post(f"/meetups/{meetup['id']}/respond", json={"action": "interested"})
+
+    assert (await other.get("/meetups")).json() == []  # из ленты ушло
+    going = (await other.get("/meetups/going")).json()
+    assert [m["topic"] for m in going] == ["Настолки"]
+    assert going[0]["response_status"] == "pending"
+    assert going[0]["chat_id"] is None
+
+
+async def test_going_shows_the_chat_once_the_author_agrees(user_factory):
+    author = await user_factory(2052, city="Екатеринбург")
+    other = await user_factory(2053, gender="male", seeking="female", city="Екатеринбург")
+    meetup = (await create(author)).json()
+    await other.post(f"/meetups/{meetup['id']}/respond", json={"action": "interested"})
+    accepted = (await author.post(f"/meetups/{meetup['id']}/responses/{other.id}/accept")).json()
+
+    going = (await other.get("/meetups/going")).json()
+    assert going[0]["response_status"] == "accepted"
+    assert going[0]["chat_id"] == accepted["chat_id"]
+
+
+async def test_a_pass_does_not_land_in_going(user_factory):
+    author = await user_factory(2054, city="Екатеринбург")
+    other = await user_factory(2055, gender="male", seeking="female", city="Екатеринбург")
+    meetup = (await create(author)).json()
+    await other.post(f"/meetups/{meetup['id']}/respond", json={"action": "pass"})
+    assert (await other.get("/meetups/going")).json() == []
+
+
+async def test_a_cancelled_meetup_leaves_going(user_factory):
+    """Снятое автором событие висеть в планах не должно."""
+    author = await user_factory(2056, city="Екатеринбург")
+    other = await user_factory(2057, gender="male", seeking="female", city="Екатеринбург")
+    meetup = (await create(author)).json()
+    await other.post(f"/meetups/{meetup['id']}/respond", json={"action": "interested"})
+    await author.delete(f"/meetups/{meetup['id']}")
+    assert (await other.get("/meetups/going")).json() == []

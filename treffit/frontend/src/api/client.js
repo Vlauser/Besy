@@ -188,6 +188,7 @@ export const endpoints = {
 
   meetups: () => api.get("/meetups"),
   myMeetups: () => api.get("/meetups/mine"),
+  meetupsGoing: () => api.get("/meetups/going"),
   createMeetup: (fields, image) => api.form("/meetups", fields, { image }),
   cancelMeetup: (id) => api.delete(`/meetups/${id}`),
   respondToMeetup: (id, action) => api.post(`/meetups/${id}/respond`, { action }),
