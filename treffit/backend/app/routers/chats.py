@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from ..config import settings
 from ..db import get_session
 from ..deps import onboarded_user
-from ..models import Chat, Event, Match, Message, MessageType, User
+from ..models import Chat, Event, Match, Message, MessageReaction, MessageType, User
 from ..schemas import (
     ChatOut,
     MatchOut,
@@ -18,6 +18,7 @@ from ..schemas import (
     MessageIn,
     MessageOut,
     PhotoRevealOut,
+    ReactionIn,
     SendMessageOut,
 )
 from ..serializers import (
@@ -306,6 +307,54 @@ async def delete_message(
         {"type": "message_deleted", "chat_id": chat.id, "message_id": message.id},
     )
     return message_out(message, user.id)
+
+
+@router.post("/chats/{chat_id}/messages/{message_id}/reaction", response_model=MessageOut)
+async def set_reaction(
+    chat_id: int,
+    message_id: int,
+    payload: ReactionIn,
+    user: User = Depends(onboarded_user),
+    session: AsyncSession = Depends(get_session),
+) -> MessageOut:
+    """Поставить, сменить или снять реакцию.
+
+    Нажатие на ту же реакцию снимает её — как в Telegram. Реакция одна на
+    человека: смена значка заменяет строку, а не добавляет вторую.
+    """
+    chat = await _load_chat(session, chat_id, user)
+    message = await session.get(Message, message_id)
+    if message is None or message.chat_id != chat.id or message.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Сообщение не найдено")
+
+    existing = await session.scalar(
+        select(MessageReaction).where(
+            MessageReaction.message_id == message_id, MessageReaction.user_id == user.id
+        )
+    )
+    if existing is None:
+        session.add(MessageReaction(message_id=message_id, user_id=user.id, emoji=payload.emoji))
+    elif existing.emoji == payload.emoji:
+        await session.delete(existing)
+    else:
+        existing.emoji = payload.emoji
+    await session.commit()
+
+    # Именно refresh, а не повторный select: сообщение уже в кэше сессии
+    # со старой коллекцией, и обычный запрос вернул бы тот же объект с ней.
+    await session.refresh(message, ["reactions"])
+    fresh = message
+    other_id = chat.other_id(user.id)
+    partner = await session.get(User, other_id)
+    await manager.send(
+        other_id,
+        {
+            "type": "message_reaction",
+            "chat_id": chat.id,
+            "message": message_out(fresh, other_id, partner_name=user.first_name).model_dump(mode="json"),
+        },
+    )
+    return message_out(fresh, user.id, partner_name=partner.first_name if partner else "Собеседник")
 
 
 @router.post("/chats/{chat_id}/read", response_model=ChatOut)

@@ -19,6 +19,7 @@ from .schemas import (
     MeOut,
     MessageOut,
     PhotoOut,
+    ReactionOut,
     ReplyQuoteOut,
 )
 from .services import chats as chat_service
@@ -183,7 +184,18 @@ def message_out(message, viewer_id: int, *, partner_name: str = "Собесед�
         if "reply_to" not in sa_inspect(message).unloaded
         else None
     )
+    # Реакции сворачиваем в счётчики: интерфейсу нужен значок, число и
+    # «моя ли это», а не список людей — их тут всего двое.
+    tally: dict[str, list[int]] = {}
+    if "reactions" not in sa_inspect(message).unloaded:
+        for reaction in message.reactions:
+            row = tally.setdefault(reaction.emoji, [0, False])
+            row[0] += 1
+            if reaction.user_id == viewer_id:
+                row[1] = True
+
     return MessageOut(
+        reactions=[ReactionOut(emoji=e, count=c, mine=m) for e, (c, m) in tally.items()],
         id=message.id,
         chat_id=message.chat_id,
         sender_id=message.sender_id,

@@ -221,3 +221,67 @@ async def test_the_chat_list_survives_a_reply(user_factory):
         response = await actor.get("/chats")
         assert response.status_code == 200, response.text
         assert len(response.json()) == 1
+
+
+# --------------------------- реакции ---------------------------
+
+
+async def react(actor, chat, message_id, emoji):
+    return await actor.post(f"/chats/{chat}/messages/{message_id}/reaction", json={"emoji": emoji})
+
+
+async def test_a_reaction_appears_for_both(user_factory):
+    her, him, chat = await matched_pair(user_factory)
+    sent = (await her.post(f"/chats/{chat}/messages", json={"body": "шутка"})).json()["message"]
+
+    mine = (await react(him, chat, sent["id"], "😂")).json()
+    assert mine["reactions"] == [{"emoji": "😂", "count": 1, "mine": True}]
+
+    seen = (await her.get(f"/chats/{chat}/messages")).json()
+    target = next(m for m in seen if m["id"] == sent["id"])
+    assert target["reactions"] == [{"emoji": "😂", "count": 1, "mine": False}]
+
+
+async def test_the_same_reaction_twice_removes_it(user_factory):
+    her, him, chat = await matched_pair(user_factory)
+    sent = (await her.post(f"/chats/{chat}/messages", json={"body": "текст"})).json()["message"]
+    await react(him, chat, sent["id"], "👍")
+    assert (await react(him, chat, sent["id"], "👍")).json()["reactions"] == []
+
+
+async def test_a_second_reaction_replaces_the_first(user_factory):
+    """Реакция одна на человека: смена значка не должна плодить вторую."""
+    her, him, chat = await matched_pair(user_factory)
+    sent = (await her.post(f"/chats/{chat}/messages", json={"body": "текст"})).json()["message"]
+    await react(him, chat, sent["id"], "👍")
+    after = (await react(him, chat, sent["id"], "🔥")).json()
+    assert after["reactions"] == [{"emoji": "🔥", "count": 1, "mine": True}]
+
+
+async def test_both_reactions_are_counted(user_factory):
+    her, him, chat = await matched_pair(user_factory)
+    sent = (await her.post(f"/chats/{chat}/messages", json={"body": "текст"})).json()["message"]
+    await react(him, chat, sent["id"], "❤️")
+    after = (await react(her, chat, sent["id"], "❤️")).json()
+    assert after["reactions"] == [{"emoji": "❤️", "count": 2, "mine": True}]
+
+
+async def test_an_unknown_emoji_is_refused(user_factory):
+    """Чужая строка в поле эмодзи — это чужой текст в интерфейсе."""
+    her, him, chat = await matched_pair(user_factory)
+    sent = (await her.post(f"/chats/{chat}/messages", json={"body": "текст"})).json()["message"]
+    assert (await react(him, chat, sent["id"], "<script>")).status_code == 422
+
+
+async def test_you_cannot_react_in_another_chat(user_factory):
+    her, him, chat = await matched_pair(user_factory)
+    stranger = await user_factory(3010, name="Чужак", gender="male", seeking="female")
+    sent = (await her.post(f"/chats/{chat}/messages", json={"body": "текст"})).json()["message"]
+    assert (await react(stranger, chat, sent["id"], "👍")).status_code == 404
+
+
+async def test_a_deleted_message_takes_no_reactions(user_factory):
+    her, him, chat = await matched_pair(user_factory)
+    sent = (await her.post(f"/chats/{chat}/messages", json={"body": "текст"})).json()["message"]
+    await her.delete(f"/chats/{chat}/messages/{sent['id']}")
+    assert (await react(him, chat, sent["id"], "👍")).status_code == 404

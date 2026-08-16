@@ -64,6 +64,11 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
         );
         endpoints.markRead(chatId).catch(() => {});
       }
+      if (event.type === "message_reaction") {
+        setMessages((current) =>
+          current.map((message) => (message.id === event.message.id ? event.message : message))
+        );
+      }
       if (event.type === "message_edited") {
         setMessages((current) =>
           current.map((message) => (message.id === event.message.id ? event.message : message))
@@ -171,6 +176,15 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
     try {
       const gone = await endpoints.deleteMessage(chatId, message.id);
       setMessages((current) => current.map((m) => (m.id === gone.id ? gone : m)));
+    } catch (error) {
+      onError(error.detail || error.message);
+    }
+  }
+
+  async function react(message, emoji) {
+    try {
+      const updated = await endpoints.reactToMessage(chatId, message.id, emoji);
+      setMessages((current) => current.map((m) => (m.id === updated.id ? updated : m)));
     } catch (error) {
       onError(error.detail || error.message);
     }
@@ -284,6 +298,7 @@ export function ChatRoom({ chatId, config, onLeave, onError }) {
           }}
           onEdit={startEditing}
           onDelete={removeMessage}
+          onReact={react}
           onOpenPhoto={setZoomed}
         >
 

@@ -9,6 +9,12 @@ import { T } from "../theme";
 const REPLY_TRIGGER = 48;
 const REPLY_LIMIT = 76;
 const LONG_PRESS_MS = 420;
+/* Набор реакций. Тот же, что даёт Telegram без Premium: больше — это уже
+   выбор из выбора, а в переписке двоих он ни к чему. */
+export const REACTIONS = ["👍", "❤️", "🔥", "😂", "😮", "😢", "🙏"];
+/* Быстрая реакция по двойному касанию — как сердце в Telegram. */
+const QUICK = "❤️";
+
 /* Внутри этого промежутка подряд идущие сообщения — одна группа. */
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
@@ -67,7 +73,7 @@ function layout(messages) {
   return days;
 }
 
-export function MessageList({ messages, onReply, onEdit, onDelete, onOpenPhoto, children }) {
+export function MessageList({ messages, onReply, onEdit, onDelete, onReact, onOpenPhoto, children }) {
   const [menu, setMenu] = useState(null);
 
   return (
@@ -101,6 +107,7 @@ export function MessageList({ messages, onReply, onEdit, onDelete, onOpenPhoto, 
                     last={position === group.items.length - 1}
                     onReply={() => onReply(message)}
                     onMenu={() => setMenu(message)}
+                    onReact={onReact}
                     onOpenPhoto={onOpenPhoto}
                   />
                 ))}
@@ -115,6 +122,10 @@ export function MessageList({ messages, onReply, onEdit, onDelete, onOpenPhoto, 
       {menu && (
         <MessageMenu
           message={menu}
+          onReact={(emoji) => {
+            onReact(menu, emoji);
+            setMenu(null);
+          }}
           onClose={() => setMenu(null)}
           onReply={() => {
             onReply(menu);
@@ -141,7 +152,7 @@ export function MessageList({ messages, onReply, onEdit, onDelete, onOpenPhoto, 
  * резинка вместо упора говорит, что дальше некуда, но жест ещё жив. Долгое
  * нажатие открывает меню.
  */
-function Bubble({ message, last, onReply, onMenu, onOpenPhoto }) {
+function Bubble({ message, last, onReply, onMenu, onReact, onOpenPhoto }) {
   const [shift, setShift] = useState(0);
   const start = useRef(null);
   const armed = useRef(false);
@@ -211,6 +222,8 @@ function Bubble({ message, last, onReply, onMenu, onOpenPhoto }) {
     setShift(next * direction);
   }
 
+  const lastTap = useRef(0);
+
   function end(event) {
     cancelPress();
     event?.currentTarget?.releasePointerCapture?.(event.pointerId);
@@ -218,7 +231,21 @@ function Bubble({ message, last, onReply, onMenu, onOpenPhoto }) {
     start.current = null;
     armed.current = false;
     setShift(0);
-    if (fire) onReply();
+    if (fire) {
+      onReply();
+      return;
+    }
+    // Двойное касание ставит быструю реакцию — как сердце в Telegram.
+    if (axis.current === null && !message.deleted) {
+      const now = Date.now();
+      if (now - lastTap.current < 320) {
+        lastTap.current = 0;
+        haptic.light();
+        onReact?.(message, QUICK);
+      } else {
+        lastTap.current = now;
+      }
+    }
   }
 
   const photo = message.photo_url ? mediaUrl(message.photo_url) : null;
@@ -312,6 +339,38 @@ function Bubble({ message, last, onReply, onMenu, onOpenPhoto }) {
             )
           )}
 
+          {message.reactions?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {message.reactions.map((reaction) => (
+                <button
+                  key={reaction.emoji}
+                  // Событие останавливаем уже на нажатии: иначе пузырь
+                  // считает это началом своего жеста и перехватывает клик.
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onPointerUp={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onReact?.(message, reaction.emoji);
+                  }}
+                  className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs active:scale-95 transition-transform"
+                  style={{
+                    background: reaction.mine
+                      ? mine
+                        ? "rgba(255,255,255,0.28)"
+                        : T.coral
+                      : mine
+                      ? "rgba(255,255,255,0.14)"
+                      : T.surfaceSoft,
+                    color: reaction.mine && !mine ? "#fff" : mine ? "#fff" : T.ink,
+                  }}
+                >
+                  <span>{reaction.emoji}</span>
+                  {reaction.count > 1 && <span className="font-semibold">{reaction.count}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex items-center justify-end gap-1 mt-0.5">
             {message.edited && (
               <span
@@ -342,7 +401,7 @@ function Bubble({ message, last, onReply, onMenu, onOpenPhoto }) {
 }
 
 /** Меню по долгому нажатию. Своё сообщение можно ещё поправить и убрать. */
-function MessageMenu({ message, onClose, onReply, onEdit, onDelete }) {
+function MessageMenu({ message, onClose, onReply, onEdit, onDelete, onReact }) {
   const items = [[CornerUpLeft, "Ответить", onReply]];
   if (message.body) {
     items.push([
@@ -371,6 +430,24 @@ function MessageMenu({ message, onClose, onReply, onEdit, onDelete }) {
         style={{ background: T.surface }}
         onClick={(event) => event.stopPropagation()}
       >
+        {/* Реакции — над списком, как в Telegram: это самое частое
+            действие, и до него не должно быть пути через меню. */}
+        <div className="flex justify-between gap-1 px-2 pt-1 pb-2">
+          {REACTIONS.map((emoji) => (
+            <button
+              key={emoji}
+              onClick={() => onReact(emoji)}
+              className="w-10 h-10 rounded-full flex items-center justify-center text-xl active:scale-90 transition-transform"
+              style={{
+                background:
+                  message.reactions?.some((r) => r.emoji === emoji && r.mine) ? T.surfaceSoft : "transparent",
+              }}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+
         {items.map(([Icon, label, action, danger]) => (
           <button
             key={label}

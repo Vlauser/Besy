@@ -216,6 +216,19 @@ class ReplyQuoteOut(BaseModel):
     mine: bool = False
 
 
+class ReactionOut(BaseModel):
+    emoji: str
+    count: int
+    mine: bool = False
+
+
+class ReactionIn(BaseModel):
+    """Только из известного набора: чужая строка в поле эмодзи — это чужой
+    текст в интерфейсе, и подписывать его под сообщением нельзя."""
+
+    emoji: Literal["👍", "❤️", "🔥", "😂", "😮", "😢", "🙏"]
+
+
 class MessageOut(ORMModel):
     id: int
     chat_id: int
@@ -230,6 +243,7 @@ class MessageOut(ORMModel):
     photo_url: str | None = None
     gradient: str | None = None
     reply_to: ReplyQuoteOut | None = None
+    reactions: list[ReactionOut] = []
 
 
 class MessageIn(BaseModel):

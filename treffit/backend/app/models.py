@@ -375,8 +375,32 @@ class Message(Base):
 
     chat: Mapped[Chat] = relationship(back_populates="messages")
     reply_to: Mapped["Message | None"] = relationship(remote_side=[id], lazy="selectin")
+    reactions: Mapped[list["MessageReaction"]] = relationship(
+        cascade="all, delete-orphan", lazy="selectin"
+    )
 
     __table_args__ = (Index("ix_messages_chat_id_desc", "chat_id", "id"),)
+
+
+class MessageReaction(Base):
+    """Реакция на сообщение.
+
+    Одна на человека: в Telegram без Premium тоже одна, и для переписки
+    двоих этого достаточно. Смена реакции — это замена строки, а повторное
+    нажатие той же — снятие.
+    """
+
+    __tablename__ = "message_reactions"
+
+    id: Mapped[int] = mapped_column(PkType, primary_key=True)
+    message_id: Mapped[int] = mapped_column(
+        ForeignKey("messages.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    emoji: Mapped[str] = mapped_column(String(8), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (UniqueConstraint("message_id", "user_id", name="uq_message_reactions_pair"),)
 
 
 class LiveSession(Base):

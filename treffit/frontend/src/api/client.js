@@ -189,6 +189,8 @@ export const endpoints = {
   editMessage: (chatId, messageId, bodyText) =>
     api.patch(`/chats/${chatId}/messages/${messageId}`, { body: bodyText }),
   deleteMessage: (chatId, messageId) => api.delete(`/chats/${chatId}/messages/${messageId}`),
+  reactToMessage: (chatId, messageId, emoji) =>
+    api.post(`/chats/${chatId}/messages/${messageId}/reaction`, { emoji }),
   markRead: (id) => api.post(`/chats/${id}/read`),
   chatPhoto: (id) => api.get(`/chats/${id}/photo`),
 
