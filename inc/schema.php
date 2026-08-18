@@ -770,7 +770,7 @@ function schema(): array
             ],
             'fields' => [
                 'integrations.telegram_token' => ['label' => 'Telegram — токен бота', 'type' => 'text', 'hint' => 'Создать бота у @BotFather.'],
-                'integrations.telegram_chat_id' => ['label' => 'Telegram — chat_id', 'type' => 'text', 'w' => 'm', 'hint' => 'Свой id узнаете у @userinfobot. Боту нужно написать хотя бы одно сообщение — первым он писать не умеет.'],
+                'integrations.telegram_chat_id' => ['label' => 'Telegram — chat_id', 'type' => 'text', 'w' => 'm', 'hint' => 'Свой id узнаете у @userinfobot. Боту нужно написать хотя бы одно сообщение — первым он писать не умеет. Получателей можно несколько: через запятую. Для группы добавьте туда бота и возьмите id группы у @getmyid_bot — он начинается с минуса.'],
                 'integrations.notify_email'   => ['label' => 'Почта для заявок', 'type' => 'text', 'w' => 'm'],
                 'integrations.metrika_id'     => ['label' => 'ID Яндекс.Метрики', 'type' => 'text', 'w' => 'm', 'hint' => 'Только цифры номера счётчика. Счётчик запускается после согласия на cookie. Все цели — тип «JavaScript-событие». Идентификаторы: lead — заявка отправлена, form_open — открыта форма, form_start — начал заполнять, click_telegram, click_email, click_phone — клики по контактам, project_click — клик по кейсу, faq_open — раскрыт вопрос, scroll_25/50/75/100 — глубина прокрутки.'],
                 'seo.yandex_verify'  => ['label' => 'Яндекс.Вебмастер — код', 'type' => 'text', 'w' => 'm', 'hint' => 'В Вебмастере выберите способ «Мета-тег» и возьмите из него только содержимое content — сам тег движок соберёт.'],

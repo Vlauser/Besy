@@ -12,6 +12,48 @@ function fail(string $msg, int $code = 400): never
     exit;
 }
 
+/**
+ * Сообщение в Telegram одному адресату.
+ *
+ * Заявка к этому моменту уже сохранена, поэтому неудачная отправка
+ * ничего не отменяет: сообщение не дойдёт, но заявка останется
+ * в админке и в выгрузке.
+ */
+function tg_send(string $token, string $chat, string $text): void
+{
+    $payload = http_build_query([
+        'chat_id'    => $chat,
+        'text'       => $text,
+        'parse_mode' => 'Markdown',
+    ]);
+
+    $url = "https://api.telegram.org/bot{$token}/sendMessage";
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 6,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        curl_exec($ch);
+        curl_close($ch);
+        return;
+    }
+
+    @file_get_contents($url, false, stream_context_create([
+        'http' => [
+            'method'        => 'POST',
+            'header'        => "Content-Type: application/x-www-form-urlencoded\r\n",
+            'content'       => $payload,
+            'timeout'       => 6,
+            'ignore_errors' => true,
+        ],
+    ]));
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     fail('Метод не поддерживается', 405);
 }
@@ -129,9 +171,13 @@ if (!lead_add($lead)) fail('Не удалось сохранить заявку'
 
 /* --- Уведомление в Telegram --- */
 $token = trim((string)c('integrations.telegram_token'));
-$chat  = trim((string)c('integrations.telegram_chat_id'));
 
-if ($token !== '' && $chat !== '') {
+// Получателей может быть несколько: через запятую, пробел или с новой
+// строки. Так заявку видит не только владелец, но и, скажем, менеджер
+// или общая рабочая группа.
+$chats = preg_split('~[\s,;]+~', (string)c('integrations.telegram_chat_id'), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+if ($token !== '' && $chats) {
     $lines = [
         '🔔 *Новая заявка*',
         '',
@@ -165,35 +211,8 @@ if ($token !== '' && $chat !== '') {
     // Экранируем спецсимволы Markdown, кроме наших звёздочек и подчёркиваний
     $text = str_replace(['[', ']', '`'], ['(', ')', "'"], $text);
 
-    $payload = http_build_query([
-        'chat_id'    => $chat,
-        'text'       => $text,
-        'parse_mode' => 'Markdown',
-    ]);
-
-    $url = "https://api.telegram.org/bot{$token}/sendMessage";
-
-    if (function_exists('curl_init')) {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $payload,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 6,
-            CURLOPT_SSL_VERIFYPEER => true,
-        ]);
-        curl_exec($ch);
-        curl_close($ch);
-    } else {
-        @file_get_contents($url, false, stream_context_create([
-            'http' => [
-                'method'        => 'POST',
-                'header'        => "Content-Type: application/x-www-form-urlencoded\r\n",
-                'content'       => $payload,
-                'timeout'       => 6,
-                'ignore_errors' => true,
-            ],
-        ]));
+    foreach ($chats as $chat) {
+        tg_send($token, $chat, $text);
     }
 }
 
