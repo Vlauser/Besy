@@ -1,5 +1,6 @@
 """Операции из командной строки: разобраться в состоянии и выдать доступ.
 
+    python -m scripts.admin who <имя|tg_id>     найти человека и показать анкету
     python -m scripts.admin status              что настроено и что в очередях
     python -m scripts.admin photos [N]          последние фото и их модерация
     python -m scripts.admin premium <tg_id>     выдать Premium
@@ -340,6 +341,60 @@ async def cmd_photos(limit: int) -> None:
                 print(f"      причина: {photo.moderation_reason}")
 
 
+async def cmd_who(query: str) -> None:
+    """Найти человека по имени или telegram_id и показать его анкету.
+
+    До сих пор всё в этом скрипте искалось только по telegram_id, а он
+    известен далеко не всегда: в переписке человек — это «Полина», и
+    сопоставлять имя с числом приходилось руками через psql.
+
+    Совпадений может быть несколько — печатаем все, иначе легко ответить
+    про чужую анкету и не заметить.
+    """
+    async with SessionLocal() as session:
+        raw = query.strip().lstrip("<").rstrip(">").lstrip("@")
+        if raw.lstrip("-").isdigit():
+            rows = await session.execute(
+                select(User).where(User.telegram_id == int(raw))
+            )
+            found = list(rows.scalars())
+        else:
+            # Сравниваем в Python, а не в SQL. lower() в SQLite кириллицу
+            # не трогает вовсе, в Postgres зависит от локали базы — то
+            # есть один и тот же запрос ведёт себя по-разному там и там.
+            # Таблица тут в тысячи строк, диагностическая команда вполне
+            # может прочитать её целиком и не гадать про collation.
+            needle = raw.lower()
+            rows = await session.execute(select(User).order_by(desc(User.last_active_at)))
+            found = [
+                user
+                for user in rows.scalars()
+                if needle in (user.first_name or "").lower()
+                or needle in (user.username or "").lower()
+            ]
+        if not found:
+            sys.exit(f"Никого по запросу «{query}» не нашлось")
+
+        print(f"Найдено: {len(found)}\n")
+        for user in found:
+            demo = " [демо-анкета]" if user.telegram_id < 0 else ""
+            print(f"{user.first_name} (id {user.id}, tg {user.telegram_id}){demo}")
+            print(f"  дата рождения: {user.birth_date or 'не указана'}")
+            print(f"  возраст: {user.age if user.age is not None else '—'}")
+            print(f"  пол: {user.gender or '—'}   ищет: {user.seeking_gender}")
+            print(f"  город: {user.city or '—'}")
+            print(f"  анкета заполнена: {'да' if user.is_onboarded else 'НЕТ'}")
+            print(
+                f"  подтверждена: {'да' if user.is_verified else 'нет'}"
+                f"   premium: {'да' if user.is_premium else 'нет'}"
+                f"   активна: {'да' if user.is_active else 'НЕТ'}"
+            )
+            if user.username:
+                print(f"  username: @{user.username}")
+            print(f"  последняя активность: {user.last_active_at}")
+            print()
+
+
 async def _find(session, telegram_id: int) -> User:
     user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
     if user is None:
@@ -486,6 +541,10 @@ async def main() -> None:
         await cmd_reset_swipes(_telegram_id(args))
     elif command == "verify":
         await cmd_verify(_telegram_id(args))
+    elif command == "who":
+        if len(args) < 2:
+            sys.exit("Укажите имя или telegram_id: например, «who Полина»")
+        await cmd_who(" ".join(args[1:]))
     else:
         sys.exit(__doc__)
 
