@@ -8,7 +8,10 @@
 
   const state = { sort: 'new', offset: 0, limit: 24, total: 0 };
 
-  if (auth.user) document.getElementById('tab-subs').hidden = false;
+  if (auth.user) {
+    document.getElementById('tab-subs').hidden = false;
+    document.getElementById('tab-foryou').hidden = false;
+  }
   if (query) title.textContent = `Результаты: «${query}»`;
 
   function skeletons(n) {
@@ -26,6 +29,14 @@
       grid.innerHTML = skeletons(8);
     }
     moreBtn.hidden = true;
+
+    if (state.sort === 'foryou') {
+      const { videos } = await api.get('/api/me/recommended');
+      grid.innerHTML = videos.length
+        ? videos.map((v) => videoCard(v)).join('')
+        : '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">✨</div>Посмотрите несколько роликов — и здесь появятся рекомендации</div>';
+      return;
+    }
 
     if (state.sort === 'subs') {
       const { videos } = await api.get('/api/channels/me/feed');
@@ -67,7 +78,7 @@
     state.sort = tab.dataset.sort;
     title.textContent = query
       ? `Результаты: «${query}»`
-      : { new: 'Новые видео', popular: 'Популярное', subs: 'Подписки' }[state.sort];
+      : { new: 'Новые видео', popular: 'Популярное', subs: 'Подписки', foryou: 'Для вас' }[state.sort];
     load({ reset: true }).catch((err) => { grid.innerHTML = `<div class="alert alert-error">${escapeHtml(err.message)}</div>`; });
   });
 

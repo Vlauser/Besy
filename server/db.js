@@ -126,6 +126,70 @@ CREATE TABLE IF NOT EXISTS videos (
   created_at     INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS video_stats_daily (
+  video_id      TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  day           TEXT    NOT NULL,
+  views         INTEGER NOT NULL DEFAULT 0,
+  watch_seconds INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (video_id, day)
+);
+
+CREATE TABLE IF NOT EXISTS retention_buckets (
+  video_id TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  bucket   INTEGER NOT NULL,
+  hits     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (video_id, bucket)
+);
+
+CREATE TABLE IF NOT EXISTS retention_progress (
+  video_id   TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  viewer_key TEXT    NOT NULL,
+  max_bucket INTEGER NOT NULL DEFAULT -1,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (video_id, viewer_key)
+);
+
+CREATE TABLE IF NOT EXISTS traffic_sources (
+  video_id TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  source   TEXT    NOT NULL,
+  hits     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (video_id, source)
+);
+
+CREATE TABLE IF NOT EXISTS watch_history (
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  video_id   TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  position   REAL    NOT NULL DEFAULT 0,
+  seconds    INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, video_id)
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type       TEXT    NOT NULL,
+  actor_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  video_id   TEXT    REFERENCES videos(id) ON DELETE CASCADE,
+  body       TEXT    NOT NULL DEFAULT '',
+  read_at    INTEGER,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS posts (
+  id         TEXT    PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body       TEXT    NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS post_likes (
+  post_id    TEXT    NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (post_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS live_messages (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   video_id   TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
@@ -180,6 +244,7 @@ CREATE TABLE IF NOT EXISTS playlists (
   title       TEXT    NOT NULL,
   description TEXT    NOT NULL DEFAULT '',
   visibility  TEXT    NOT NULL DEFAULT 'public',
+  system      TEXT,
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL
 );
@@ -250,6 +315,7 @@ function migrate() {
     ['sessions', 'ip', "TEXT NOT NULL DEFAULT ''"],
     ['sessions', 'user_agent', "TEXT NOT NULL DEFAULT ''"],
     ['sessions', 'last_seen_at', 'INTEGER NOT NULL DEFAULT 0'],
+    ['playlists', 'system', 'TEXT'],
   ];
 
   for (const [table, column, definition] of additions) {
@@ -284,6 +350,10 @@ CREATE INDEX IF NOT EXISTS idx_captions_video  ON captions(video_id);
 CREATE INDEX IF NOT EXISTS idx_videos_short    ON videos(is_short, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_videos_publish  ON videos(publish_at);
 CREATE INDEX IF NOT EXISTS idx_livemsg_video   ON live_messages(video_id, id);
+CREATE INDEX IF NOT EXISTS idx_stats_day       ON video_stats_daily(video_id, day);
+CREATE INDEX IF NOT EXISTS idx_history_user    ON watch_history(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notif_user      ON notifications(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_user      ON posts(user_id, created_at DESC);
 `);
 
 module.exports = { db, DATA_DIR, TMP_DIR };

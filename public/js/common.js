@@ -122,6 +122,7 @@ function renderHeader() {
     ? `
       <a class="btn btn-ghost hide-sm" href="/upload">↑ Загрузить</a>
       <a class="btn btn-ghost hide-sm" href="/studio">Мои видео</a>
+      <button class="btn btn-ghost" id="bell-btn" title="Уведомления">🔔<span class="bell-dot" hidden></span></button>
       ${auth.user.isAdmin ? '<a class="btn btn-ghost" href="/moderation" title="Модерация">🛡</a>' : ''}
       <a class="btn btn-ghost" href="/settings" title="Аккаунт и безопасность">⚙</a>
       <a class="avatar" href="/@${escapeHtml(auth.user.username)}" title="${escapeHtml(auth.user.displayName)}">${initials(auth.user.displayName)}</a>
@@ -151,6 +152,87 @@ function renderHeader() {
   });
 
   header.querySelector('#logout-btn')?.addEventListener('click', () => auth.logout());
+  if (auth.user) setupNotifications(header);
+}
+
+/* --------------------------------------------------------- notifications */
+
+const NOTIFICATION_TEXT = {
+  new_video: (n) => `${n.actor?.displayName || 'Канал'} опубликовал: ${n.body}`,
+  live_started: (n) => `${n.actor?.displayName || 'Канал'} начал эфир: ${n.body}`,
+  comment: (n) => `${n.actor?.displayName || 'Кто-то'} прокомментировал «${n.videoTitle || ''}»: ${n.body}`,
+  reply: (n) => `${n.actor?.displayName || 'Кто-то'} ответил вам: ${n.body}`,
+  video_ready: (n) => n.body,
+  video_blocked: (n) => `Видео «${n.videoTitle || ''}» заблокировано: ${n.body}`,
+  strike: (n) => `Вы получили предупреждение: ${n.body}`,
+  copyright: (n) => n.body,
+};
+
+function setupNotifications(header) {
+  const button = header.querySelector('#bell-btn');
+  const dot = button.querySelector('.bell-dot');
+  let panel = null;
+
+  async function refreshBadge() {
+    try {
+      const { unread } = await api.get('/api/me/notifications');
+      dot.hidden = unread === 0;
+      dot.textContent = unread > 9 ? '9+' : String(unread);
+    } catch { /* not signed in any more */ }
+  }
+
+  button.addEventListener('click', async () => {
+    if (panel) {
+      panel.remove();
+      panel = null;
+      return;
+    }
+
+    const { notifications } = await api.get('/api/me/notifications');
+    panel = document.createElement('div');
+    panel.className = 'bell-panel';
+    panel.innerHTML = `
+      <div class="bell-head">
+        <strong>Уведомления</strong>
+        <button class="btn btn-ghost" data-mark>Отметить прочитанными</button>
+      </div>
+      <div class="bell-list">
+        ${notifications.length ? notifications.map((notification) => {
+          const text = (NOTIFICATION_TEXT[notification.type] || ((n) => n.body))(notification);
+          const href = notification.videoId ? `/watch/${notification.videoId}` : '#';
+          return `
+            <a class="bell-item${notification.read ? '' : ' unread'}" href="${href}">
+              <div>${escapeHtml(text)}</div>
+              <div class="card-meta">${fmt.ago(notification.createdAt)}</div>
+            </a>`;
+        }).join('') : '<div class="hint" style="padding:14px">Пока ничего нового</div>'}
+      </div>`;
+
+    document.body.appendChild(panel);
+    const rect = button.getBoundingClientRect();
+    panel.style.top = `${rect.bottom + 8}px`;
+    panel.style.right = `${Math.max(12, window.innerWidth - rect.right)}px`;
+
+    panel.querySelector('[data-mark]')?.addEventListener('click', async (event) => {
+      event.preventDefault();
+      await api.post('/api/me/notifications/read', {});
+      panel.querySelectorAll('.bell-item').forEach((item) => item.classList.remove('unread'));
+      refreshBadge();
+    });
+
+    setTimeout(() => {
+      document.addEventListener('click', function close(event) {
+        if (panel && !panel.contains(event.target) && event.target !== button) {
+          panel.remove();
+          panel = null;
+          document.removeEventListener('click', close);
+        }
+      });
+    }, 0);
+  });
+
+  refreshBadge();
+  setInterval(() => { if (!document.hidden) refreshBadge(); }, 60000);
 }
 
 /** Renders one grid card for a video. */

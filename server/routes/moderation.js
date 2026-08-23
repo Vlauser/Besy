@@ -6,6 +6,7 @@ const { db } = require('../db');
 const { requireAuth, requireAdmin } = require('../auth');
 const { rateLimit } = require('../security');
 const { storage, keys } = require('../storage');
+const { notify } = require('../notifications');
 
 const router = express.Router();
 
@@ -158,6 +159,7 @@ router.post('/videos/:id/block', requireAdmin, (req, res) => {
   db.prepare('UPDATE videos SET blocked_at = ?, blocked_reason = ? WHERE id = ?')
     .run(Date.now(), reason, video.id);
   logAction(req.user.id, 'block_video', 'video', video.id, reason);
+  notify({ userId: video.user_id, type: 'video_blocked', videoId: video.id, body: reason });
 
   if (req.body.strike) {
     db.prepare(`
@@ -166,6 +168,7 @@ router.post('/videos/:id/block', requireAdmin, (req, res) => {
     `).run(video.user_id, video.id, reason, String(req.body.note || '').slice(0, 500),
       req.user.id, Date.now() + STRIKE_TTL_MS, Date.now());
     logAction(req.user.id, 'strike', 'user', video.user_id, reason);
+    notify({ userId: video.user_id, type: 'strike', videoId: video.id, body: reason });
     syncStrikeState(video.user_id, req.user.id);
   }
 

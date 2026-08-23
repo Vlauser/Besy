@@ -11,6 +11,8 @@ const { storage, keys } = require('../storage');
 const { requireAuth, requireVerifiedEmail } = require('../auth');
 const { rateLimit, viewerKey, signMedia, SIGNED_MEDIA } = require('../security');
 const transcode = require('../transcode');
+const { notify, notifySubscribers } = require('../notifications');
+const { RETENTION_BUCKETS, SOURCES, dayKey } = require('./analytics');
 
 const router = express.Router();
 
@@ -329,6 +331,9 @@ router.post(
         ? req.body.visibility
         : 'public';
 
+      const requestedPublishAt = Number(req.body.publishAt) || 0;
+      const publishAt = requestedPublishAt > Date.now() ? requestedPublishAt : null;
+
       const container = await detectContainer(videoFile.path);
       if (!container) {
         await cleanupFiles(req.files);
@@ -353,8 +358,8 @@ router.post(
       db.prepare(`
         INSERT INTO videos (id, user_id, title, description, tags, visibility,
                             file_key, file_size, mime_type, duration, width, height,
-                            thumb_key, status, age_restricted, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            thumb_key, status, age_restricted, publish_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         id, req.user.id, title, description, tags, visibility,
         videoKey, videoFile.size, videoFile.mimetype,
@@ -364,6 +369,7 @@ router.post(
         thumbKey,
         'processing',
         req.body.ageRestricted === 'true' || req.body.ageRestricted === '1' ? 1 : 0,
+        publishAt,
         Date.now(),
       );
 
@@ -371,6 +377,15 @@ router.post(
       const queuedForTranscode = await transcode.enqueue(id);
       if (!queuedForTranscode) {
         db.prepare("UPDATE videos SET status = 'ready' WHERE id = ?").run(id);
+      }
+
+      if (visibility === 'public' && !publishAt) {
+        notifySubscribers({
+          channelId: req.user.id,
+          type: 'new_video',
+          videoId: id,
+          body: title,
+        });
       }
 
       const row = db.prepare(`${LIST_SELECT} WHERE v.id = ?`).get(id);
@@ -401,10 +416,22 @@ router.patch('/:id', requireAuth, (req, res) => {
     ? row.age_restricted
     : (req.body.ageRestricted ? 1 : 0);
 
+  let publishAt = row.publish_at;
+  if (req.body.publishAt !== undefined) {
+    const requested = Number(req.body.publishAt) || 0;
+    publishAt = requested > Date.now() ? requested : null;
+  }
+
   db.prepare(`
-    UPDATE videos SET title = ?, description = ?, tags = ?, visibility = ?, age_restricted = ?
+    UPDATE videos SET title = ?, description = ?, tags = ?, visibility = ?, age_restricted = ?,
+                      publish_at = ?
     WHERE id = ?
-  `).run(title, description, tags, visibility, ageRestricted, row.id);
+  `).run(title, description, tags, visibility, ageRestricted, publishAt, row.id);
+
+  // Going public for the first time is what subscribers should hear about.
+  if (visibility === 'public' && !publishAt && (row.visibility !== 'public' || row.publish_at)) {
+    notifySubscribers({ channelId: row.user_id, type: 'new_video', videoId: row.id, body: title });
+  }
 
   const updated = db.prepare(`${LIST_SELECT} WHERE v.id = ?`).get(row.id);
   res.json({ video: shapeVideo(updated, req.user, req) });
@@ -445,10 +472,87 @@ router.post('/:id/view', (req, res) => {
       ON CONFLICT(video_id, viewer_key) DO UPDATE SET viewed_at = excluded.viewed_at
     `).run(row.id, key, now);
     db.prepare('UPDATE videos SET views = views + 1 WHERE id = ?').run(row.id);
+
+    db.prepare(`
+      INSERT INTO video_stats_daily (video_id, day, views) VALUES (?, ?, 1)
+      ON CONFLICT(video_id, day) DO UPDATE SET views = views + 1
+    `).run(row.id, dayKey(now));
+
+    const source = SOURCES[req.body?.source] ? req.body.source : 'direct';
+    db.prepare(`
+      INSERT INTO traffic_sources (video_id, source, hits) VALUES (?, ?, 1)
+      ON CONFLICT(video_id, source) DO UPDATE SET hits = hits + 1
+    `).run(row.id, source);
   }
 
   const views = db.prepare('SELECT views FROM videos WHERE id = ?').get(row.id).views;
   res.json({ views });
+});
+
+const heartbeatLimit = rateLimit({
+  name: 'heartbeat',
+  limit: Number(process.env.BESY_HEARTBEAT_RATE_LIMIT) || 240,
+  windowMs: 10 * 60 * 1000,
+  keyFn: (req) => (req.user ? `u${req.user.id}` : req.ip),
+});
+
+/**
+ * Playback heartbeat: accumulates watch time, feeds the retention curve and
+ * keeps the viewer's history position up to date.
+ */
+router.post('/:id/heartbeat', heartbeatLimit, (req, res) => {
+  const row = db.prepare('SELECT id, duration FROM videos WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Видео не найдено' });
+
+  // Trust the client only within the bounds of one heartbeat interval.
+  const seconds = Math.min(Math.max(Number(req.body.seconds) || 0, 0), 60);
+  const position = Math.max(Number(req.body.position) || 0, 0);
+  const duration = Number(req.body.duration) || row.duration || 0;
+
+  if (seconds > 0) {
+    db.prepare(`
+      INSERT INTO video_stats_daily (video_id, day, watch_seconds) VALUES (?, ?, ?)
+      ON CONFLICT(video_id, day) DO UPDATE SET watch_seconds = watch_seconds + excluded.watch_seconds
+    `).run(row.id, dayKey(), Math.round(seconds));
+  }
+
+  if (duration > 0 && position <= duration + 1) {
+    // Retention counts viewers who *reached* a point, so each viewer moves the
+    // curve once per bucket — that keeps it monotonically decreasing.
+    const bucket = Math.min(RETENTION_BUCKETS - 1, Math.floor((position / duration) * RETENTION_BUCKETS));
+    const key = viewerKey(req);
+    const progress = db.prepare('SELECT max_bucket FROM retention_progress WHERE video_id = ? AND viewer_key = ?')
+      .get(row.id, key);
+    const previous = progress ? progress.max_bucket : -1;
+
+    if (bucket > previous) {
+      const bump = db.prepare(`
+        INSERT INTO retention_buckets (video_id, bucket, hits) VALUES (?, ?, 1)
+        ON CONFLICT(video_id, bucket) DO UPDATE SET hits = hits + 1
+      `);
+      for (let i = previous + 1; i <= bucket; i += 1) bump.run(row.id, i);
+
+      db.prepare(`
+        INSERT INTO retention_progress (video_id, viewer_key, max_bucket, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(video_id, viewer_key) DO UPDATE SET max_bucket = excluded.max_bucket,
+                                                        updated_at = excluded.updated_at
+      `).run(row.id, key, bucket, Date.now());
+    }
+  }
+
+  if (req.user) {
+    db.prepare(`
+      INSERT INTO watch_history (user_id, video_id, position, seconds, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, video_id) DO UPDATE
+        SET position = excluded.position,
+            seconds = seconds + excluded.seconds,
+            updated_at = excluded.updated_at
+    `).run(req.user.id, row.id, position, Math.round(seconds), Date.now());
+  }
+
+  res.json({ ok: true });
 });
 
 // POST /api/videos/:id/reaction  { value: 1 | -1 | 0 }
@@ -548,6 +652,15 @@ router.post('/:id/comments', requireAuth, requireVerifiedEmail, commentLimit, (r
 
   const info = db.prepare('INSERT INTO comments (video_id, user_id, body, created_at) VALUES (?, ?, ?, ?)')
     .run(video.id, req.user.id, body, Date.now());
+
+  const owner = db.prepare('SELECT user_id, title FROM videos WHERE id = ?').get(video.id);
+  notify({
+    userId: owner.user_id,
+    type: 'comment',
+    actorId: req.user.id,
+    videoId: video.id,
+    body: body.slice(0, 140),
+  });
 
   res.status(201).json({
     comment: {

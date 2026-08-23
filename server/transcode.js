@@ -7,6 +7,7 @@ const path = require('node:path');
 
 const { db, TMP_DIR } = require('./db');
 const { storage, keys } = require('./storage');
+const { notify } = require('./notifications');
 
 const FFMPEG = process.env.BESY_FFMPEG || 'ffmpeg';
 const FFPROBE = process.env.BESY_FFPROBE || 'ffprobe';
@@ -241,6 +242,13 @@ async function processVideo(videoId) {
       hls_master: keys.hlsMaster(videoId),
       renditions: JSON.stringify(renditions),
       status_error: null,
+    });
+
+    notify({
+      userId: video.user_id,
+      type: 'video_ready',
+      videoId,
+      body: `«${video.title}» обработано: ${renditions.map((r) => r.name).join(', ')}`,
     });
   } catch (err) {
     console.error(`[transcode] ${videoId}: ${err.message}`);

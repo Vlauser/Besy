@@ -10,6 +10,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { db, DATA_DIR } = require('./db');
+const { notifySubscribers } = require('./notifications');
 
 const ENABLED = process.env.BESY_LIVE === 'on';
 const RTMP_PORT = Number(process.env.BESY_RTMP_PORT) || 1935;
@@ -138,6 +139,14 @@ function start() {
     console.log(`[live] эфир начался: ${video.id}`);
     sessionVideos.set(session.id, video.id);
     setLiveStatus(video.id, 'live');
+    if (video.visibility === 'public') {
+      notifySubscribers({
+        channelId: video.user_id,
+        type: 'live_started',
+        videoId: video.id,
+        body: video.title,
+      });
+    }
     db.prepare('UPDATE videos SET created_at = ? WHERE id = ? AND live_status IS NOT NULL')
       .run(Date.now(), video.id);
     startEncoder(video, streamKey);

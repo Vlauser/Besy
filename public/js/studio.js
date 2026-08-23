@@ -106,6 +106,9 @@
 
     gridEl.innerHTML = videos.map((v) => `
       <div data-id="${v.id}">
+        <label class="choice" style="margin-bottom:8px">
+          <input type="checkbox" class="bulk-check" value="${v.id}"> Выбрать
+        </label>
         <a class="card" href="/watch/${v.id}">
           <div class="thumb">
             ${v.thumbUrl ? `<img src="${v.thumbUrl}" alt="" loading="lazy">` : '<div class="thumb-empty">▶</div>'}
@@ -124,6 +127,7 @@
           </select>
           <button class="btn" data-action="rename">✎ Изменить</button>
           <button class="btn" data-action="captions">CC</button>
+          <a class="btn" href="/analytics?video=${v.id}">📊</a>
           <button class="btn btn-danger" data-action="delete">🗑</button>
         </div>
       </div>`).join('');
@@ -144,13 +148,80 @@
     if (video.status === 'failed') {
       return `<div class="card-meta" title="${escapeHtml(video.statusError || '')}">⚠ Без адаптивного качества</div>`;
     }
+    if (video.publishAt && video.publishAt > Date.now()) {
+      return `<div class="card-meta">🕒 Публикация ${new Date(video.publishAt).toLocaleString('ru-RU')}</div>`;
+    }
     if (video.renditions?.length) {
       return `<div class="card-meta">✓ ${video.renditions.map((r) => r.name).join(' · ')}</div>`;
     }
     return '';
   }
 
+  /** Bulk actions apply to every checked card at once. */
+  function selectedIds() {
+    return Array.from(gridEl.querySelectorAll('.bulk-check:checked')).map((box) => box.value);
+  }
+
+  function renderBulkBar() {
+    const ids = selectedIds();
+    let bar = document.getElementById('bulk-bar');
+    if (!ids.length) {
+      bar?.remove();
+      return;
+    }
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'bulk-bar';
+      bar.className = 'bulk-bar';
+      document.body.appendChild(bar);
+      bar.addEventListener('click', onBulkAction);
+    }
+    bar.innerHTML = `
+      <strong>Выбрано: ${ids.length}</strong>
+      <select class="input" style="width:auto;padding:6px 10px" data-bulk="visibility">
+        <option value="">Сменить доступ…</option>
+        <option value="public">Публичное</option>
+        <option value="unlisted">По ссылке</option>
+        <option value="private">Приватное</option>
+      </select>
+      <button class="btn btn-danger" data-bulk="delete">Удалить</button>
+      <button class="btn btn-ghost" data-bulk="clear">Снять выделение</button>`;
+  }
+
+  async function onBulkAction(event) {
+    const control = event.target.closest('[data-bulk]');
+    if (!control || control.dataset.bulk === 'visibility') return;
+    const ids = selectedIds();
+
+    if (control.dataset.bulk === 'clear') {
+      gridEl.querySelectorAll('.bulk-check:checked').forEach((box) => { box.checked = false; });
+      renderBulkBar();
+      return;
+    }
+
+    if (control.dataset.bulk === 'delete') {
+      if (!confirm(`Удалить ${ids.length} видео безвозвратно?`)) return;
+      for (const id of ids) await api.del(`/api/videos/${id}`);
+      renderBulkBar();
+      loadVideos();
+    }
+  }
+
+  document.addEventListener('change', async (event) => {
+    const bulkSelect = event.target.closest('[data-bulk="visibility"]');
+    if (!bulkSelect || !bulkSelect.value) return;
+    const ids = selectedIds();
+    for (const id of ids) await api.patch(`/api/videos/${id}`, { visibility: bulkSelect.value });
+    bulkSelect.value = '';
+    loadVideos();
+  });
+
   gridEl.addEventListener('change', async (event) => {
+    if (event.target.classList.contains('bulk-check')) {
+      renderBulkBar();
+      return;
+    }
+
     const select = event.target.closest('[data-action="visibility"]');
     if (!select) return;
     const id = select.closest('[data-id]').dataset.id;

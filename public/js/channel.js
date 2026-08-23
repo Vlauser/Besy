@@ -54,7 +54,8 @@
   tabs.className = 'tabs';
   tabs.innerHTML = `
     <button class="tab active" data-view="videos">Видео</button>
-    <button class="tab" data-view="playlists">Плейлисты</button>`;
+    <button class="tab" data-view="playlists">Плейлисты</button>
+    <button class="tab" data-view="posts">Сообщество</button>`;
   headEl.appendChild(tabs);
 
   async function showVideos() {
@@ -81,12 +82,77 @@
       : '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">☰</div>Плейлистов пока нет</div>';
   }
 
+  async function showPosts() {
+    const { posts } = await api.get(`/api/posts?channel=${encodeURIComponent(channel.username)}`);
+
+    gridEl.style.display = 'block';
+    gridEl.innerHTML = `
+      ${channel.isOwner ? `
+        <form class="panel" id="new-post" style="margin-bottom:16px">
+          <textarea class="input" name="body" rows="3" maxlength="2000"
+                    placeholder="Поделитесь новостью с подписчиками…"></textarea>
+          <div class="row mt-16"><span class="spacer"></span>
+            <button class="btn btn-primary" type="submit">Опубликовать</button></div>
+        </form>` : ''}
+      ${posts.length ? posts.map((post) => `
+        <div class="panel" style="margin-bottom:12px" data-post="${post.id}">
+          <div class="row" style="gap:10px">
+            <span class="avatar">${initials(post.author.displayName)}</span>
+            <div>
+              <strong>${escapeHtml(post.author.displayName)}</strong>
+              <div class="card-meta">${fmt.ago(post.createdAt)}</div>
+            </div>
+            <span class="spacer"></span>
+            ${post.isOwner ? '<button class="btn btn-ghost" data-action="delete">✕</button>' : ''}
+          </div>
+          <div class="description-text mt-16">${escapeHtml(post.body)}</div>
+          <div class="row mt-16">
+            <button class="btn${post.liked ? ' active' : ''}" data-action="like">👍 <span>${fmt.count(post.likes)}</span></button>
+          </div>
+        </div>`).join('') : '<div class="empty"><div class="empty-icon">💬</div>Записей пока нет</div>'}`;
+
+    gridEl.querySelector('#new-post')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const body = event.target.body.value.trim();
+      if (!body) return;
+      try {
+        await api.post('/api/posts', { body });
+        showPosts();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    gridEl.querySelectorAll('[data-post] button[data-action]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const id = button.closest('[data-post]').dataset.post;
+        try {
+          if (button.dataset.action === 'delete') {
+            if (!confirm('Удалить запись?')) return;
+            await api.del(`/api/posts/${id}`);
+            showPosts();
+          } else {
+            if (!auth.user) return auth.requireLogin();
+            const res = await api.post(`/api/posts/${id}/like`);
+            button.classList.toggle('active', res.liked);
+            button.querySelector('span').textContent = fmt.count(res.likes);
+          }
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+  }
+
+  const views = { videos: showVideos, playlists: showPlaylists, posts: showPosts };
+
   tabs.addEventListener('click', (event) => {
     const tab = event.target.closest('.tab');
     if (!tab) return;
     tabs.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
     gridEl.innerHTML = '';
-    (tab.dataset.view === 'playlists' ? showPlaylists : showVideos)();
+    gridEl.style.display = tab.dataset.view === 'posts' ? 'block' : '';
+    views[tab.dataset.view]();
   });
 
   showVideos();

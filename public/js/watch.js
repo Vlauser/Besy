@@ -2,7 +2,28 @@
   await bootstrap();
 
   const videoId = location.pathname.split('/').filter(Boolean)[1];
-  const listId = new URLSearchParams(location.search).get('list');
+  const params = new URLSearchParams(location.search);
+  const listId = params.get('list');
+
+  /** Where this view came from, for the creator's traffic breakdown. */
+  function trafficSource() {
+    if (listId) return 'playlist';
+    const explicit = params.get('src');
+    if (explicit) return explicit;
+    const referrer = document.referrer;
+    if (!referrer) return 'direct';
+    try {
+      const url = new URL(referrer);
+      if (url.host !== location.host) return 'external';
+      if (url.pathname.startsWith('/watch')) return 'related';
+      if (url.pathname.startsWith('/@')) return 'channel';
+      if (url.pathname.startsWith('/shorts')) return 'shorts';
+      if (url.searchParams.get('q')) return 'search';
+      return 'direct';
+    } catch {
+      return 'direct';
+    }
+  }
   const player = document.getElementById('player');
   const shell = document.getElementById('player-shell');
   const statusBanner = document.getElementById('status-banner');
@@ -80,6 +101,7 @@
         <button class="btn" id="share-btn">🔗 Поделиться</button>
         ${isLive ? '' : `<a class="btn" href="/media/download/${video.id}">⬇ Скачать</a>`}
         <button class="btn" id="save-btn">☰ Сохранить</button>
+        <button class="btn" id="later-btn" title="Смотреть позже">🔖</button>
         <button class="btn" id="report-btn" title="Пожаловаться">⚑</button>
         ${video.isOwner ? '<a class="btn" href="/studio">✎ Управление</a>' : ''}
       </div>`;
@@ -248,6 +270,12 @@
     dislikeBtn.addEventListener('click', () => react(-1));
 
     document.getElementById('save-btn').addEventListener('click', openPlaylistDialog);
+    document.getElementById('later-btn').addEventListener('click', async (event) => {
+      if (!auth.user) return auth.requireLogin();
+      const { added } = await api.post('/api/me/watch-later', { videoId: video.id });
+      event.currentTarget.classList.toggle('active', added);
+      event.currentTarget.title = added ? 'Убрать из «Смотреть позже»' : 'Смотреть позже';
+    });
     document.getElementById('report-btn').addEventListener('click', openReportDialog);
 
     document.getElementById('share-btn').addEventListener('click', async (event) => {
@@ -269,7 +297,7 @@
     if (viewCounted || player.currentTime < threshold) return;
     viewCounted = true;
     try {
-      const { views } = await api.post(`/api/videos/${video.id}/view`);
+      const { views } = await api.post(`/api/videos/${video.id}/view`, { source: trafficSource() });
       video.views = views;
       const line = document.getElementById('stats-line');
       if (line) line.textContent = `${fmt.views(views)} · ${fmt.ago(video.createdAt)} · ${fmt.size(video.fileSize)}`;
@@ -477,6 +505,53 @@
       }
     });
   }
+
+  /* ------------------------------------------------------------ heartbeat */
+
+  // Reports watch time and position roughly every 15 seconds of real playback.
+  let watchedSinceBeat = 0;
+  let lastTick = null;
+
+  player.addEventListener('timeupdate', () => {
+    const now = Date.now();
+    if (lastTick && !player.paused) {
+      const delta = (now - lastTick) / 1000;
+      // Ignore jumps: seeking is not watching.
+      if (delta > 0 && delta < 5) watchedSinceBeat += delta;
+    }
+    lastTick = now;
+  });
+
+  async function sendHeartbeat() {
+    if (watchedSinceBeat < 1) return;
+    const seconds = Math.min(watchedSinceBeat, 60);
+    watchedSinceBeat = 0;
+    try {
+      await api.post(`/api/videos/${video.id}/heartbeat`, {
+        seconds: Math.round(seconds),
+        position: Math.round(player.currentTime),
+        duration: Math.round(player.duration || video.duration || 0),
+      });
+    } catch { /* stats are best-effort */ }
+  }
+
+  setInterval(sendHeartbeat, 15000);
+  window.addEventListener('pagehide', () => {
+    if (watchedSinceBeat < 1) return;
+    const payload = JSON.stringify({
+      seconds: Math.round(Math.min(watchedSinceBeat, 60)),
+      position: Math.round(player.currentTime),
+      duration: Math.round(player.duration || video.duration || 0),
+    });
+    // sendBeacon cannot set the CSRF header, so fall back to a keepalive fetch.
+    fetch(`/api/videos/${video.id}/heartbeat`, {
+      method: 'POST',
+      keepalive: true,
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': readCookie('besy_csrf') },
+      body: payload,
+    }).catch(() => {});
+  });
 
   /* ------------------------------------------------------------- comments */
 

@@ -51,6 +51,7 @@ router.get('/', (req, res) => {
   const rows = db.prepare(`
     ${LIST_SELECT}
     WHERE lower(u.username) = lower(?) AND (p.visibility = 'public' OR ? = 1)
+      AND p.system IS NULL
     ORDER BY p.updated_at DESC
   `).all(channel, isSelf ? 1 : 0);
 
@@ -60,7 +61,7 @@ router.get('/', (req, res) => {
 // GET /api/playlists/mine — everything the current user owns, with membership flags
 router.get('/mine', requireAuth, (req, res) => {
   const videoId = String(req.query.videoId || '');
-  const rows = db.prepare(`${LIST_SELECT} WHERE p.user_id = ? ORDER BY p.updated_at DESC`)
+  const rows = db.prepare(`${LIST_SELECT} WHERE p.user_id = ? AND p.system IS NULL ORDER BY p.updated_at DESC`)
     .all(req.user.id);
 
   const containing = videoId

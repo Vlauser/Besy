@@ -11,8 +11,10 @@
     "smoke": "node scripts/smoke.js",
     "smoke:security": "node scripts/smoke-security.js",
     "smoke:social": "node scripts/smoke-social.js",
-    "test": "node scripts/smoke.js && node scripts/smoke-security.js && node scripts/smoke-social.js",
-    "admin": "node --experimental-sqlite scripts/make-admin.js"
+    "test": "node scripts/smoke.js && node scripts/smoke-security.js && node scripts/smoke-social.js && node scripts/smoke-live.js && node scripts/smoke-growth.js",
+    "admin": "node --experimental-sqlite scripts/make-admin.js",
+    "smoke:live": "node scripts/smoke-live.js",
+    "smoke:growth": "node scripts/smoke-growth.js"
   },
   "engines": {
     "node": ">=22.5.0"

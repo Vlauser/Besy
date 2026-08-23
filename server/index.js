@@ -40,6 +40,9 @@ app.use('/api/playlists', require('./routes/playlists'));
 app.use('/api/moderation', require('./routes/moderation'));
 app.use('/api/captions', require('./routes/captions'));
 app.use('/api/live', require('./routes/live'));
+app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/me', require('./routes/me'));
+app.use('/api/posts', require('./routes/posts'));
 app.use('/media', require('./routes/media'));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));

@@ -109,6 +109,8 @@
     form.append('tags', document.getElementById('tags').value);
     form.append('visibility', document.getElementById('visibility').value);
     form.append('ageRestricted', document.getElementById('age-restricted').checked ? 'true' : 'false');
+    const publishAt = document.getElementById('publish-at').value;
+    if (publishAt) form.append('publishAt', String(new Date(publishAt).getTime()));
     form.append('duration', String(meta.duration));
     form.append('width', String(meta.width));
     form.append('height', String(meta.height));
