@@ -134,6 +134,8 @@ function renderHeader() {
   header.className = 'header';
   header.innerHTML = `
     <a class="logo" href="/"><span class="logo-mark">▶</span><span>Besy</span></a>
+    <a class="btn btn-ghost hide-sm" href="/shorts">Shorts</a>
+    <a class="btn btn-ghost hide-sm" href="/live">Эфиры</a>
     <form class="search" id="search-form">
       <input name="q" placeholder="Поиск видео и каналов" value="${escapeHtml(query)}" autocomplete="off">
       <button type="submit" aria-label="Найти">Найти</button>

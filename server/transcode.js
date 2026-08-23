@@ -12,6 +12,7 @@ const FFMPEG = process.env.BESY_FFMPEG || 'ffmpeg';
 const FFPROBE = process.env.BESY_FFPROBE || 'ffprobe';
 const CONCURRENCY = Math.max(1, Number(process.env.BESY_TRANSCODE_CONCURRENCY) || 1);
 const ENABLED = process.env.BESY_TRANSCODE !== 'off';
+const SHORT_MAX_SECONDS = Number(process.env.BESY_SHORT_MAX_SECONDS) || 60;
 
 /** Bitrate ladder; only rungs at or below the source height are produced. */
 const LADDER = [
@@ -209,10 +210,14 @@ async function processVideo(videoId) {
     const meta = await probe(localSource);
     if (!meta.hasVideo) throw new Error('В файле нет видеодорожки');
 
+    // Tall clips under a minute are Shorts, the way every platform slices them.
+    const isShort = meta.height > meta.width && meta.duration > 0 && meta.duration <= SHORT_MAX_SECONDS;
+
     setStatus(videoId, {
       duration: meta.duration || video.duration,
       width: meta.width || video.width,
       height: meta.height || video.height,
+      is_short: isShort ? 1 : 0,
       progress: 5,
     });
 

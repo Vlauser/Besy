@@ -16,11 +16,13 @@
   let besyPlayer = null;
   let nextVideo = null;
   let queue = null;
+  let isLive = false;
 
   try {
     const data = await api.get(`/api/videos/${videoId}`);
     video = data.video;
     channel = data.channel;
+    isLive = video.kind === 'live';
     if (listId) {
       // Watching inside a playlist: the queue decides what plays next.
       queue = await api.get(`/api/playlists/${listId}`).catch(() => null);
@@ -36,6 +38,11 @@
   function render(related) {
     document.title = `${video.title} — Besy`;
     titleEl.textContent = video.title;
+    if (isLive) {
+      titleEl.insertAdjacentHTML('afterbegin',
+        `<span class="live-badge${video.liveStatus === 'live' ? '' : ' off'}">${
+          video.liveStatus === 'live' ? '● В ЭФИРЕ' : 'ЭФИР ЗАВЕРШЁН'}</span> `);
+    }
 
     nextVideo = queueNext() || related[0] || null;
 
@@ -50,9 +57,10 @@
     besyPlayer.showNextButton(Boolean(nextVideo));
     window.besyPlayer = besyPlayer; // handy handle for debugging and tests
     besyPlayer.load({
-      hlsUrl: video.hlsUrl,
+      hlsUrl: isLive ? `/media/live/${video.id}/index.m3u8` : video.hlsUrl,
       streamUrl: video.streamUrl,
       thumbUrl: video.thumbUrl,
+      captions: video.captions || [],
       chapters: parseChapters(video.description),
     });
     renderStatusBanner();
@@ -70,13 +78,15 @@
         <button class="btn ${video.myReaction === 1 ? 'active' : ''}" id="like-btn">👍 <span>${fmt.count(video.likes)}</span></button>
         <button class="btn ${video.myReaction === -1 ? 'active' : ''}" id="dislike-btn">👎 <span>${fmt.count(video.dislikes)}</span></button>
         <button class="btn" id="share-btn">🔗 Поделиться</button>
-        <a class="btn" href="/media/download/${video.id}">⬇ Скачать</a>
+        ${isLive ? '' : `<a class="btn" href="/media/download/${video.id}">⬇ Скачать</a>`}
         <button class="btn" id="save-btn">☰ Сохранить</button>
         <button class="btn" id="report-btn" title="Пожаловаться">⚑</button>
         ${video.isOwner ? '<a class="btn" href="/studio">✎ Управление</a>' : ''}
       </div>`;
 
-    const stats = `${fmt.views(video.views)} · ${fmt.ago(video.createdAt)} · ${fmt.size(video.fileSize)}`;
+    const stats = isLive
+      ? `${fmt.views(video.views)} · начало ${fmt.ago(video.createdAt)}`
+      : `${fmt.views(video.views)} · ${fmt.ago(video.createdAt)} · ${fmt.size(video.fileSize)}`;
     const tags = video.tags.length
       ? `<div class="tag-list">${video.tags.map((t) => `<a class="tag" href="/?q=${encodeURIComponent(t)}">#${escapeHtml(t)}</a>`).join('')}</div>`
       : '';
@@ -187,6 +197,7 @@
           hlsUrl: fresh.hlsUrl,
           streamUrl: fresh.streamUrl,
           thumbUrl: fresh.thumbUrl,
+          captions: fresh.captions || [],
           chapters: parseChapters(video.description),
         });
         player.addEventListener('loadedmetadata', () => {
@@ -264,6 +275,72 @@
       if (line) line.textContent = `${fmt.views(views)} · ${fmt.ago(video.createdAt)} · ${fmt.size(video.fileSize)}`;
     } catch { /* view counting is best-effort */ }
   });
+
+  /* ------------------------------------------------------------ live chat */
+
+  function startLiveChat() {
+    document.getElementById('comments-title').textContent = 'Чат трансляции';
+    formEl.innerHTML = auth.user
+      ? `<form id="chat-form" class="row" style="gap:8px">
+           <input class="input" name="body" maxlength="300" placeholder="Написать в чат…" autocomplete="off" style="flex:1">
+           <button class="btn btn-primary" type="submit">Отправить</button>
+         </form>`
+      : '<div class="hint"><a href="/auth" style="color:var(--accent)">Войдите</a>, чтобы писать в чат</div>';
+
+    commentsEl.classList.add('chat-log');
+    let lastId = 0;
+
+    async function poll() {
+      try {
+        const { messages } = await api.get(`/api/live/${video.id}/chat?after=${lastId}`);
+        if (messages.length) {
+          lastId = messages[messages.length - 1].id;
+          const atBottom = commentsEl.scrollTop + commentsEl.clientHeight >= commentsEl.scrollHeight - 40;
+          commentsEl.insertAdjacentHTML('beforeend', messages.map((message) => `
+            <div class="chat-line" data-id="${message.id}">
+              <a class="chat-author" href="/@${escapeHtml(message.author.username)}">${escapeHtml(message.author.displayName)}</a>
+              <span>${escapeHtml(message.body)}</span>
+            </div>`).join(''));
+          if (atBottom) commentsEl.scrollTop = commentsEl.scrollHeight;
+        }
+      } catch { /* the chat is best-effort */ }
+      // Poll only while the tab is visible, and only while the stream is on.
+      const delay = document.hidden ? 8000 : 2500;
+      chatTimer = setTimeout(poll, delay);
+    }
+
+    let chatTimer = setTimeout(poll, 0);
+    window.addEventListener('beforeunload', () => clearTimeout(chatTimer));
+
+    document.getElementById('chat-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const input = event.target.body;
+      const body = input.value.trim();
+      if (!body) return;
+      input.value = '';
+      try {
+        await api.post(`/api/live/${video.id}/chat`, { body });
+      } catch (err) {
+        alert(err.message);
+        input.value = body;
+      }
+    });
+
+    // A finished broadcast should stop claiming it is on air.
+    if (video.liveStatus === 'live') {
+      const statusTimer = setInterval(async () => {
+        try {
+          const { video: fresh } = await api.get(`/api/videos/${video.id}`);
+          if (fresh.liveStatus !== 'live') {
+            clearInterval(statusTimer);
+            document.querySelector('.live-badge')?.classList.add('off');
+            const badge = document.querySelector('.live-badge');
+            if (badge) badge.textContent = 'ЭФИР ЗАВЕРШЁН';
+          }
+        } catch { /* ignore */ }
+      }, 15000);
+    }
+  }
 
   /* ------------------------------------------------ playlists and reports */
 
@@ -405,6 +482,11 @@
 
   const commentsEl = document.getElementById('comments');
   const formEl = document.getElementById('comment-form');
+
+  if (isLive) {
+    startLiveChat();
+    return;
+  }
 
   formEl.innerHTML = auth.user
     ? `<form id="new-comment" style="margin-bottom:8px">

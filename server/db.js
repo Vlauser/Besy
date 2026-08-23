@@ -118,7 +118,30 @@ CREATE TABLE IF NOT EXISTS videos (
   blocked_at     INTEGER,
   blocked_reason TEXT,
   age_restricted INTEGER NOT NULL DEFAULT 0,
+  is_short       INTEGER NOT NULL DEFAULT 0,
+  kind           TEXT    NOT NULL DEFAULT 'video',
+  publish_at     INTEGER,
+  live_status    TEXT,
+  stream_key     TEXT,
   created_at     INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS live_messages (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  video_id   TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body       TEXT    NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS captions (
+  id         TEXT    PRIMARY KEY,
+  video_id   TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  lang       TEXT    NOT NULL,
+  label      TEXT    NOT NULL,
+  file_key   TEXT    NOT NULL,
+  is_default INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS video_views (
@@ -184,19 +207,6 @@ CREATE TABLE IF NOT EXISTS reports (
   created_at     INTEGER NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_videos_user     ON videos(user_id);
-CREATE INDEX IF NOT EXISTS idx_videos_created  ON videos(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_videos_views    ON videos(views DESC);
-CREATE INDEX IF NOT EXISTS idx_videos_status   ON videos(status);
-CREATE INDEX IF NOT EXISTS idx_comments_video  ON comments(video_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_sessions_user   ON sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_items_playlist  ON playlist_items(playlist_id, position);
-CREATE INDEX IF NOT EXISTS idx_playlists_user  ON playlists(user_id, updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_reports_status  ON reports(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_tokens_user     ON email_tokens(user_id, purpose);
-CREATE INDEX IF NOT EXISTS idx_strikes_user    ON strikes(user_id, expires_at);
-CREATE INDEX IF NOT EXISTS idx_claims_status   ON copyright_claims(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_modlog_created  ON moderation_log(created_at DESC);
 `);
 
 /**
@@ -232,6 +242,11 @@ function migrate() {
     ['users', 'strikes', 'INTEGER NOT NULL DEFAULT 0'],
     ['users', 'password_changed_at', 'INTEGER'],
     ['videos', 'age_restricted', 'INTEGER NOT NULL DEFAULT 0'],
+    ['videos', 'is_short', 'INTEGER NOT NULL DEFAULT 0'],
+    ['videos', 'kind', "TEXT NOT NULL DEFAULT 'video'"],
+    ['videos', 'publish_at', 'INTEGER'],
+    ['videos', 'live_status', 'TEXT'],
+    ['videos', 'stream_key', 'TEXT'],
     ['sessions', 'ip', "TEXT NOT NULL DEFAULT ''"],
     ['sessions', 'user_agent', "TEXT NOT NULL DEFAULT ''"],
     ['sessions', 'last_seen_at', 'INTEGER NOT NULL DEFAULT 0'],
@@ -249,5 +264,26 @@ function migrate() {
 }
 
 migrate();
+
+// Indexes come after the migration: some of them cover freshly added columns.
+db.exec(`
+CREATE INDEX IF NOT EXISTS idx_videos_user     ON videos(user_id);
+CREATE INDEX IF NOT EXISTS idx_videos_created  ON videos(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_videos_views    ON videos(views DESC);
+CREATE INDEX IF NOT EXISTS idx_videos_status   ON videos(status);
+CREATE INDEX IF NOT EXISTS idx_comments_video  ON comments(video_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_user   ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_items_playlist  ON playlist_items(playlist_id, position);
+CREATE INDEX IF NOT EXISTS idx_playlists_user  ON playlists(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reports_status  ON reports(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tokens_user     ON email_tokens(user_id, purpose);
+CREATE INDEX IF NOT EXISTS idx_strikes_user    ON strikes(user_id, expires_at);
+CREATE INDEX IF NOT EXISTS idx_claims_status   ON copyright_claims(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_modlog_created  ON moderation_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_captions_video  ON captions(video_id);
+CREATE INDEX IF NOT EXISTS idx_videos_short    ON videos(is_short, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_videos_publish  ON videos(publish_at);
+CREATE INDEX IF NOT EXISTS idx_livemsg_video   ON live_messages(video_id, id);
+`);
 
 module.exports = { db, DATA_DIR, TMP_DIR };

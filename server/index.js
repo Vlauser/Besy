@@ -9,6 +9,7 @@ const { attachUser } = require('./auth');
 const security = require('./security');
 require('./db'); // ensures data dirs + schema exist before routes load
 const transcode = require('./transcode');
+const live = require('./live');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -37,6 +38,8 @@ app.use('/api/videos', require('./routes/videos'));
 app.use('/api/channels', require('./routes/channels'));
 app.use('/api/playlists', require('./routes/playlists'));
 app.use('/api/moderation', require('./routes/moderation'));
+app.use('/api/captions', require('./routes/captions'));
+app.use('/api/live', require('./routes/live'));
 app.use('/media', require('./routes/media'));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
@@ -91,4 +94,6 @@ app.listen(PORT, async () => {
     ? '[transcode] ffmpeg найден — включено адаптивное качество (HLS)'
     : '[transcode] ffmpeg не найден — видео отдаются как есть, без HLS');
   transcode.resumePending();
+  live.resetStaleStreams();
+  live.start();
 });

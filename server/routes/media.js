@@ -3,8 +3,11 @@
 const express = require('express');
 const path = require('node:path');
 
+const fs = require('node:fs');
+
 const { db } = require('../db');
 const { storage, keys } = require('../storage');
+const live = require('../live');
 const { SIGNED_MEDIA, verifyMediaToken, viewerKey } = require('../security');
 
 const router = express.Router();
@@ -16,8 +19,8 @@ const HLS_CONTENT_TYPES = {
   '.mp4': 'video/mp4',
 };
 
-function loadVideo(req, res) {
-  const row = db.prepare('SELECT * FROM videos WHERE id = ?').get(req.params.id);
+function loadVideo(req, res, id = req.params.id) {
+  const row = db.prepare('SELECT * FROM videos WHERE id = ?').get(id);
   if (!row) {
     res.status(404).end();
     return null;
@@ -128,6 +131,31 @@ router.get('/hls/:id/*', async (req, res, next) => {
   }
 });
 
+/** Live HLS lives on local disk: segments are short-lived and rewritten constantly. */
+router.get('/live/:id/*', (req, res) => {
+  const row = loadVideo(req, res);
+  if (!row) return;
+  if (row.kind !== 'live') return res.status(404).end();
+
+  const relative = String(req.params[0] || '').replace(/^\/+/, '');
+  if (!relative || relative.includes('..') || !/^[\w.-]+$/.test(relative)) return res.status(400).end();
+
+  const file = path.join(live.liveDir(row.id), relative);
+  let stat;
+  try {
+    stat = fs.statSync(file);
+  } catch {
+    return res.status(404).end();
+  }
+
+  res.setHeader('Content-Type', HLS_CONTENT_TYPES[path.extname(relative).toLowerCase()] || 'application/octet-stream');
+  res.setHeader('Content-Length', stat.size);
+  // The playlist changes every couple of seconds; segments never change.
+  res.setHeader('Cache-Control', relative.endsWith('.m3u8') ? 'no-store' : 'private, max-age=60');
+  // The rolling window deletes old segments, so a read can fail mid-flight.
+  pipeStream(fs.createReadStream(file), res);
+});
+
 router.get('/download/:id', async (req, res, next) => {
   const row = loadVideo(req, res);
   if (!row) return;
@@ -144,6 +172,25 @@ router.get('/download/:id', async (req, res, next) => {
       `attachment; filename*=UTF-8''${encodeURIComponent(safeName + path.extname(row.file_key))}`
     );
     pipeStream(await storage.getStream(row.file_key), res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/captions/:videoId/:file', async (req, res, next) => {
+  const row = loadVideo(req, res, req.params.videoId);
+  if (!row) return;
+
+  const captionId = String(req.params.file).replace(/\.vtt$/, '');
+  const caption = db.prepare('SELECT * FROM captions WHERE id = ? AND video_id = ?')
+    .get(captionId, row.id);
+  if (!caption) return res.status(404).end();
+
+  try {
+    const buffer = await storage.getBuffer(caption.file_key);
+    res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(buffer);
   } catch (err) {
     next(err);
   }

@@ -144,6 +144,10 @@ function shapeVideo(row, viewer, req) {
     streamUrl: `/media/stream/${row.id}${suffix}`,
     hlsUrl: row.hls_master ? `/media/hls/${row.id}/master.m3u8${suffix}` : null,
     ageRestricted: row.age_restricted === 1,
+    isShort: row.is_short === 1,
+    kind: row.kind,
+    publishAt: row.publish_at,
+    liveStatus: row.live_status,
     renditions: JSON.parse(row.renditions || '[]'),
     status: row.status,
     progress: row.progress,
@@ -179,6 +183,7 @@ router.get('/', (req, res) => {
   const offset = Math.max(Number(req.query.offset) || 0, 0);
   const q = String(req.query.q || '').trim();
   const channel = String(req.query.channel || '').trim();
+  const kind = String(req.query.kind || '').trim(); // '', 'short' or 'video'
   const sort = req.query.sort === 'popular' ? 'v.views DESC, v.created_at DESC' : 'v.created_at DESC';
 
   const where = [];
@@ -193,11 +198,18 @@ router.get('/', (req, res) => {
     } else {
       where.push("v.visibility = 'public'");
       where.push('v.blocked_at IS NULL');
+      where.push('(v.publish_at IS NULL OR v.publish_at <= ?)');
+      params.push(Date.now());
     }
   } else {
     where.push("v.visibility = 'public'");
     where.push('v.blocked_at IS NULL');
+    where.push('(v.publish_at IS NULL OR v.publish_at <= ?)');
+    params.push(Date.now());
   }
+
+  if (kind === 'short') where.push('v.is_short = 1');
+  else if (kind === 'video') where.push('v.is_short = 0');
 
   if (q) {
     where.push('(v.title LIKE ? OR v.description LIKE ? OR v.tags LIKE ? OR u.display_name LIKE ?)');
@@ -230,6 +242,12 @@ router.get('/:id', (req, res) => {
       error: `Видео заблокировано модерацией${row.blocked_reason ? `: ${row.blocked_reason}` : ''}`,
     });
   }
+  if (row.publish_at && row.publish_at > Date.now() && !isOwner && !req.user?.isAdmin) {
+    return res.status(403).json({
+      error: 'Публикация запланирована на более позднее время',
+      publishAt: row.publish_at,
+    });
+  }
   // Age-restricted videos require a signed-in viewer, as on other platforms.
   if (row.age_restricted && !req.user) {
     return res.status(403).json({
@@ -251,6 +269,16 @@ router.get('/:id', (req, res) => {
     LIMIT 12
   `).all(row.id, row.user_id);
 
+  const captions = db.prepare('SELECT * FROM captions WHERE video_id = ? ORDER BY is_default DESC, label')
+    .all(row.id)
+    .map((caption) => ({
+      id: caption.id,
+      lang: caption.lang,
+      label: caption.label,
+      isDefault: caption.is_default === 1,
+      url: `/media/captions/${row.id}/${caption.id}.vtt`,
+    }));
+
   const subscribers = db.prepare('SELECT COUNT(*) AS n FROM subscriptions WHERE channel_id = ?')
     .get(row.user_id).n;
   const subscribed = req.user
@@ -259,7 +287,7 @@ router.get('/:id', (req, res) => {
     : false;
 
   res.json({
-    video: shapeVideo(row, req.user, req),
+    video: { ...shapeVideo(row, req.user, req), captions },
     channel: { subscribers, subscribed },
     related: related.map((r) => shapeVideo(r, req.user, req)),
   });

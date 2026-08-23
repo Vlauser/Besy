@@ -638,3 +638,102 @@ body.theater .page { max-width: 100%; }
 .queue-item:hover { background: var(--bg-hover); }
 .queue-item.current { background: var(--accent-soft); }
 .queue-item .thumb { margin: 0; border-radius: 7px; }
+
+/* ------------------------------------------------------------------ shorts */
+
+.shorts-page { height: calc(100vh - var(--header-h)); }
+
+.shorts-feed {
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+}
+
+.shorts-feed::-webkit-scrollbar { display: none; }
+
+.short {
+  height: 100%;
+  scroll-snap-align: start;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+.short-stage {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+  background: #000;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.short-stage video { width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
+
+.short-overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, .8));
+}
+
+.short-meta { flex: 1; min-width: 0; }
+.short-title { font-weight: 600; margin: 7px 0 3px; }
+.short-actions { display: flex; flex-direction: column; gap: 10px; }
+
+.short-btn {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  background: rgba(255, 255, 255, .14);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.short-btn:hover { background: rgba(255, 255, 255, .26); }
+.short-btn.active { background: var(--accent); }
+.short-btn span { font-size: 11px; }
+
+/* -------------------------------------------------------------- live badge */
+
+.live-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  margin-right: 8px;
+  background: var(--accent);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  vertical-align: middle;
+}
+
+.live-badge.off { background: var(--bg-hover); color: var(--text-dim); }
+
+.chat-log {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-top: 12px;
+}
+
+.chat-line { padding: 4px 0; font-size: 14px; word-break: break-word; }
+.chat-author { font-weight: 600; color: var(--accent-hover); margin-right: 6px; }
+
+.stream-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  word-break: break-all;
+}

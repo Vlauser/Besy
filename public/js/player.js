@@ -56,6 +56,7 @@ class BesyPlayer {
     }
 
     this.video.poster = source.thumbUrl || '';
+    this.setCaptionTracks(source.captions || []);
     this.setChapters(source.chapters || []);
     this.restorePosition();
   }
@@ -256,24 +257,43 @@ class BesyPlayer {
 
   /* -------------------------------------------------------------- captions */
 
-  setCaptions(tracks) {
-    this.el.cc.hidden = !tracks.length;
-    this.captionTracks = tracks;
+  /** Rebuilds the <track> elements for the current video. */
+  setCaptionTracks(captions) {
+    this.video.querySelectorAll('track').forEach((track) => track.remove());
+
+    for (const caption of captions) {
+      const track = document.createElement('track');
+      track.kind = 'subtitles';
+      track.label = caption.label;
+      track.srclang = caption.lang;
+      track.src = caption.url;
+      if (caption.isDefault) track.default = true;
+      this.video.appendChild(track);
+    }
+
+    this.captions = captions;
+    this.el.cc.hidden = !captions.length;
+    this.el.cc.classList.toggle('on', captions.some((caption) => caption.isDefault));
   }
 
   toggleCaptions() {
     const tracks = Array.from(this.video.textTracks);
     if (!tracks.length) return;
-    const active = tracks.find((t) => t.mode === 'showing');
-    tracks.forEach((t) => { t.mode = 'disabled'; });
-    if (!active) {
-      tracks[0].mode = 'showing';
+
+    const activeIndex = tracks.findIndex((track) => track.mode === 'showing');
+    tracks.forEach((track) => { track.mode = 'disabled'; });
+
+    // Cycle through the languages, then back to off.
+    const next = activeIndex + 1;
+    if (next < tracks.length) {
+      tracks[next].mode = 'showing';
       this.el.cc.classList.add('on');
-      this.toast('Субтитры включены');
+      this.toast(`Субтитры: ${tracks[next].label || tracks[next].language}`);
     } else {
       this.el.cc.classList.remove('on');
       this.toast('Субтитры выключены');
     }
+    this.renderSettings();
   }
 
   /* -------------------------------------------------------------- chapters */
@@ -393,6 +413,16 @@ class BesyPlayer {
                   data-quality="${level.index}">${level.label}</button>`).join('')}`
       : '<div class="player-menu-title">Качество</div><div class="player-menu-note">Исходное</div>';
 
+    const captions = this.captions?.length
+      ? `
+        <div class="player-menu-title">Субтитры</div>
+        ${this.captions.map((caption, index) => `
+          <button class="player-menu-item${Array.from(this.video.textTracks)[index]?.mode === 'showing' ? ' active' : ''}"
+                  data-caption="${index}">${caption.label}</button>`).join('')}
+        <button class="player-menu-item${Array.from(this.video.textTracks).every((t) => t.mode !== 'showing') ? ' active' : ''}"
+                data-caption="-1">Выключены</button>`
+      : '';
+
     this.el['settings-menu'].innerHTML = `
       <div class="player-menu-title">Скорость</div>
       <div class="player-menu-row">
@@ -400,7 +430,19 @@ class BesyPlayer {
           <button class="player-menu-chip${this.video.playbackRate === speed ? ' active' : ''}"
                   data-speed="${speed}">${speed === 1 ? '1×' : `${speed}×`}</button>`).join('')}
       </div>
-      ${quality}`;
+      ${quality}
+      ${captions}`;
+
+    this.el['settings-menu'].querySelectorAll('[data-caption]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const tracks = Array.from(this.video.textTracks);
+        tracks.forEach((track) => { track.mode = 'disabled'; });
+        const index = Number(btn.dataset.caption);
+        if (index >= 0 && tracks[index]) tracks[index].mode = 'showing';
+        this.el.cc.classList.toggle('on', index >= 0);
+        this.renderSettings();
+      });
+    });
 
     this.el['settings-menu'].querySelectorAll('[data-speed]').forEach((btn) => {
       btn.addEventListener('click', () => {

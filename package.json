@@ -26,6 +26,7 @@
   },
   "optionalDependencies": {
     "@aws-sdk/client-s3": "^3.1116.0",
+    "node-media-server": "^4.2.8",
     "nodemailer": "^9.0.5"
   }
 }

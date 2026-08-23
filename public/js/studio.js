@@ -27,6 +27,74 @@
 
   const VISIBILITY_LABELS = { public: 'Публичное', unlisted: 'По ссылке', private: 'Приватное' };
 
+  /* ------------------------------------------------------------ live */
+
+  async function renderLive() {
+    const config = await api.get('/api/live/config');
+    if (!config.enabled) return;
+
+    const panel = document.getElementById('live-panel');
+    const box = document.getElementById('live-content');
+    panel.hidden = false;
+
+    const { streams } = await api.get('/api/live/mine');
+    const STATUS = { idle: 'Ожидает подключения', live: '● В эфире', ended: 'Завершён' };
+
+    box.innerHTML = `
+      <form id="new-stream" class="row" style="gap:8px;margin-bottom:14px">
+        <input class="input" name="title" maxlength="140" placeholder="Название эфира" style="flex:1" required>
+        <button class="btn btn-primary" type="submit">Создать эфир</button>
+      </form>
+      ${streams.map((stream) => `
+        <div class="panel" style="margin-bottom:10px" data-stream="${stream.id}">
+          <div class="row" style="justify-content:space-between">
+            <strong>${escapeHtml(stream.title)}</strong>
+            <span class="tag">${STATUS[stream.liveStatus] || stream.liveStatus}</span>
+          </div>
+          <div class="field mt-16">
+            <label>Сервер (RTMP)</label>
+            <input class="input stream-key" value="${escapeHtml(stream.ingestUrl)}" readonly onclick="this.select()">
+          </div>
+          <div class="field">
+            <label>Ключ трансляции — не показывайте его в эфире</label>
+            <input class="input stream-key" type="password" value="${escapeHtml(stream.streamKey)}" readonly
+                   onclick="this.type='text';this.select()">
+          </div>
+          <div class="row">
+            <a class="btn" href="/watch/${stream.id}">Открыть страницу</a>
+            <button class="btn" data-action="roll">Сменить ключ</button>
+            ${stream.liveStatus === 'live' ? '<button class="btn btn-danger" data-action="stop">Завершить</button>' : ''}
+          </div>
+        </div>`).join('')}`;
+
+    box.querySelector('#new-stream').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api.post('/api/live', { title: event.target.title.value.trim() });
+        renderLive();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    box.querySelectorAll('button[data-action]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const id = button.closest('[data-stream]').dataset.stream;
+        try {
+          if (button.dataset.action === 'roll') {
+            if (!confirm('Сменить ключ? Текущее подключение оборвётся.')) return;
+            await api.post(`/api/live/${id}/key`);
+          } else {
+            await api.post(`/api/live/${id}/stop`);
+          }
+          renderLive();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+  }
+
   async function loadVideos() {
     const { videos } = await api.get(`/api/videos?channel=${encodeURIComponent(auth.user.username)}&limit=60`);
     if (!videos.length) {
@@ -55,6 +123,7 @@
               `<option value="${value}"${v.visibility === value ? ' selected' : ''}>${label}</option>`).join('')}
           </select>
           <button class="btn" data-action="rename">✎ Изменить</button>
+          <button class="btn" data-action="captions">CC</button>
           <button class="btn btn-danger" data-action="delete">🗑</button>
         </div>
       </div>`).join('');
@@ -102,6 +171,11 @@
       return;
     }
 
+    if (button.dataset.action === 'captions') {
+      openCaptionManager(id);
+      return;
+    }
+
     if (button.dataset.action === 'rename') {
       const currentTitle = card.querySelector('.card-title').textContent;
       const title = prompt('Новое название:', currentTitle);
@@ -118,5 +192,74 @@
     }
   });
 
+  /** Upload, replace and delete subtitle tracks for one video. */
+  async function openCaptionManager(videoId) {
+    const modal = openModal('Субтитры', '<div class="hint">Загрузка…</div>');
+    const [{ captions }, { languages }] = await Promise.all([
+      api.get(`/api/captions/${videoId}`),
+      api.get('/api/captions/languages'),
+    ]);
+
+    modal.body.innerHTML = `
+      ${captions.length
+        ? captions.map((caption) => `
+          <div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+            <span>${escapeHtml(caption.label)} <span class="tag">${escapeHtml(caption.lang)}</span>
+              ${caption.isDefault ? '<span class="tag">по умолчанию</span>' : ''}</span>
+            <button class="btn btn-danger" data-caption="${caption.id}">Удалить</button>
+          </div>`).join('')
+        : '<div class="hint">Субтитров пока нет</div>'}
+      <form id="caption-form" class="mt-24">
+        <div class="field">
+          <label for="cap-lang">Язык</label>
+          <select class="input" id="cap-lang" name="lang">
+            ${languages.map((lang) => `<option value="${lang.id}">${escapeHtml(lang.label)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label for="cap-file">Файл .vtt или .srt</label>
+          <input class="input" id="cap-file" name="file" type="file" accept=".vtt,.srt,text/vtt" required>
+        </div>
+        <label class="choice">
+          <input type="checkbox" name="isDefault"> Включать по умолчанию
+        </label>
+        <button class="btn btn-primary btn-block mt-16" type="submit">Загрузить субтитры</button>
+      </form>`;
+
+    modal.body.querySelectorAll('[data-caption]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        await api.del(`/api/captions/${videoId}/${button.dataset.caption}`);
+        modal.close();
+        openCaptionManager(videoId);
+      });
+    });
+
+    modal.body.querySelector('#caption-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.target;
+      const data = new FormData();
+      data.append('file', form.file.files[0]);
+      data.append('lang', form.lang.value);
+      data.append('label', form.lang.options[form.lang.selectedIndex].text);
+      data.append('isDefault', form.isDefault.checked ? 'true' : 'false');
+
+      try {
+        const res = await fetch(`/api/captions/${videoId}`, {
+          method: 'POST',
+          body: data,
+          credentials: 'same-origin',
+          headers: { 'X-CSRF-Token': readCookie('besy_csrf') },
+        });
+        const payload = await res.json();
+        if (!res.ok) throw new Error(payload.error || 'Не удалось загрузить');
+        modal.close();
+        openCaptionManager(videoId);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
+
   loadVideos();
+  renderLive().catch(() => {});
 })();
