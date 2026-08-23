@@ -87,6 +87,18 @@ async function waitFor(check, timeoutMs, label) {
   assert.equal(res.data.video.captions.length, 1);
   assert.equal(res.data.video.captions[0].label, 'Русские');
 
+  step = 'a label with markup survives the round trip verbatim';
+  // The server stores labels as written; escaping is the renderer's job, and the
+  // player must not paste this into innerHTML unescaped.
+  const marked = new FormData();
+  marked.append('file', new Blob([srt], { type: 'text/plain' }), 'subs.srt');
+  marked.append('lang', 'en');
+  marked.append('label', '<img src=x onerror=alert(1)>');
+  res = await client.call('POST', `/api/captions/${videoId}`, marked, true);
+  assert.equal(res.status, 201);
+  assert.equal(res.data.caption.label, '<img src=x onerror=alert(1)>');
+  await client.del(`/api/captions/${videoId}/${res.data.caption.id}`);
+
   step = 'garbage is refused';
   const junk = new FormData();
   junk.append('file', new Blob(['это не субтитры'], { type: 'text/plain' }), 'junk.srt');

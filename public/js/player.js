@@ -418,7 +418,7 @@ class BesyPlayer {
         <div class="player-menu-title">Субтитры</div>
         ${this.captions.map((caption, index) => `
           <button class="player-menu-item${Array.from(this.video.textTracks)[index]?.mode === 'showing' ? ' active' : ''}"
-                  data-caption="${index}">${caption.label}</button>`).join('')}
+                  data-caption="${index}">${escapeHtml(caption.label)}</button>`).join('')}
         <button class="player-menu-item${Array.from(this.video.textTracks).every((t) => t.mode !== 'showing') ? ' active' : ''}"
                 data-caption="-1">Выключены</button>`
       : '';
