@@ -7,6 +7,7 @@ const multer = require('multer');
 
 const { attachUser } = require('./auth');
 require('./db'); // ensures data dirs + schema exist before routes load
+const transcode = require('./transcode');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -26,6 +27,13 @@ app.use('/api/channels', require('./routes/channels'));
 app.use('/media', require('./routes/media'));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
+
+// hls.js ships as a dependency so the player works without a CDN.
+const HLS_JS_PATH = path.join(__dirname, '..', 'node_modules', 'hls.js', 'dist', 'hls.min.js');
+app.get('/vendor/hls.js', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=604800');
+  res.sendFile(HLS_JS_PATH);
+});
 
 app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 
@@ -54,6 +62,11 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Внутренняя ошибка сервера' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Besy запущен: http://localhost:${PORT}`);
+  const ffmpegReady = await transcode.checkTools();
+  console.log(ffmpegReady
+    ? '[transcode] ffmpeg найден — включено адаптивное качество (HLS)'
+    : '[transcode] ffmpeg не найден — видео отдаются как есть, без HLS');
+  transcode.resumePending();
 });

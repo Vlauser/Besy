@@ -30,14 +30,53 @@ async function call(method, url, body, raw = false) {
   return { status: res.status, data, headers: res.headers };
 }
 
-function makeSampleVideo() {
-  // A tiny but structurally valid file is enough: the server never decodes it.
-  const file = path.join(os.tmpdir(), `besy-sample-${Date.now()}.mp4`);
+function hasFfmpeg() {
+  try {
+    execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A real clip when ffmpeg is around, otherwise a stub the server never decodes. */
+function makeSampleVideo({ real = false } = {}) {
+  const file = path.join(os.tmpdir(), `besy-sample-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`);
+  if (real && hasFfmpeg()) {
+    execFileSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-f', 'lavfi', '-i', 'testsrc=size=1280x720:rate=25:duration=6',
+      '-f', 'lavfi', '-i', 'sine=frequency=440:duration=6',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac', '-shortest', '-movflags', '+faststart', file,
+    ], { stdio: 'ignore' });
+    return file;
+  }
   fs.writeFileSync(file, Buffer.concat([
     Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypmp42'),
     Buffer.alloc(1024 * 64, 0x21),
   ]));
   return file;
+}
+
+async function uploadVideo(filePath, fields = {}) {
+  const form = new FormData();
+  form.append('video', new Blob([fs.readFileSync(filePath)], { type: 'video/mp4' }), path.basename(filePath));
+  for (const [key, value] of Object.entries(fields)) form.append(key, String(value));
+  if (!fields.title) form.append('title', 'Тестовое видео');
+  return call('POST', '/api/videos', form, true);
+}
+
+async function waitForStatus(videoId, statuses, timeoutMs = 180000) {
+  const deadline = Date.now() + timeoutMs;
+  let last = null;
+  while (Date.now() < deadline) {
+    const res = await call('GET', `/api/videos/${videoId}`);
+    last = res.data.video;
+    if (statuses.includes(last.status)) return last;
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error(`видео ${videoId} застряло в статусе ${last && last.status}`);
 }
 
 (async function run() {
@@ -199,6 +238,61 @@ function makeSampleVideo() {
   }
 
   fs.rmSync(sample, { force: true });
+
+  if (hasFfmpeg()) {
+    step = 'HLS transcoding';
+    cookie = '';
+    await call('POST', '/api/auth/login', { login: username, password: 'sup3rsecret' });
+
+    const realClip = makeSampleVideo({ real: true });
+    res = await uploadVideo(realClip, { title: 'Клип для HLS', visibility: 'public' });
+    assert.equal(res.status, 201, JSON.stringify(res.data));
+    const clipId = res.data.video.id;
+    assert.equal(res.data.video.status, 'processing', 'upload should enter the transcode queue');
+
+    const ready = await waitForStatus(clipId, ['ready', 'failed']);
+    assert.equal(ready.status, 'ready', `transcoding failed: ${ready.statusError}`);
+    assert.ok(ready.hlsUrl, 'HLS master playlist missing');
+    assert.ok(ready.renditions.length >= 3, `expected a bitrate ladder, got ${ready.renditions.length}`);
+    assert.ok(ready.duration > 5 && ready.duration < 8, `ffprobe duration looks wrong: ${ready.duration}`);
+    assert.equal(ready.width, 1280);
+    assert.ok(ready.thumbUrl, 'server-side thumbnail missing');
+
+    const master = await fetch(BASE + ready.hlsUrl, { headers: { cookie } });
+    assert.equal(master.status, 200);
+    assert.equal(master.headers.get('content-type'), 'application/vnd.apple.mpegurl');
+    const masterBody = await master.text();
+    assert.match(masterBody, /#EXT-X-STREAM-INF/, 'master playlist has no variants');
+
+    const variant = masterBody.split('\n').find((line) => line.trim() && !line.startsWith('#'));
+    const variantRes = await fetch(`${BASE}/media/hls/${clipId}/${variant.trim()}`, { headers: { cookie } });
+    assert.equal(variantRes.status, 200);
+    const variantBody = await variantRes.text();
+    assert.match(variantBody, /#EXTINF/, 'variant playlist has no segments');
+
+    const segment = variantBody.split('\n').find((line) => line.trim().endsWith('.ts'));
+    const dir = variant.trim().split('/')[0];
+    const segRes = await fetch(`${BASE}/media/hls/${clipId}/${dir}/${segment.trim()}`, { headers: { cookie } });
+    assert.equal(segRes.status, 200);
+    assert.equal(segRes.headers.get('content-type'), 'video/mp2t');
+    assert.ok(Number(segRes.headers.get('content-length')) > 1000, 'segment is suspiciously small');
+
+    step = 'HLS path traversal is refused';
+    const escape = await fetch(`${BASE}/media/hls/${clipId}/../../besy.db`, { headers: { cookie }, redirect: 'manual' });
+    assert.ok([400, 404].includes(escape.status), `traversal returned ${escape.status}`);
+
+    step = 'deleting a video removes its HLS folder';
+    res = await call('DELETE', `/api/videos/${clipId}`);
+    assert.equal(res.status, 200);
+    const goneMaster = await fetch(BASE + ready.hlsUrl, { headers: { cookie } });
+    assert.equal(goneMaster.status, 404);
+
+    fs.rmSync(realClip, { force: true });
+    console.log('   HLS: ' + ready.renditions.map((r) => r.name).join(', '));
+  } else {
+    console.log('   ⚠ ffmpeg не найден — проверки HLS пропущены');
+  }
+
   console.log('✅ Все проверки пройдены');
 })().catch((err) => {
   console.error('❌ Smoke test failed:', err.message);

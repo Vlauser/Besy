@@ -11,9 +11,10 @@
   <main class="page">
     <div class="watch-layout">
       <div id="main-col">
-        <div class="player-shell">
-          <video id="player" controls playsinline preload="metadata"></video>
+        <div class="player-shell" id="player-shell">
+          <video id="player" playsinline preload="metadata"></video>
         </div>
+        <div id="status-banner"></div>
         <h1 class="watch-title" id="title">Загрузка…</h1>
         <div class="watch-bar" id="watch-bar"></div>
         <div id="description-box"></div>
@@ -32,7 +33,9 @@
     </div>
   </main>
 
+  <script src="/vendor/hls.js"></script>
   <script src="/js/common.js"></script>
+  <script src="/js/player.js"></script>
   <script src="/js/watch.js"></script>
 </body>
 </html>

@@ -6,8 +6,10 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { db, VIDEO_DIR, THUMB_DIR } = require('../db');
+const { db, TMP_DIR } = require('../db');
+const { storage, keys } = require('../storage');
 const { requireAuth } = require('../auth');
+const transcode = require('../transcode');
 
 const router = express.Router();
 
@@ -24,18 +26,15 @@ const EXT_BY_MIME = {
   'video/x-matroska': '.mkv',
 };
 
+// Uploads land in a scratch folder first, then move into the storage driver.
 const upload = multer({
   storage: multer.diskStorage({
-    destination(req, file, cb) {
-      cb(null, file.fieldname === 'thumbnail' ? THUMB_DIR : VIDEO_DIR);
-    },
+    destination(req, file, cb) { cb(null, TMP_DIR); },
     filename(req, file, cb) {
       const id = req.besyVideoId;
-      if (file.fieldname === 'thumbnail') {
-        cb(null, `${id}.jpg`);
-      } else {
-        cb(null, `${id}${EXT_BY_MIME[file.mimetype] || path.extname(file.originalname) || '.mp4'}`);
-      }
+      cb(null, file.fieldname === 'thumbnail'
+        ? `${id}.upload.jpg`
+        : `${id}.upload${EXT_BY_MIME[file.mimetype] || path.extname(file.originalname) || '.mp4'}`);
     },
   }),
   limits: { fileSize: MAX_VIDEO_BYTES, files: 2 },
@@ -64,14 +63,15 @@ function normalizeTags(raw) {
     .join(',');
 }
 
-function cleanupFiles(files) {
+async function cleanupFiles(files) {
   for (const list of Object.values(files || {})) {
-    for (const file of list) fs.rm(file.path, { force: true }, () => {});
+    for (const file of list) await fs.promises.rm(file.path, { force: true }).catch(() => {});
   }
 }
 
 function shapeVideo(row, viewer) {
   if (!row) return null;
+  const isOwner = Boolean(viewer && viewer.id === row.user_id);
   return {
     id: row.id,
     title: row.title,
@@ -84,13 +84,20 @@ function shapeVideo(row, viewer) {
     views: row.views,
     createdAt: row.created_at,
     fileSize: row.file_size,
-    thumbUrl: row.thumb_file ? `/media/thumb/${row.id}` : null,
+    thumbUrl: row.thumb_key ? `/media/thumb/${row.id}` : null,
     streamUrl: `/media/stream/${row.id}`,
+    hlsUrl: row.hls_master ? `/media/hls/${row.id}/master.m3u8` : null,
+    renditions: JSON.parse(row.renditions || '[]'),
+    status: row.status,
+    progress: row.progress,
+    statusError: isOwner ? row.status_error : null,
+    blocked: Boolean(row.blocked_at),
+    blockedReason: row.blocked_reason || null,
     likes: row.likes ?? 0,
     dislikes: row.dislikes ?? 0,
     comments: row.comment_count ?? 0,
     myReaction: row.my_reaction ?? 0,
-    isOwner: Boolean(viewer && viewer.id === row.user_id),
+    isOwner,
     author: {
       id: row.user_id,
       username: row.username,
@@ -135,9 +142,11 @@ router.get('/', (req, res) => {
       where.push("v.visibility IN ('public','unlisted','private')");
     } else {
       where.push("v.visibility = 'public'");
+      where.push('v.blocked_at IS NULL');
     }
   } else {
     where.push("v.visibility = 'public'");
+    where.push('v.blocked_at IS NULL');
   }
 
   if (q) {
@@ -166,6 +175,11 @@ router.get('/:id', (req, res) => {
   if (row.visibility === 'private' && !isOwner) {
     return res.status(403).json({ error: 'Это видео приватное' });
   }
+  if (row.blocked_at && !isOwner && !req.user?.isAdmin) {
+    return res.status(451).json({
+      error: `Видео заблокировано модерацией${row.blocked_reason ? `: ${row.blocked_reason}` : ''}`,
+    });
+  }
 
   if (req.user) {
     const reaction = db.prepare('SELECT value FROM reactions WHERE video_id = ? AND user_id = ?')
@@ -175,7 +189,7 @@ router.get('/:id', (req, res) => {
 
   const related = db.prepare(`
     ${LIST_SELECT}
-    WHERE v.visibility = 'public' AND v.id != ?
+    WHERE v.visibility = 'public' AND v.blocked_at IS NULL AND v.id != ?
     ORDER BY (v.user_id = ?) DESC, v.views DESC, v.created_at DESC
     LIMIT 12
   `).all(row.id, row.user_id);
@@ -206,45 +220,66 @@ router.post(
   requireAuth,
   assignVideoId,
   upload.fields([{ name: 'video', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }]),
-  (req, res) => {
+  async (req, res, next) => {
     const videoFile = req.files?.video?.[0];
     const thumbFile = req.files?.thumbnail?.[0];
 
-    if (!videoFile) {
-      cleanupFiles(req.files);
-      return res.status(400).json({ error: 'Не выбран видеофайл' });
+    try {
+      if (!videoFile) {
+        await cleanupFiles(req.files);
+        return res.status(400).json({ error: 'Не выбран видеофайл' });
+      }
+
+      const title = String(req.body.title || '').trim();
+      if (!title || title.length > 140) {
+        await cleanupFiles(req.files);
+        return res.status(400).json({ error: 'Заголовок: 1–140 символов' });
+      }
+
+      const description = String(req.body.description || '').slice(0, 5000);
+      const tags = normalizeTags(req.body.tags);
+      const visibility = ['public', 'unlisted', 'private'].includes(req.body.visibility)
+        ? req.body.visibility
+        : 'public';
+
+      const id = req.besyVideoId;
+      const videoKey = keys.video(id, path.extname(videoFile.filename));
+      await storage.putFile(videoKey, videoFile.path);
+
+      let thumbKey = null;
+      if (thumbFile) {
+        thumbKey = keys.thumb(id);
+        await storage.putFile(thumbKey, thumbFile.path);
+      }
+
+      db.prepare(`
+        INSERT INTO videos (id, user_id, title, description, tags, visibility,
+                            file_key, file_size, mime_type, duration, width, height,
+                            thumb_key, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id, req.user.id, title, description, tags, visibility,
+        videoKey, videoFile.size, videoFile.mimetype,
+        Number(req.body.duration) || 0,
+        Number(req.body.width) || 0,
+        Number(req.body.height) || 0,
+        thumbKey,
+        'processing',
+        Date.now(),
+      );
+
+      // Falls back to plain progressive playback when ffmpeg is unavailable.
+      const queuedForTranscode = await transcode.enqueue(id);
+      if (!queuedForTranscode) {
+        db.prepare("UPDATE videos SET status = 'ready' WHERE id = ?").run(id);
+      }
+
+      const row = db.prepare(`${LIST_SELECT} WHERE v.id = ?`).get(id);
+      res.status(201).json({ video: shapeVideo(row, req.user) });
+    } catch (err) {
+      await cleanupFiles(req.files);
+      next(err);
     }
-
-    const title = String(req.body.title || '').trim();
-    if (!title || title.length > 140) {
-      cleanupFiles(req.files);
-      return res.status(400).json({ error: 'Заголовок: 1–140 символов' });
-    }
-
-    const description = String(req.body.description || '').slice(0, 5000);
-    const tags = normalizeTags(req.body.tags);
-    const visibility = ['public', 'unlisted', 'private'].includes(req.body.visibility)
-      ? req.body.visibility
-      : 'public';
-
-    const id = req.besyVideoId;
-    db.prepare(`
-      INSERT INTO videos (id, user_id, title, description, tags, visibility,
-                          file_name, file_size, mime_type, duration, width, height,
-                          thumb_file, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id, req.user.id, title, description, tags, visibility,
-      videoFile.filename, videoFile.size, videoFile.mimetype,
-      Number(req.body.duration) || 0,
-      Number(req.body.width) || 0,
-      Number(req.body.height) || 0,
-      thumbFile ? thumbFile.filename : null,
-      Date.now(),
-    );
-
-    const row = db.prepare(`${LIST_SELECT} WHERE v.id = ?`).get(id);
-    res.status(201).json({ video: shapeVideo(row, req.user) });
   }
 );
 
@@ -271,16 +306,22 @@ router.patch('/:id', requireAuth, (req, res) => {
 });
 
 // DELETE /api/videos/:id
-router.delete('/:id', requireAuth, (req, res) => {
+router.delete('/:id', requireAuth, async (req, res, next) => {
   const row = db.prepare('SELECT * FROM videos WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Видео не найдено' });
-  if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Это не ваше видео' });
+  if (row.user_id !== req.user.id && !req.user.isAdmin) {
+    return res.status(403).json({ error: 'Это не ваше видео' });
+  }
 
-  db.prepare('DELETE FROM videos WHERE id = ?').run(row.id);
-  fs.rm(path.join(VIDEO_DIR, row.file_name), { force: true }, () => {});
-  if (row.thumb_file) fs.rm(path.join(THUMB_DIR, row.thumb_file), { force: true }, () => {});
-
-  res.json({ ok: true });
+  try {
+    db.prepare('DELETE FROM videos WHERE id = ?').run(row.id);
+    await storage.delete(row.file_key);
+    if (row.thumb_key) await storage.delete(row.thumb_key);
+    await storage.deletePrefix(keys.hlsDir(row.id));
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // POST /api/videos/:id/view

@@ -3,6 +3,8 @@
 
   const videoId = location.pathname.split('/').filter(Boolean)[1];
   const player = document.getElementById('player');
+  const shell = document.getElementById('player-shell');
+  const statusBanner = document.getElementById('status-banner');
   const titleEl = document.getElementById('title');
   const barEl = document.getElementById('watch-bar');
   const descEl = document.getElementById('description-box');
@@ -10,6 +12,8 @@
 
   let video = null;
   let channel = null;
+  let besyPlayer = null;
+  let nextVideo = null;
 
   try {
     const data = await api.get(`/api/videos/${videoId}`);
@@ -17,6 +21,7 @@
     channel = data.channel;
     render(data.related);
   } catch (err) {
+    console.error(err);
     document.getElementById('main-col').innerHTML =
       `<div class="empty"><div class="empty-icon">🚫</div>${escapeHtml(err.message)}</div>`;
     return;
@@ -26,8 +31,25 @@
     document.title = `${video.title} — Besy`;
     titleEl.textContent = video.title;
 
-    player.src = video.streamUrl;
-    player.poster = video.thumbUrl || '';
+    nextVideo = related[0] || null;
+
+    besyPlayer = new BesyPlayer(shell, player, {
+      videoId: video.id,
+      onTheater: () => document.body.classList.toggle('theater'),
+      onNext: () => { if (nextVideo) location.href = `/watch/${nextVideo.id}`; },
+      onEnded: () => {
+        if (autoplayEnabled() && nextVideo) location.href = `/watch/${nextVideo.id}`;
+      },
+    });
+    besyPlayer.showNextButton(Boolean(nextVideo));
+    window.besyPlayer = besyPlayer; // handy handle for debugging and tests
+    besyPlayer.load({
+      hlsUrl: video.hlsUrl,
+      streamUrl: video.streamUrl,
+      thumbUrl: video.thumbUrl,
+      chapters: parseChapters(video.description),
+    });
+    renderStatusBanner();
 
     barEl.innerHTML = `
       <div class="channel-row">
@@ -73,6 +95,63 @@
       : '<div class="hint">Пока нечего показать</div>';
 
     wireActions();
+  }
+
+  function autoplayEnabled() {
+    try { return localStorage.getItem('besy:autoplay') !== 'off'; } catch { return true; }
+  }
+
+  /** Shows transcoding progress and polls until the HLS ladder is ready. */
+  function renderStatusBanner() {
+    if (video.status === 'processing') {
+      statusBanner.innerHTML = `
+        <div class="status-banner">
+          <span class="status-dot"></span>
+          Идёт обработка видео — ${video.progress || 0}%. Пока доступно исходное качество,
+          адаптивные версии появятся автоматически.
+        </div>`;
+      clearTimeout(window.__besyStatusTimer);
+      window.__besyStatusTimer = setTimeout(pollStatus, 3000);
+      return;
+    }
+
+    if (video.status === 'failed' && video.isOwner) {
+      statusBanner.innerHTML = `
+        <div class="status-banner">⚠ Не удалось подготовить адаптивные версии: ${escapeHtml(video.statusError || 'ошибка обработки')}.
+        Видео доступно в исходном качестве.</div>`;
+      return;
+    }
+
+    statusBanner.innerHTML = '';
+  }
+
+  async function pollStatus() {
+    try {
+      const { video: fresh } = await api.get(`/api/videos/${video.id}`);
+      const becameReady = video.status === 'processing' && fresh.status !== 'processing';
+      video.status = fresh.status;
+      video.progress = fresh.progress;
+      video.hlsUrl = fresh.hlsUrl;
+      video.statusError = fresh.statusError;
+      if (becameReady && fresh.hlsUrl) {
+        // Swap to the adaptive ladder without losing the current position.
+        const at = player.currentTime;
+        const wasPlaying = !player.paused;
+        await besyPlayer.load({
+          hlsUrl: fresh.hlsUrl,
+          streamUrl: fresh.streamUrl,
+          thumbUrl: fresh.thumbUrl,
+          chapters: parseChapters(video.description),
+        });
+        player.addEventListener('loadedmetadata', () => {
+          player.currentTime = at;
+          if (wasPlaying) player.play().catch(() => {});
+        }, { once: true });
+      }
+      renderStatusBanner();
+    } catch {
+      renderStatusBanner();
+    }
   }
 
   function wireActions() {

@@ -34,6 +34,8 @@
       return;
     }
 
+    const processing = videos.some((v) => v.status === 'processing');
+
     gridEl.innerHTML = videos.map((v) => `
       <div data-id="${v.id}">
         <a class="card" href="/watch/${v.id}">
@@ -44,6 +46,7 @@
           </div>
           <div class="card-title">${escapeHtml(v.title)}</div>
         </a>
+        ${statusLine(v)}
         <div class="card-meta">${fmt.views(v.views)} · 👍 ${fmt.count(v.likes)} · 💬 ${fmt.count(v.comments)}</div>
         <div class="card-meta">${fmt.ago(v.createdAt)} · ${fmt.size(v.fileSize)}</div>
         <div class="row mt-16">
@@ -55,6 +58,27 @@
           <button class="btn btn-danger" data-action="delete">🗑</button>
         </div>
       </div>`).join('');
+
+    clearTimeout(window.__besyStudioTimer);
+    if (processing) window.__besyStudioTimer = setTimeout(loadVideos, 3000);
+  }
+
+  /** Keeps the studio in sync while the transcoder is still working. */
+  function statusLine(video) {
+    if (video.blocked) {
+      return `<div class="card-meta" style="color:var(--accent)">⛔ Заблокировано модерацией${
+        video.blockedReason ? `: ${escapeHtml(video.blockedReason)}` : ''}</div>`;
+    }
+    if (video.status === 'processing') {
+      return `<div class="card-meta"><span class="status-dot" style="display:inline-block;margin-right:6px"></span>Обработка — ${video.progress || 0}%</div>`;
+    }
+    if (video.status === 'failed') {
+      return `<div class="card-meta" title="${escapeHtml(video.statusError || '')}">⚠ Без адаптивного качества</div>`;
+    }
+    if (video.renditions?.length) {
+      return `<div class="card-meta">✓ ${video.renditions.map((r) => r.name).join(' · ')}</div>`;
+    }
+    return '';
   }
 
   gridEl.addEventListener('change', async (event) => {

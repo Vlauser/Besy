@@ -18,6 +18,7 @@ function publicUser(user) {
     id: user.id,
     username: user.username,
     displayName: user.displayName ?? user.display_name,
+    isAdmin: (user.isAdmin ?? user.is_admin) ? true : false,
     about: user.about,
     avatar: user.avatar ?? user.avatar_file,
     createdAt: user.createdAt ?? user.created_at,
@@ -50,10 +51,13 @@ router.post('/register', (req, res) => {
     return res.status(409).json({ error: 'Такой логин или e-mail уже занят' });
   }
 
+  // The very first account owns the instance, so it gets moderator rights.
+  const isFirstUser = db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0;
+
   const info = db.prepare(`
-    INSERT INTO users (username, email, password_hash, display_name, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(username, email, hashPassword(password), displayName, Date.now());
+    INSERT INTO users (username, email, password_hash, display_name, is_admin, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(username, email, hashPassword(password), displayName, isFirstUser ? 1 : 0, Date.now());
 
   const userId = Number(info.lastInsertRowid);
   setSessionCookie(res, createSession(userId));
@@ -72,6 +76,11 @@ router.post('/login', (req, res) => {
 
   if (!user || !verifyPassword(password, user.password_hash)) {
     return res.status(401).json({ error: 'Неверный логин или пароль' });
+  }
+  if (user.banned_at) {
+    return res.status(403).json({
+      error: `Аккаунт заблокирован${user.ban_reason ? `: ${user.ban_reason}` : ''}`,
+    });
   }
 
   setSessionCookie(res, createSession(user.id));

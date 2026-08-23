@@ -42,7 +42,8 @@ function destroySession(token) {
 function userFromToken(token) {
   if (!token) return null;
   const row = db.prepare(`
-    SELECT u.id, u.username, u.email, u.display_name, u.about, u.avatar_file, u.created_at, s.expires_at
+    SELECT u.id, u.username, u.email, u.display_name, u.about, u.avatar_file,
+           u.is_admin, u.banned_at, u.ban_reason, u.created_at, s.expires_at
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token = ?
   `).get(token);
@@ -58,6 +59,9 @@ function userFromToken(token) {
     displayName: row.display_name,
     about: row.about,
     avatar: row.avatar_file,
+    isAdmin: row.is_admin === 1,
+    bannedAt: row.banned_at,
+    banReason: row.ban_reason,
     createdAt: row.created_at,
   };
 }
@@ -70,6 +74,17 @@ function attachUser(req, res, next) {
 
 function requireAuth(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Требуется вход в аккаунт' });
+  if (req.user.bannedAt) {
+    return res.status(403).json({
+      error: `Аккаунт заблокирован${req.user.banReason ? `: ${req.user.banReason}` : ''}`,
+    });
+  }
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Требуется вход в аккаунт' });
+  if (!req.user.isAdmin) return res.status(403).json({ error: 'Нужны права модератора' });
   next();
 }
 
@@ -95,6 +110,7 @@ module.exports = {
   destroySession,
   attachUser,
   requireAuth,
+  requireAdmin,
   setSessionCookie,
   clearSessionCookie,
 };
