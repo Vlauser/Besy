@@ -562,3 +562,79 @@ textarea.input { resize: vertical; min-height: 96px; }
 /* Theater mode widens the player column and drops the sidebar below it. */
 body.theater .watch-layout { grid-template-columns: minmax(0, 1fr); }
 body.theater .page { max-width: 100%; }
+
+/* ------------------------------------------------------------------- modal */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, .62);
+  backdrop-filter: blur(3px);
+}
+
+.modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: 86vh;
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.modal-wide { max-width: 680px; }
+
+.modal-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-body { padding: 16px; }
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 7px;
+  cursor: pointer;
+}
+
+.choice:hover { background: var(--bg-hover); }
+.choice input { accent-color: var(--accent); }
+
+.queue {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.queue-head { padding: 12px 14px; background: var(--bg-elevated); border-bottom: 1px solid var(--border); }
+.queue-list { max-height: 380px; overflow-y: auto; }
+
+.queue-item {
+  display: grid;
+  grid-template-columns: 26px 100px 1fr;
+  gap: 9px;
+  align-items: center;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.queue-item:hover { background: var(--bg-hover); }
+.queue-item.current { background: var(--accent-soft); }
+.queue-item .thumb { margin: 0; border-radius: 7px; }

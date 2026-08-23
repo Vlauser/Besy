@@ -1,8 +1,19 @@
 /* Shared helpers: API client, header rendering, formatting. */
 
+function readCookie(name) {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+/** The CSRF cookie is readable by design: it is echoed back in a header. */
+function csrfHeader() {
+  const token = readCookie('besy_csrf');
+  return token ? { 'X-CSRF-Token': token } : {};
+}
+
 const api = {
   async request(method, url, body, options = {}) {
-    const init = { method, headers: {}, credentials: 'same-origin', ...options };
+    const init = { method, headers: { ...csrfHeader() }, credentials: 'same-origin', ...options };
     if (body !== undefined) {
       init.headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(body);
@@ -10,7 +21,12 @@ const api = {
     const res = await fetch(url, init);
     const text = await res.text();
     const data = text ? JSON.parse(text) : {};
-    if (!res.ok) throw new Error(data.error || `Ошибка ${res.status}`);
+    if (!res.ok) {
+      const error = new Error(data.error || `Ошибка ${res.status}`);
+      error.status = res.status;
+      error.data = data;
+      throw error;
+    }
     return data;
   },
   get: (url) => api.request('GET', url),
@@ -106,6 +122,8 @@ function renderHeader() {
     ? `
       <a class="btn btn-ghost hide-sm" href="/upload">↑ Загрузить</a>
       <a class="btn btn-ghost hide-sm" href="/studio">Мои видео</a>
+      ${auth.user.isAdmin ? '<a class="btn btn-ghost" href="/moderation" title="Модерация">🛡</a>' : ''}
+      <a class="btn btn-ghost" href="/settings" title="Аккаунт и безопасность">⚙</a>
       <a class="avatar" href="/@${escapeHtml(auth.user.username)}" title="${escapeHtml(auth.user.displayName)}">${initials(auth.user.displayName)}</a>
       <button class="btn btn-ghost" id="logout-btn">Выйти</button>`
     : `
@@ -159,6 +177,34 @@ function videoCard(video, { showAuthor = true } = {}) {
       ${author}
       <div class="card-meta">${fmt.views(video.views)} · ${fmt.ago(video.createdAt)}</div>
     </div>`;
+}
+
+/** Minimal modal used by the report, copyright and playlist dialogs. */
+function openModal(title, bodyHtml, { wide = false } = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal${wide ? ' modal-wide' : ''}" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <strong>${escapeHtml(title)}</strong>
+        <button class="player-btn" data-close aria-label="Закрыть">✕</button>
+      </div>
+      <div class="modal-body">${bodyHtml}</div>
+    </div>`;
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (event) => { if (event.key === 'Escape') close(); };
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay || event.target.closest('[data-close]')) close();
+  });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(overlay);
+
+  return { overlay, body: overlay.querySelector('.modal-body'), close };
 }
 
 async function bootstrap() {

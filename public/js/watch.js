@@ -2,6 +2,7 @@
   await bootstrap();
 
   const videoId = location.pathname.split('/').filter(Boolean)[1];
+  const listId = new URLSearchParams(location.search).get('list');
   const player = document.getElementById('player');
   const shell = document.getElementById('player-shell');
   const statusBanner = document.getElementById('status-banner');
@@ -14,11 +15,16 @@
   let channel = null;
   let besyPlayer = null;
   let nextVideo = null;
+  let queue = null;
 
   try {
     const data = await api.get(`/api/videos/${videoId}`);
     video = data.video;
     channel = data.channel;
+    if (listId) {
+      // Watching inside a playlist: the queue decides what plays next.
+      queue = await api.get(`/api/playlists/${listId}`).catch(() => null);
+    }
     render(data.related);
   } catch (err) {
     console.error(err);
@@ -31,7 +37,7 @@
     document.title = `${video.title} — Besy`;
     titleEl.textContent = video.title;
 
-    nextVideo = related[0] || null;
+    nextVideo = queueNext() || related[0] || null;
 
     besyPlayer = new BesyPlayer(shell, player, {
       videoId: video.id,
@@ -65,6 +71,8 @@
         <button class="btn ${video.myReaction === -1 ? 'active' : ''}" id="dislike-btn">👎 <span>${fmt.count(video.dislikes)}</span></button>
         <button class="btn" id="share-btn">🔗 Поделиться</button>
         <a class="btn" href="/media/download/${video.id}">⬇ Скачать</a>
+        <button class="btn" id="save-btn">☰ Сохранить</button>
+        <button class="btn" id="report-btn" title="Пожаловаться">⚑</button>
         ${video.isOwner ? '<a class="btn" href="/studio">✎ Управление</a>' : ''}
       </div>`;
 
@@ -78,6 +86,9 @@
         <div class="description-text">${video.description ? escapeHtml(video.description) : '<span class="hint">Без описания</span>'}</div>
         ${tags}
       </div>`;
+
+    const sidebar = document.querySelector('aside');
+    if (queue) sidebar.insertAdjacentHTML('afterbegin', renderQueue());
 
     relatedEl.innerHTML = related.length
       ? related.map((v) => `
@@ -95,6 +106,41 @@
       : '<div class="hint">Пока нечего показать</div>';
 
     wireActions();
+  }
+
+  /** Next item after the current one inside the open playlist. */
+  function queueNext() {
+    if (!queue?.videos?.length) return null;
+    const index = queue.videos.findIndex((item) => item.id === video.id);
+    return index >= 0 ? queue.videos[index + 1] || null : queue.videos[0];
+  }
+
+  function renderQueue() {
+    if (!queue?.videos?.length) return '';
+    return `
+      <div class="queue">
+        <div class="queue-head">
+          <strong>${escapeHtml(queue.playlist.title)}</strong>
+          <div class="card-meta">
+            <a href="/playlist/${queue.playlist.id}">${escapeHtml(queue.playlist.author.displayName)}</a> ·
+            ${queue.videos.findIndex((item) => item.id === video.id) + 1} из ${queue.videos.length}
+          </div>
+        </div>
+        <div class="queue-list">
+          ${queue.videos.map((item, index) => `
+            <a class="queue-item${item.id === video.id ? ' current' : ''}"
+               href="/watch/${item.id}?list=${queue.playlist.id}">
+              <span class="card-meta">${item.id === video.id ? '▶' : index + 1}</span>
+              <div class="thumb">
+                ${item.thumbUrl ? `<img src="${item.thumbUrl}" alt="" loading="lazy">` : '<div class="thumb-empty">▶</div>'}
+              </div>
+              <div>
+                <div class="card-title" style="font-size:13px">${escapeHtml(item.title)}</div>
+                <div class="card-meta">${escapeHtml(item.author.displayName)}</div>
+              </div>
+            </a>`).join('')}
+        </div>
+      </div>`;
   }
 
   function autoplayEnabled() {
@@ -190,6 +236,9 @@
     likeBtn.addEventListener('click', () => react(1));
     dislikeBtn.addEventListener('click', () => react(-1));
 
+    document.getElementById('save-btn').addEventListener('click', openPlaylistDialog);
+    document.getElementById('report-btn').addEventListener('click', openReportDialog);
+
     document.getElementById('share-btn').addEventListener('click', async (event) => {
       const url = location.href;
       try {
@@ -215,6 +264,142 @@
       if (line) line.textContent = `${fmt.views(views)} · ${fmt.ago(video.createdAt)} · ${fmt.size(video.fileSize)}`;
     } catch { /* view counting is best-effort */ }
   });
+
+  /* ------------------------------------------------ playlists and reports */
+
+  async function openPlaylistDialog() {
+    if (!auth.user) return auth.requireLogin();
+
+    const modal = openModal('Сохранить в плейлист', '<div class="hint">Загрузка…</div>');
+    const { playlists } = await api.get(`/api/playlists/mine?videoId=${video.id}`);
+
+    modal.body.innerHTML = `
+      ${playlists.map((playlist) => `
+        <label class="choice">
+          <input type="checkbox" data-playlist="${playlist.id}" ${playlist.contains ? 'checked' : ''}>
+          <span>${escapeHtml(playlist.title)}</span>
+          <span class="spacer"></span>
+          <span class="card-meta">${playlist.count} · ${playlist.visibility === 'private' ? 'приватный' : 'открытый'}</span>
+        </label>`).join('') || '<div class="hint">У вас пока нет плейлистов</div>'}
+      <form id="new-playlist" class="mt-16">
+        <div class="field">
+          <label for="pl-title">Новый плейлист</label>
+          <input class="input" id="pl-title" name="title" maxlength="140" placeholder="Название">
+        </div>
+        <button class="btn btn-primary" type="submit">Создать и добавить</button>
+      </form>`;
+
+    modal.body.querySelectorAll('[data-playlist]').forEach((checkbox) => {
+      checkbox.addEventListener('change', async () => {
+        const id = checkbox.dataset.playlist;
+        try {
+          if (checkbox.checked) await api.post(`/api/playlists/${id}/items`, { videoId: video.id });
+          else await api.del(`/api/playlists/${id}/items/${video.id}`);
+        } catch (err) {
+          checkbox.checked = !checkbox.checked;
+          alert(err.message);
+        }
+      });
+    });
+
+    modal.body.querySelector('#new-playlist').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const title = event.target.title.value.trim();
+      if (!title) return;
+      try {
+        await api.post('/api/playlists', { title, videoId: video.id });
+        modal.close();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
+
+  async function openReportDialog() {
+    if (!auth.user) return auth.requireLogin();
+
+    const { reasons } = await api.get('/api/moderation/reasons');
+    const modal = openModal('Пожаловаться на видео', `
+      <form id="report-form">
+        ${reasons.map((reason, index) => `
+          <label class="choice">
+            <input type="radio" name="reason" value="${reason.id}" ${index === 0 ? 'checked' : ''}>
+            <span>${escapeHtml(reason.label)}</span>
+          </label>`).join('')}
+        <div class="field mt-16">
+          <label for="details">Подробности (необязательно)</label>
+          <textarea class="input" id="details" name="details" rows="3" maxlength="1000"></textarea>
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Отправить жалобу</button>
+      </form>
+      <button class="btn btn-block mt-16" id="copyright-btn">Заявление о нарушении авторских прав</button>`);
+
+    modal.body.querySelector('#report-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      try {
+        await api.post('/api/moderation/reports', {
+          targetType: 'video',
+          videoId: video.id,
+          reason: form.get('reason'),
+          details: form.get('details'),
+        });
+        modal.body.innerHTML = '<div class="alert alert-ok">Жалоба отправлена — модераторы её рассмотрят.</div>';
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    modal.body.querySelector('#copyright-btn').addEventListener('click', () => {
+      modal.close();
+      openCopyrightDialog();
+    });
+  }
+
+  function openCopyrightDialog() {
+    const modal = openModal('Заявление о нарушении авторских прав', `
+      <form id="copyright-form">
+        <div class="field">
+          <label for="claimantName">Ваше имя или название правообладателя</label>
+          <input class="input" id="claimantName" name="claimantName" required maxlength="200">
+        </div>
+        <div class="field">
+          <label for="claimantEmail">E-mail для связи</label>
+          <input class="input" id="claimantEmail" name="claimantEmail" type="email" required maxlength="200">
+        </div>
+        <div class="field">
+          <label for="work">Какое произведение нарушено</label>
+          <input class="input" id="work" name="work" required maxlength="500">
+        </div>
+        <div class="field">
+          <label for="statement">Опишите нарушение</label>
+          <textarea class="input" id="statement" name="statement" rows="4" required maxlength="2000"></textarea>
+        </div>
+        <label class="choice">
+          <input type="checkbox" name="confirmed" required>
+          <span>Подтверждаю, что сведения достоверны и я вправе подать это заявление</span>
+        </label>
+        <button class="btn btn-primary btn-block mt-16" type="submit">Отправить заявление</button>
+      </form>`, { wide: true });
+
+    modal.body.querySelector('#copyright-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      try {
+        await api.post('/api/moderation/copyright', {
+          videoId: video.id,
+          claimantName: form.get('claimantName'),
+          claimantEmail: form.get('claimantEmail'),
+          work: form.get('work'),
+          statement: form.get('statement'),
+          confirmed: form.get('confirmed') === 'on',
+        });
+        modal.body.innerHTML = '<div class="alert alert-ok">Заявление принято и передано модераторам.</div>';
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
 
   /* ------------------------------------------------------------- comments */
 

@@ -1,0 +1,179 @@
+(async function main() {
+  await bootstrap();
+
+  if (!auth.user) return auth.requireLogin('/settings');
+
+  const content = document.getElementById('content');
+
+  function section(title, body, id = '') {
+    return `<div class="panel mt-16"${id ? ` id="${id}"` : ''}><h2>${title}</h2>${body}</div>`;
+  }
+
+  async function render() {
+    const [{ user }, sessionsData, strikesData] = await Promise.all([
+      api.get('/api/auth/me'),
+      api.get('/api/auth/sessions'),
+      api.get(`/api/moderation/users/${auth.user.username}/strikes`).catch(() => ({ active: 0, strikes: [], limit: 3 })),
+    ]);
+    auth.user = user;
+
+    const emailBlock = user.emailVerified
+      ? '<div class="alert alert-ok">E-mail подтверждён</div>'
+      : `<div class="alert alert-error">E-mail не подтверждён — загрузка видео и комментарии недоступны</div>
+         <button class="btn" id="resend-btn">Отправить письмо ещё раз</button>`;
+
+    const twoFactorBlock = user.twoFactor
+      ? `<div class="alert alert-ok">Двухфакторная защита включена</div>
+         <form id="twofa-disable">
+           <div class="field">
+             <label for="disable-pass">Пароль для отключения</label>
+             <input class="input" id="disable-pass" name="password" type="password" required autocomplete="current-password">
+           </div>
+           <button class="btn btn-danger" type="submit">Отключить 2FA</button>
+         </form>`
+      : `<p class="hint">Одноразовые коды из приложения (Google Authenticator, Aegis, 1Password) защитят аккаунт, даже если пароль утечёт.</p>
+         <button class="btn btn-primary" id="twofa-start">Включить двухфакторную защиту</button>
+         <div id="twofa-setup" class="mt-16" hidden></div>`;
+
+    const sessions = sessionsData.sessions.map((session) => `
+      <div class="row" style="justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
+        <div>
+          <div>${escapeHtml(session.userAgent || 'Неизвестное устройство').slice(0, 70)}</div>
+          <div class="card-meta">${escapeHtml(session.ip || '—')} · активна ${fmt.ago(session.lastSeenAt || session.createdAt)}</div>
+        </div>
+        ${session.current
+          ? '<span class="tag">текущая</span>'
+          : `<button class="btn btn-danger" data-session="${session.id}">Завершить</button>`}
+      </div>`).join('');
+
+    const strikes = strikesData.strikes.length
+      ? strikesData.strikes.map((strike) => `
+        <div style="padding:9px 0;border-bottom:1px solid var(--border)">
+          <div><strong>${escapeHtml(strike.reason)}</strong> ${strike.expired ? '<span class="tag">истекло</span>' : ''}</div>
+          <div class="card-meta">
+            ${strike.videoTitle ? `${escapeHtml(strike.videoTitle)} · ` : ''}${fmt.ago(strike.createdAt)}
+            ${strike.expired ? '' : `· снимется ${new Date(strike.expiresAt).toLocaleDateString('ru-RU')}`}
+          </div>
+        </div>`).join('')
+      : '<div class="hint">Предупреждений нет — так держать.</div>';
+
+    content.innerHTML = `
+      ${section('E-mail', emailBlock)}
+      ${section('Пароль', `
+        <form id="password-form">
+          <div class="field">
+            <label for="current">Текущий пароль</label>
+            <input class="input" id="current" name="currentPassword" type="password" required autocomplete="current-password">
+          </div>
+          <div class="field">
+            <label for="new-pass">Новый пароль</label>
+            <input class="input" id="new-pass" name="newPassword" type="password" minlength="8" required autocomplete="new-password">
+          </div>
+          <button class="btn" type="submit">Сменить пароль</button>
+          <div class="hint mt-16">Остальные устройства будут разлогинены.</div>
+        </form>`)}
+      ${section('Двухфакторная защита', twoFactorBlock)}
+      ${section('Активные сессии', `${sessions}
+        <button class="btn mt-16" id="revoke-others">Завершить все другие сессии</button>`)}
+      ${section(`Предупреждения (${strikesData.active} из ${strikesData.limit})`, strikes)}`;
+
+    wire();
+  }
+
+  function wire() {
+    document.getElementById('resend-btn')?.addEventListener('click', async (event) => {
+      event.target.disabled = true;
+      try {
+        await api.post('/api/auth/verify/resend');
+        event.target.textContent = 'Письмо отправлено';
+      } catch (err) {
+        alert(err.message);
+        event.target.disabled = false;
+      }
+    });
+
+    document.getElementById('password-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.target;
+      try {
+        await api.post('/api/auth/password/change', {
+          currentPassword: form.currentPassword.value,
+          newPassword: form.newPassword.value,
+        });
+        form.reset();
+        alert('Пароль изменён');
+        render();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    document.getElementById('twofa-start')?.addEventListener('click', async (event) => {
+      event.target.disabled = true;
+      const box = document.getElementById('twofa-setup');
+      try {
+        const { secret, qr } = await api.post('/api/auth/2fa/setup');
+        box.hidden = false;
+        box.innerHTML = `
+          <p>Отсканируйте код в приложении или введите ключ вручную:</p>
+          <img src="${qr}" alt="QR-код для двухфакторной защиты" width="220" height="220"
+               style="border-radius:10px;background:#fff;padding:6px">
+          <div class="field mt-16">
+            <label>Ключ</label>
+            <input class="input" value="${escapeHtml(secret)}" readonly onclick="this.select()">
+          </div>
+          <form id="twofa-enable">
+            <div class="field">
+              <label for="code">Код из приложения</label>
+              <input class="input" id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" required
+                     autocomplete="one-time-code" placeholder="123456">
+            </div>
+            <button class="btn btn-primary" type="submit">Подтвердить и включить</button>
+          </form>`;
+
+        document.getElementById('twofa-enable').addEventListener('submit', async (submitEvent) => {
+          submitEvent.preventDefault();
+          try {
+            const { backupCodes } = await api.post('/api/auth/2fa/enable', {
+              code: submitEvent.target.code.value,
+            });
+            box.innerHTML = `
+              <div class="alert alert-ok">Готово! Сохраните резервные коды — каждый работает один раз.</div>
+              <pre class="panel" style="font-size:15px;line-height:1.9">${backupCodes.join('\n')}</pre>
+              <button class="btn" id="twofa-done">Я сохранил коды</button>`;
+            document.getElementById('twofa-done').addEventListener('click', render);
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      } catch (err) {
+        alert(err.message);
+        event.target.disabled = false;
+      }
+    });
+
+    document.getElementById('twofa-disable')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api.post('/api/auth/2fa/disable', { password: event.target.password.value });
+        render();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    document.getElementById('revoke-others')?.addEventListener('click', async () => {
+      await api.post('/api/auth/sessions/revoke-others');
+      render();
+    });
+
+    content.querySelectorAll('[data-session]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        await api.del(`/api/auth/sessions/${button.dataset.session}`);
+        render();
+      });
+    });
+  }
+
+  render();
+})();

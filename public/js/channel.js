@@ -50,8 +50,44 @@
     }
   });
 
-  const { videos } = await api.get(`/api/videos?channel=${encodeURIComponent(channel.username)}&limit=60`);
-  gridEl.innerHTML = videos.length
-    ? videos.map((v) => videoCard(v, { showAuthor: false })).join('')
-    : '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🎬</div>На этом канале пока нет видео</div>';
+  const tabs = document.createElement('div');
+  tabs.className = 'tabs';
+  tabs.innerHTML = `
+    <button class="tab active" data-view="videos">Видео</button>
+    <button class="tab" data-view="playlists">Плейлисты</button>`;
+  headEl.appendChild(tabs);
+
+  async function showVideos() {
+    const { videos } = await api.get(`/api/videos?channel=${encodeURIComponent(channel.username)}&limit=60`);
+    gridEl.innerHTML = videos.length
+      ? videos.map((v) => videoCard(v, { showAuthor: false })).join('')
+      : '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🎬</div>На этом канале пока нет видео</div>';
+  }
+
+  async function showPlaylists() {
+    const { playlists } = await api.get(`/api/playlists?channel=${encodeURIComponent(channel.username)}`);
+    gridEl.innerHTML = playlists.length
+      ? playlists.map((playlist) => `
+        <div class="card">
+          <a href="/playlist/${playlist.id}">
+            <div class="thumb">
+              ${playlist.cover ? `<img src="${playlist.cover}" alt="" loading="lazy">` : '<div class="thumb-empty">☰</div>'}
+              <span class="badge">${playlist.count} ${fmt.plural(playlist.count, 'видео', 'видео', 'видео')}</span>
+            </div>
+            <div class="card-title">${escapeHtml(playlist.title)}</div>
+          </a>
+          <div class="card-meta">${playlist.visibility === 'public' ? 'Открытый' : playlist.visibility === 'unlisted' ? 'По ссылке' : 'Приватный'} · обновлён ${fmt.ago(playlist.updatedAt)}</div>
+        </div>`).join('')
+      : '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">☰</div>Плейлистов пока нет</div>';
+  }
+
+  tabs.addEventListener('click', (event) => {
+    const tab = event.target.closest('.tab');
+    if (!tab) return;
+    tabs.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
+    gridEl.innerHTML = '';
+    (tab.dataset.view === 'playlists' ? showPlaylists : showVideos)();
+  });
+
+  showVideos();
 })();

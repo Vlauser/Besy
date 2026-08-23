@@ -35,6 +35,11 @@
       await api.post(url, body);
       location.href = next;
     } catch (err) {
+      // A second factor is a prompt, not a failure: reveal the code field.
+      if (err.data?.twoFactorRequired) {
+        document.getElementById('code-field').hidden = false;
+        document.getElementById('login-code').focus();
+      }
       alertBox.innerHTML = `<div class="alert alert-error">${escapeHtml(err.message)}</div>`;
       button.disabled = false;
       button.textContent = label;

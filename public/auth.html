@@ -25,7 +25,15 @@
         <label for="login-password">Пароль</label>
         <input class="input" id="login-password" name="password" type="password" autocomplete="current-password" required>
       </div>
+      <div class="field" id="code-field" hidden>
+        <label for="login-code">Код двухфакторной защиты</label>
+        <input class="input" id="login-code" name="code" inputmode="numeric" autocomplete="one-time-code"
+               placeholder="123456 или резервный код">
+      </div>
       <button class="btn btn-primary btn-block" type="submit">Войти</button>
+      <div class="hint mt-16" style="text-align:center">
+        <a href="/forgot" style="color:var(--accent)">Забыли пароль?</a>
+      </div>
     </form>
 
     <form class="panel" id="register-form" hidden>

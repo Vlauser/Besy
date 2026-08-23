@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const { db } = require('../db');
 const { storage, keys } = require('../storage');
+const { SIGNED_MEDIA, verifyMediaToken, viewerKey } = require('../security');
 
 const router = express.Router();
 
@@ -28,6 +29,15 @@ function loadVideo(req, res) {
   }
   if (row.blocked_at && !isOwner && !req.user?.isAdmin) {
     res.status(451).end();
+    return null;
+  }
+  if (row.age_restricted && !req.user) {
+    res.status(403).end();
+    return null;
+  }
+  // Optional hotlink protection: playback URLs expire and are bound to a viewer.
+  if (SIGNED_MEDIA && !isOwner && !verifyMediaToken(row.id, viewerKey(req), req.query.token)) {
+    res.status(403).end();
     return null;
   }
   return row;

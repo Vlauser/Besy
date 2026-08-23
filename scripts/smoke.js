@@ -11,10 +11,31 @@ const os = require('node:os');
 const { execFileSync } = require('node:child_process');
 
 const BASE = process.env.BESY_URL || 'http://127.0.0.1:3000';
-let cookie = '';
+const DATA_DIR = process.env.BESY_DATA_DIR || path.join(__dirname, '..', 'data');
+
+/** Cookie jar shared by every request in this run. */
+const jar = new Map();
+
+function cookieHeader() {
+  return Array.from(jar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+}
+
+function setCookie(pair) {
+  const [name, value] = pair.split('=');
+  if (value === '' ) jar.delete(name);
+  else jar.set(name, value);
+}
+
+/** Signs out without dropping the CSRF cookie a real browser would keep. */
+function resetSession() {
+  jar.delete('besy_session');
+}
 
 async function call(method, url, body, raw = false) {
-  const init = { method, headers: { cookie }, redirect: 'manual' };
+  const headers = { cookie: cookieHeader() };
+  const csrf = jar.get('besy_csrf');
+  if (csrf) headers['x-csrf-token'] = csrf;
+  const init = { method, headers, redirect: 'manual' };
   if (body !== undefined && !raw) {
     init.headers['content-type'] = 'application/json';
     init.body = JSON.stringify(body);
@@ -22,8 +43,7 @@ async function call(method, url, body, raw = false) {
     init.body = body;
   }
   const res = await fetch(BASE + url, init);
-  const setCookie = res.headers.getSetCookie?.() || [];
-  for (const c of setCookie) cookie = c.split(';')[0];
+  for (const c of res.headers.getSetCookie?.() || []) setCookie(c.split(';')[0]);
   const text = await res.text();
   let data = {};
   try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
@@ -57,6 +77,19 @@ function makeSampleVideo({ real = false } = {}) {
     Buffer.alloc(1024 * 64, 0x21),
   ]));
   return file;
+}
+
+/** Reads the newest letter written by the file transport and pulls a token out. */
+function readTokenFromOutbox(to, pattern) {
+  const outbox = path.join(DATA_DIR, 'outbox');
+  const files = fs.readdirSync(outbox)
+    .filter((name) => name.includes(to.replace(/[^\w.@-]/g, '_')))
+    .sort();
+  if (!files.length) throw new Error(`нет письма для ${to}`);
+  const body = fs.readFileSync(path.join(outbox, files[files.length - 1]), 'utf8');
+  const match = pattern.exec(body);
+  if (!match) throw new Error(`в письме нет токена: ${body.slice(0, 200)}`);
+  return match[1];
 }
 
 async function uploadVideo(filePath, fields = {}) {
@@ -101,6 +134,22 @@ async function waitForStatus(videoId, statuses, timeoutMs = 180000) {
   step = 'me';
   res = await call('GET', '/api/auth/me');
   assert.equal(res.data.user.username, username);
+  assert.equal(res.data.user.emailVerified, false, 'a fresh account must be unverified');
+
+  step = 'unverified accounts cannot upload';
+  res = await uploadVideo(makeSampleVideo(), { title: 'Слишком рано' });
+  assert.equal(res.status, 403, 'upload before verification must be refused');
+  assert.equal(res.data.needsEmailVerification, true);
+
+  step = 'email verification';
+  const verifyToken = readTokenFromOutbox(`${username}@example.com`, /verify\?token=([\w-]+)/);
+  res = await call('POST', '/api/auth/verify', { token: verifyToken });
+  assert.equal(res.status, 200, JSON.stringify(res.data));
+  assert.equal(res.data.user.emailVerified, true);
+
+  step = 'a verification token works only once';
+  res = await call('POST', '/api/auth/verify', { token: verifyToken });
+  assert.equal(res.status, 400);
 
   step = 'upload';
   const sample = makeSampleVideo();
@@ -157,24 +206,24 @@ async function waitForStatus(videoId, statuses, timeoutMs = 180000) {
   assert.equal(res.status, 200);
 
   step = 'range streaming';
-  let stream = await fetch(`${BASE}/media/stream/${videoId}`, { headers: { cookie, range: 'bytes=0-99' } });
+  let stream = await fetch(`${BASE}/media/stream/${videoId}`, { headers: { cookie: cookieHeader(), range: 'bytes=0-99' } });
   assert.equal(stream.status, 206, 'expected partial content');
   assert.equal(stream.headers.get('content-length'), '100');
   assert.match(stream.headers.get('content-range'), /^bytes 0-99\/\d+$/);
 
-  stream = await fetch(`${BASE}/media/stream/${videoId}`, { headers: { cookie, range: 'bytes=-50' } });
+  stream = await fetch(`${BASE}/media/stream/${videoId}`, { headers: { cookie: cookieHeader(), range: 'bytes=-50' } });
   assert.equal(stream.status, 206, 'suffix range must work');
   assert.equal(stream.headers.get('content-length'), '50');
 
-  stream = await fetch(`${BASE}/media/stream/${videoId}`, { headers: { cookie, range: 'bytes=999999999-' } });
+  stream = await fetch(`${BASE}/media/stream/${videoId}`, { headers: { cookie: cookieHeader(), range: 'bytes=999999999-' } });
   assert.equal(stream.status, 416, 'out-of-range must return 416');
 
-  stream = await fetch(`${BASE}/media/stream/${videoId}`, { headers: { cookie } });
+  stream = await fetch(`${BASE}/media/stream/${videoId}`, { headers: { cookie: cookieHeader() } });
   assert.equal(stream.status, 200);
   assert.equal(stream.headers.get('accept-ranges'), 'bytes');
 
   step = 'thumbnail';
-  const thumb = await fetch(`${BASE}/media/thumb/${videoId}`, { headers: { cookie } });
+  const thumb = await fetch(`${BASE}/media/thumb/${videoId}`, { headers: { cookie: cookieHeader() } });
   assert.equal(thumb.status, 200);
 
   step = 'channel page';
@@ -185,9 +234,8 @@ async function waitForStatus(videoId, statuses, timeoutMs = 180000) {
   step = 'privacy';
   res = await call('PATCH', `/api/videos/${videoId}`, { visibility: 'private' });
   assert.equal(res.data.video.visibility, 'private');
-  const ownerCookie = cookie;
-
-  cookie = ''; // anonymous visitor
+  
+  resetSession(); // anonymous visitor
   res = await call('GET', `/api/videos/${videoId}`);
   assert.equal(res.status, 403, 'private video must not be readable by strangers');
   const anonStream = await fetch(`${BASE}/media/stream/${videoId}`);
@@ -211,7 +259,7 @@ async function waitForStatus(videoId, statuses, timeoutMs = 180000) {
   assert.equal(res.data.subscribed, false, 'second call must unsubscribe');
 
   step = 'login flow';
-  cookie = '';
+  resetSession();
   res = await call('POST', '/api/auth/login', { login: username, password: 'wrong-password' });
   assert.equal(res.status, 401);
   res = await call('POST', '/api/auth/login', { login: username, password: 'sup3rsecret' });
@@ -226,7 +274,7 @@ async function waitForStatus(videoId, statuses, timeoutMs = 180000) {
   step = 'logout';
   res = await call('POST', '/api/auth/logout');
   assert.equal(res.status, 200);
-  cookie = '';
+  resetSession();
   res = await call('GET', '/api/auth/me');
   assert.equal(res.data.user, null);
 
@@ -241,7 +289,7 @@ async function waitForStatus(videoId, statuses, timeoutMs = 180000) {
 
   if (hasFfmpeg()) {
     step = 'HLS transcoding';
-    cookie = '';
+    resetSession();
     await call('POST', '/api/auth/login', { login: username, password: 'sup3rsecret' });
 
     const realClip = makeSampleVideo({ real: true });
@@ -258,33 +306,33 @@ async function waitForStatus(videoId, statuses, timeoutMs = 180000) {
     assert.equal(ready.width, 1280);
     assert.ok(ready.thumbUrl, 'server-side thumbnail missing');
 
-    const master = await fetch(BASE + ready.hlsUrl, { headers: { cookie } });
+    const master = await fetch(BASE + ready.hlsUrl, { headers: { cookie: cookieHeader() } });
     assert.equal(master.status, 200);
     assert.equal(master.headers.get('content-type'), 'application/vnd.apple.mpegurl');
     const masterBody = await master.text();
     assert.match(masterBody, /#EXT-X-STREAM-INF/, 'master playlist has no variants');
 
     const variant = masterBody.split('\n').find((line) => line.trim() && !line.startsWith('#'));
-    const variantRes = await fetch(`${BASE}/media/hls/${clipId}/${variant.trim()}`, { headers: { cookie } });
+    const variantRes = await fetch(`${BASE}/media/hls/${clipId}/${variant.trim()}`, { headers: { cookie: cookieHeader() } });
     assert.equal(variantRes.status, 200);
     const variantBody = await variantRes.text();
     assert.match(variantBody, /#EXTINF/, 'variant playlist has no segments');
 
     const segment = variantBody.split('\n').find((line) => line.trim().endsWith('.ts'));
     const dir = variant.trim().split('/')[0];
-    const segRes = await fetch(`${BASE}/media/hls/${clipId}/${dir}/${segment.trim()}`, { headers: { cookie } });
+    const segRes = await fetch(`${BASE}/media/hls/${clipId}/${dir}/${segment.trim()}`, { headers: { cookie: cookieHeader() } });
     assert.equal(segRes.status, 200);
     assert.equal(segRes.headers.get('content-type'), 'video/mp2t');
     assert.ok(Number(segRes.headers.get('content-length')) > 1000, 'segment is suspiciously small');
 
     step = 'HLS path traversal is refused';
-    const escape = await fetch(`${BASE}/media/hls/${clipId}/../../besy.db`, { headers: { cookie }, redirect: 'manual' });
+    const escape = await fetch(`${BASE}/media/hls/${clipId}/../../besy.db`, { headers: { cookie: cookieHeader() }, redirect: 'manual' });
     assert.ok([400, 404].includes(escape.status), `traversal returned ${escape.status}`);
 
     step = 'deleting a video removes its HLS folder';
     res = await call('DELETE', `/api/videos/${clipId}`);
     assert.equal(res.status, 200);
-    const goneMaster = await fetch(BASE + ready.hlsUrl, { headers: { cookie } });
+    const goneMaster = await fetch(BASE + ready.hlsUrl, { headers: { cookie: cookieHeader() } });
     assert.equal(goneMaster.status, 404);
 
     fs.rmSync(realClip, { force: true });

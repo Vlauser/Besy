@@ -8,7 +8,8 @@ const path = require('node:path');
 
 const { db, TMP_DIR } = require('../db');
 const { storage, keys } = require('../storage');
-const { requireAuth } = require('../auth');
+const { requireAuth, requireVerifiedEmail } = require('../auth');
+const { rateLimit, viewerKey, signMedia, SIGNED_MEDIA } = require('../security');
 const transcode = require('../transcode');
 
 const router = express.Router();
@@ -52,6 +53,59 @@ const upload = multer({
   },
 });
 
+const uploadLimit = rateLimit({
+  name: 'upload',
+  limit: Number(process.env.BESY_UPLOAD_RATE_LIMIT) || 20,
+  windowMs: 60 * 60 * 1000,
+  message: 'Слишком много загрузок за час — попробуйте позже',
+  keyFn: (req) => (req.user ? `u${req.user.id}` : req.ip),
+});
+
+const commentLimit = rateLimit({
+  name: 'comment',
+  limit: Number(process.env.BESY_COMMENT_RATE_LIMIT) || 15,
+  windowMs: 10 * 60 * 1000,
+  message: 'Слишком часто — подождите пару минут',
+  keyFn: (req) => (req.user ? `u${req.user.id}` : req.ip),
+});
+
+/**
+ * Containers are identified by their own bytes, not by the declared MIME type,
+ * so a renamed executable cannot slip through.
+ */
+const MAGIC_CHECKS = [
+  { name: 'mp4/mov', test: (b) => b.length > 12 && b.subarray(4, 8).toString('latin1') === 'ftyp' },
+  { name: 'webm/mkv', test: (b) => b.length > 4 && b.readUInt32BE(0) === 0x1a45dfa3 },
+  { name: 'ogg', test: (b) => b.subarray(0, 4).toString('latin1') === 'OggS' },
+  { name: 'avi', test: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'AVI ' },
+];
+
+async function detectContainer(filePath) {
+  const handle = await fs.promises.open(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(32);
+    const { bytesRead } = await handle.read(buffer, 0, 32, 0);
+    const head = buffer.subarray(0, bytesRead);
+    return MAGIC_CHECKS.find((check) => check.test(head))?.name || null;
+  } finally {
+    await handle.close();
+  }
+}
+
+const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+async function isImage(filePath) {
+  const handle = await fs.promises.open(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(8);
+    await handle.read(buffer, 0, 8, 0);
+    return buffer.subarray(0, 3).equals(JPEG_MAGIC) || buffer.subarray(0, 4).equals(PNG_MAGIC);
+  } finally {
+    await handle.close();
+  }
+}
+
 /* ------------------------------------------------------------------ helpers */
 
 function normalizeTags(raw) {
@@ -69,9 +123,11 @@ async function cleanupFiles(files) {
   }
 }
 
-function shapeVideo(row, viewer) {
+function shapeVideo(row, viewer, req) {
   if (!row) return null;
   const isOwner = Boolean(viewer && viewer.id === row.user_id);
+  // With signed media on, every playback URL carries a short-lived HMAC.
+  const suffix = SIGNED_MEDIA && req ? `?token=${signMedia(row.id, viewerKey(req)).token}` : '';
   return {
     id: row.id,
     title: row.title,
@@ -85,8 +141,9 @@ function shapeVideo(row, viewer) {
     createdAt: row.created_at,
     fileSize: row.file_size,
     thumbUrl: row.thumb_key ? `/media/thumb/${row.id}` : null,
-    streamUrl: `/media/stream/${row.id}`,
-    hlsUrl: row.hls_master ? `/media/hls/${row.id}/master.m3u8` : null,
+    streamUrl: `/media/stream/${row.id}${suffix}`,
+    hlsUrl: row.hls_master ? `/media/hls/${row.id}/master.m3u8${suffix}` : null,
+    ageRestricted: row.age_restricted === 1,
     renditions: JSON.parse(row.renditions || '[]'),
     status: row.status,
     progress: row.progress,
@@ -113,13 +170,6 @@ const LIST_SELECT = `
          (SELECT COUNT(*) FROM comments c WHERE c.video_id = v.id)                   AS comment_count
   FROM videos v JOIN users u ON u.id = v.user_id
 `;
-
-function viewerKey(req) {
-  if (req.user) return `u${req.user.id}`;
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
-  const ua = req.get('user-agent') || '';
-  return `a${crypto.createHash('sha256').update(ip + ua).digest('hex').slice(0, 24)}`;
-}
 
 /* ------------------------------------------------------------------- routes */
 
@@ -163,7 +213,7 @@ router.get('/', (req, res) => {
     `SELECT COUNT(*) AS n FROM videos v JOIN users u ON u.id = v.user_id WHERE ${where.join(' AND ')}`
   ).get(...params).n;
 
-  res.json({ videos: rows.map((r) => shapeVideo(r, req.user)), total, limit, offset });
+  res.json({ videos: rows.map((r) => shapeVideo(r, req.user, req)), total, limit, offset });
 });
 
 // GET /api/videos/:id
@@ -178,6 +228,13 @@ router.get('/:id', (req, res) => {
   if (row.blocked_at && !isOwner && !req.user?.isAdmin) {
     return res.status(451).json({
       error: `Видео заблокировано модерацией${row.blocked_reason ? `: ${row.blocked_reason}` : ''}`,
+    });
+  }
+  // Age-restricted videos require a signed-in viewer, as on other platforms.
+  if (row.age_restricted && !req.user) {
+    return res.status(403).json({
+      error: 'Это видео с возрастным ограничением — войдите в аккаунт, чтобы смотреть',
+      ageRestricted: true,
     });
   }
 
@@ -202,9 +259,9 @@ router.get('/:id', (req, res) => {
     : false;
 
   res.json({
-    video: shapeVideo(row, req.user),
+    video: shapeVideo(row, req.user, req),
     channel: { subscribers, subscribed },
-    related: related.map((r) => shapeVideo(r, req.user)),
+    related: related.map((r) => shapeVideo(r, req.user, req)),
   });
 });
 
@@ -218,6 +275,8 @@ function assignVideoId(req, res, next) {
 router.post(
   '/',
   requireAuth,
+  requireVerifiedEmail,
+  uploadLimit,
   assignVideoId,
   upload.fields([{ name: 'video', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }]),
   async (req, res, next) => {
@@ -242,12 +301,23 @@ router.post(
         ? req.body.visibility
         : 'public';
 
+      const container = await detectContainer(videoFile.path);
+      if (!container) {
+        await cleanupFiles(req.files);
+        return res.status(415).json({ error: 'Файл не похож на видео — проверьте формат' });
+      }
+
+      if (thumbFile && !(await isImage(thumbFile.path))) {
+        await fs.promises.rm(thumbFile.path, { force: true }).catch(() => {});
+        req.files.thumbnail = undefined;
+      }
+
       const id = req.besyVideoId;
       const videoKey = keys.video(id, path.extname(videoFile.filename));
       await storage.putFile(videoKey, videoFile.path);
 
       let thumbKey = null;
-      if (thumbFile) {
+      if (thumbFile && req.files.thumbnail) {
         thumbKey = keys.thumb(id);
         await storage.putFile(thumbKey, thumbFile.path);
       }
@@ -255,8 +325,8 @@ router.post(
       db.prepare(`
         INSERT INTO videos (id, user_id, title, description, tags, visibility,
                             file_key, file_size, mime_type, duration, width, height,
-                            thumb_key, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            thumb_key, status, age_restricted, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         id, req.user.id, title, description, tags, visibility,
         videoKey, videoFile.size, videoFile.mimetype,
@@ -265,6 +335,7 @@ router.post(
         Number(req.body.height) || 0,
         thumbKey,
         'processing',
+        req.body.ageRestricted === 'true' || req.body.ageRestricted === '1' ? 1 : 0,
         Date.now(),
       );
 
@@ -275,7 +346,7 @@ router.post(
       }
 
       const row = db.prepare(`${LIST_SELECT} WHERE v.id = ?`).get(id);
-      res.status(201).json({ video: shapeVideo(row, req.user) });
+      res.status(201).json({ video: shapeVideo(row, req.user, req) });
     } catch (err) {
       await cleanupFiles(req.files);
       next(err);
@@ -298,11 +369,17 @@ router.patch('/:id', requireAuth, (req, res) => {
     ? req.body.visibility
     : row.visibility;
 
-  db.prepare('UPDATE videos SET title = ?, description = ?, tags = ?, visibility = ? WHERE id = ?')
-    .run(title, description, tags, visibility, row.id);
+  const ageRestricted = req.body.ageRestricted === undefined
+    ? row.age_restricted
+    : (req.body.ageRestricted ? 1 : 0);
+
+  db.prepare(`
+    UPDATE videos SET title = ?, description = ?, tags = ?, visibility = ?, age_restricted = ?
+    WHERE id = ?
+  `).run(title, description, tags, visibility, ageRestricted, row.id);
 
   const updated = db.prepare(`${LIST_SELECT} WHERE v.id = ?`).get(row.id);
-  res.json({ video: shapeVideo(updated, req.user) });
+  res.json({ video: shapeVideo(updated, req.user, req) });
 });
 
 // DELETE /api/videos/:id
@@ -373,6 +450,42 @@ router.post('/:id/reaction', requireAuth, (req, res) => {
 
 /* ----------------------------------------------------------------- comments */
 
+const LINK_RE = /https?:\/\/|www\.[a-z0-9-]+\.[a-z]{2,}/gi;
+const SPAM_WORDS = /(?:бесплатн[а-я]*\s+крипт|заработок\s+без\s+вложений|подпишись\s+на\s+мой\s+канал\s+взаимно|free\s+v-?bucks|casino\s+bonus|http:\/\/bit\.ly)/i;
+
+/** Cheap heuristics that stop the obvious flood without a moderation queue. */
+function spamProblem(body, userId, videoId) {
+  const links = (body.match(LINK_RE) || []).length;
+  if (links > 2) return 'Слишком много ссылок в комментарии';
+  if (SPAM_WORDS.test(body)) return 'Комментарий похож на спам';
+
+  const letters = body.replace(/[^\p{L}]/gu, '');
+  const upper = letters.replace(/[^\p{Lu}]/gu, '');
+  if (letters.length > 20 && upper.length / letters.length > 0.8) {
+    return 'Не пишите весь комментарий заглавными буквами';
+  }
+
+  const recent = db.prepare(`
+    SELECT body, created_at FROM comments
+    WHERE user_id = ? AND created_at > ?
+    ORDER BY created_at DESC LIMIT 5
+  `).all(userId, Date.now() - 10 * 60 * 1000);
+
+  if (recent.some((row) => row.body.trim() === body.trim())) {
+    return 'Такой комментарий вы уже оставляли';
+  }
+  if (recent.length >= 3 && recent.every((row) => row.body.length === body.length)) {
+    return 'Слишком похожие комментарии подряд';
+  }
+
+  const onThisVideo = db.prepare(
+    'SELECT COUNT(*) AS n FROM comments WHERE user_id = ? AND video_id = ? AND created_at > ?'
+  ).get(userId, videoId, Date.now() - 60 * 1000).n;
+  if (onThisVideo >= 3) return 'Слишком часто — подождите минуту';
+
+  return null;
+}
+
 router.get('/:id/comments', (req, res) => {
   const rows = db.prepare(`
     SELECT c.id, c.body, c.created_at, u.id AS user_id, u.username, u.display_name
@@ -393,13 +506,17 @@ router.get('/:id/comments', (req, res) => {
   });
 });
 
-router.post('/:id/comments', requireAuth, (req, res) => {
-  const video = db.prepare('SELECT id FROM videos WHERE id = ?').get(req.params.id);
+router.post('/:id/comments', requireAuth, requireVerifiedEmail, commentLimit, (req, res) => {
+  const video = db.prepare('SELECT id, blocked_at FROM videos WHERE id = ?').get(req.params.id);
   if (!video) return res.status(404).json({ error: 'Видео не найдено' });
+  if (video.blocked_at) return res.status(451).json({ error: 'Видео заблокировано' });
 
   const body = String(req.body.body || '').trim();
   if (!body) return res.status(400).json({ error: 'Комментарий пустой' });
   if (body.length > 2000) return res.status(400).json({ error: 'Комментарий длиннее 2000 символов' });
+
+  const spam = spamProblem(body, req.user.id, video.id);
+  if (spam) return res.status(429).json({ error: spam });
 
   const info = db.prepare('INSERT INTO comments (video_id, user_id, body, created_at) VALUES (?, ?, ?, ?)')
     .run(video.id, req.user.id, body, Date.now());

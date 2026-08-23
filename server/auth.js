@@ -27,11 +27,21 @@ function verifyPassword(password, stored) {
   }
 }
 
-function createSession(userId) {
+function createSession(userId, req) {
   const token = crypto.randomBytes(32).toString('hex');
   const now = Date.now();
-  db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
-    .run(token, userId, now, now + SESSION_TTL_MS);
+  db.prepare(`
+    INSERT INTO sessions (token, user_id, ip, user_agent, last_seen_at, created_at, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    token,
+    userId,
+    req?.ip || req?.socket?.remoteAddress || '',
+    String(req?.get?.('user-agent') || '').slice(0, 200),
+    now,
+    now,
+    now + SESSION_TTL_MS,
+  );
   return token;
 }
 
@@ -43,7 +53,8 @@ function userFromToken(token) {
   if (!token) return null;
   const row = db.prepare(`
     SELECT u.id, u.username, u.email, u.display_name, u.about, u.avatar_file,
-           u.is_admin, u.banned_at, u.ban_reason, u.created_at, s.expires_at
+           u.is_admin, u.banned_at, u.ban_reason, u.email_verified_at, u.totp_enabled,
+           u.strikes, u.created_at, s.expires_at
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token = ?
   `).get(token);
@@ -62,13 +73,35 @@ function userFromToken(token) {
     isAdmin: row.is_admin === 1,
     bannedAt: row.banned_at,
     banReason: row.ban_reason,
+    emailVerifiedAt: row.email_verified_at,
+    twoFactor: row.totp_enabled === 1,
+    strikes: row.strikes,
     createdAt: row.created_at,
   };
 }
 
+/** Touches the session so the security page can show real activity. */
+function touchSession(token) {
+  db.prepare('UPDATE sessions SET last_seen_at = ? WHERE token = ?').run(Date.now(), token);
+}
+
 /** Populates req.user (or null) for every request. */
 function attachUser(req, res, next) {
-  req.user = userFromToken(req.cookies?.[SESSION_COOKIE]);
+  const token = req.cookies?.[SESSION_COOKIE];
+  req.user = userFromToken(token);
+  if (req.user) touchSession(token);
+  next();
+}
+
+/** Blocks actions that require a confirmed e-mail (uploading, commenting). */
+function requireVerifiedEmail(req, res, next) {
+  if (process.env.BESY_REQUIRE_EMAIL_VERIFICATION === 'off') return next();
+  if (!req.user?.emailVerifiedAt) {
+    return res.status(403).json({
+      error: 'Подтвердите e-mail, чтобы продолжить',
+      needsEmailVerification: true,
+    });
+  }
   next();
 }
 
@@ -111,6 +144,7 @@ module.exports = {
   attachUser,
   requireAuth,
   requireAdmin,
+  requireVerifiedEmail,
   setSessionCookie,
   clearSessionCookie,
 };

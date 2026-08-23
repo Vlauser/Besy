@@ -108,6 +108,7 @@
     form.append('description', document.getElementById('description').value);
     form.append('tags', document.getElementById('tags').value);
     form.append('visibility', document.getElementById('visibility').value);
+    form.append('ageRestricted', document.getElementById('age-restricted').checked ? 'true' : 'false');
     form.append('duration', String(meta.duration));
     form.append('width', String(meta.width));
     form.append('height', String(meta.height));
@@ -120,6 +121,8 @@
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/videos');
     xhr.withCredentials = true;
+    const csrf = readCookie('besy_csrf');
+    if (csrf) xhr.setRequestHeader('X-CSRF-Token', csrf);
 
     xhr.upload.addEventListener('progress', (e) => {
       if (!e.lengthComputable) return;
