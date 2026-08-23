@@ -1,0 +1,21 @@
+{
+  "name": "besy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Besy - self-hosted video hosting platform",
+  "type": "commonjs",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node --experimental-sqlite server/index.js",
+    "dev": "node --experimental-sqlite --watch server/index.js",
+    "smoke": "node scripts/smoke.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "multer": "^2.2.0"
+  }
+}

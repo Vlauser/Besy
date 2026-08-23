@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Besy — видеохостинг</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23ff4d6d'/><path d='M13 10l10 6-10 6z' fill='%23fff'/></svg>">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main class="page">
+    <h1 id="page-title">Новые видео</h1>
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-sort="new">Новое</button>
+      <button class="tab" data-sort="popular">Популярное</button>
+      <button class="tab" data-sort="subs" id="tab-subs" hidden>Подписки</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="row mt-24" style="justify-content:center">
+      <button class="btn" id="more-btn" hidden>Показать ещё</button>
+    </div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/home.js"></script>
+</body>
+</html>
