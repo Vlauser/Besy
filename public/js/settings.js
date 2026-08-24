@@ -10,10 +10,11 @@
   }
 
   async function render() {
-    const [{ user }, sessionsData, strikesData] = await Promise.all([
+    const [{ user }, sessionsData, strikesData, blocksData] = await Promise.all([
       api.get('/api/auth/me'),
       api.get('/api/auth/sessions'),
       api.get(`/api/moderation/users/${auth.user.username}/strikes`).catch(() => ({ active: 0, strikes: [], limit: 3 })),
+      api.get('/api/me/blocks').catch(() => ({ blocks: [] })),
     ]);
     auth.user = user;
 
@@ -57,6 +58,16 @@
         </div>`).join('')
       : '<div class="hint">Предупреждений нет — так держать.</div>';
 
+    const blockList = blocksData.blocks.length
+      ? `<div class="block-list">${blocksData.blocks.map((entry) => `
+          <div class="block-row">
+            <a href="/@${escapeHtml(entry.username)}">${escapeHtml(entry.username)}</a>
+            <button class="btn btn-ghost" data-unblock="${escapeHtml(entry.username)}">Разблокировать</button>
+          </div>`).join('')}</div>
+         <p class="hint mt-16">Заблокированные не могут комментировать ваши видео,
+           писать в чат ваших эфиров и подписываться на канал. Они об этом не узнают.</p>`
+      : '<div class="hint">Вы никого не блокировали. Заблокировать можно со страницы канала.</div>';
+
     content.innerHTML = `
       ${section('E-mail', emailBlock)}
       ${section('Пароль', `
@@ -75,7 +86,24 @@
       ${section('Двухфакторная защита', twoFactorBlock)}
       ${section('Активные сессии', `${sessions}
         <button class="btn mt-16" id="revoke-others">Завершить все другие сессии</button>`)}
-      ${section(`Предупреждения (${strikesData.active} из ${strikesData.limit})`, strikes)}`;
+      ${section(`Предупреждения (${strikesData.active} из ${strikesData.limit})`, strikes)}
+      ${section('Заблокированные', blockList)}
+      ${section('Ваши данные', `
+        <p class="hint">Выгрузка содержит видео, комментарии, подписки, историю и сессии —
+          всё, что сервис о вас хранит. Пароль, ключи двухфакторной защиты и токены
+          сессий в неё не входят: это доступы, а не данные о вас.</p>
+        <a class="btn mt-16" href="/api/me/export" download>Скачать мои данные</a>`)}
+      ${section('Удаление аккаунта', `
+        <p class="hint">Удаляются канал, видео, комментарии, плейлисты и подписки.
+          Отменить нельзя, и имя канала освободится.</p>
+        <form id="delete-form" class="mt-16">
+          <div class="field">
+            <label for="del-pass">Подтвердите паролем</label>
+            <input class="input" id="del-pass" name="password" type="password" required
+                   autocomplete="current-password">
+          </div>
+          <button class="btn btn-danger" type="submit">Удалить аккаунт навсегда</button>
+        </form>`)}`;
 
     wire();
   }
@@ -172,6 +200,35 @@
         await api.del(`/api/auth/sessions/${button.dataset.session}`);
         render();
       });
+    });
+
+    content.querySelectorAll('[data-unblock]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await api.del(`/api/me/blocks/${encodeURIComponent(button.dataset.unblock)}`);
+          render();
+        } catch (err) {
+          button.disabled = false;
+          alert(err.message);
+        }
+      });
+    });
+
+    document.getElementById('delete-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const password = document.getElementById('del-pass').value;
+      if (!confirm('Удалить аккаунт вместе с видео, комментариями и подписками? Отменить будет нельзя.')) return;
+
+      const button = event.target.querySelector('button');
+      button.disabled = true;
+      try {
+        await api.del('/api/me/account', { password });
+        location.href = '/';
+      } catch (err) {
+        button.disabled = false;
+        alert(err.message);
+      }
     });
   }
 

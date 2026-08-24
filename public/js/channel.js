@@ -31,8 +31,35 @@
       <span class="spacer"></span>
       ${channel.isOwner
         ? '<a class="btn" href="/studio">Управление каналом</a>'
-        : `<button class="btn ${channel.subscribed ? 'active' : 'btn-primary'}" id="sub-btn">${channel.subscribed ? 'Вы подписаны' : 'Подписаться'}</button>`}
+        : `<button class="btn ${channel.subscribed ? 'active' : 'btn-primary'}" id="sub-btn">${channel.subscribed ? 'Вы подписаны' : 'Подписаться'}</button>
+           <button class="btn btn-ghost" id="channel-report" title="Пожаловаться на канал">Пожаловаться</button>
+           <button class="btn btn-ghost btn-danger" id="channel-block">Заблокировать</button>`}
     </div>`;
+
+  // Blocking is the strongest thing one person can do to another here, so it
+  // asks once and says exactly what it will do.
+  document.getElementById('channel-block')?.addEventListener('click', async () => {
+    if (!auth.user) return auth.requireLogin();
+    const ok = confirm(
+      `Заблокировать ${channel.username}?\n\n`
+      + 'Этот канал больше не сможет комментировать ваши видео, писать в чат ваших '
+      + 'эфиров и подписываться на вас. Взаимные подписки будут сняты. '
+      + 'Пользователь об этом не узнает.',
+    );
+    if (!ok) return;
+    try {
+      await api.post('/api/me/blocks', { username: channel.username });
+      alert(`${channel.username} заблокирован. Снять блокировку можно в настройках аккаунта.`);
+      location.reload();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  document.getElementById('channel-report')?.addEventListener('click', () => {
+    if (!auth.user) return auth.requireLogin();
+    openReportDialog({ targetType: 'user', username: channel.username, title: `Жалоба на канал ${channel.username}` });
+  });
 
   document.getElementById('sub-btn')?.addEventListener('click', async (event) => {
     if (!auth.user) return auth.requireLogin();

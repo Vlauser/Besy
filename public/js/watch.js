@@ -421,44 +421,18 @@
     });
   }
 
-  async function openReportDialog() {
-    if (!auth.user) return auth.requireLogin();
-
-    const { reasons } = await api.get('/api/moderation/reasons');
-    const modal = openModal('Пожаловаться на видео', `
-      <form id="report-form">
-        ${reasons.map((reason, index) => `
-          <label class="choice">
-            <input type="radio" name="reason" value="${reason.id}" ${index === 0 ? 'checked' : ''}>
-            <span>${escapeHtml(reason.label)}</span>
-          </label>`).join('')}
-        <div class="field mt-16">
-          <label for="details">Подробности (необязательно)</label>
-          <textarea class="input" id="details" name="details" rows="3" maxlength="1000"></textarea>
-        </div>
-        <button class="btn btn-primary btn-block" type="submit">Отправить жалобу</button>
-      </form>
-      <button class="btn btn-block mt-16" id="copyright-btn">Заявление о нарушении авторских прав</button>`);
-
-    modal.body.querySelector('#report-form').addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const form = new FormData(event.target);
-      try {
-        await api.post('/api/moderation/reports', {
-          targetType: 'video',
-          videoId: video.id,
-          reason: form.get('reason'),
-          details: form.get('details'),
+  function openReportDialog() {
+    return window.openReportDialog({
+      title: 'Пожаловаться на видео',
+      targetType: 'video',
+      videoId: video.id,
+      extra: '<button class="btn btn-block mt-16" id="copyright-btn">Заявление о нарушении авторских прав</button>',
+      onExtra: (modal) => {
+        modal.body.querySelector('#copyright-btn').addEventListener('click', () => {
+          modal.close();
+          openCopyrightDialog();
         });
-        modal.body.innerHTML = '<div class="alert alert-ok">Жалоба отправлена — модераторы её рассмотрят.</div>';
-      } catch (err) {
-        alert(err.message);
-      }
-    });
-
-    modal.body.querySelector('#copyright-btn').addEventListener('click', () => {
-      modal.close();
-      openCopyrightDialog();
+      },
     });
   }
 

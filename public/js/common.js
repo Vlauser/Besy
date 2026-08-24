@@ -32,7 +32,7 @@ const api = {
   get: (url) => api.request('GET', url),
   post: (url, body) => api.request('POST', url, body),
   patch: (url, body) => api.request('PATCH', url, body),
-  del: (url) => api.request('DELETE', url),
+  del: (url, body) => api.request('DELETE', url, body),
 };
 
 const fmt = {
@@ -236,6 +236,31 @@ function setupNotifications(header) {
 }
 
 /** Renders one grid card for a video. */
+/*
+ * The rendition ladder: which HLS qualities this file actually has. The
+ * transcoder only builds rungs at or below the source height, so the stack
+ * describes the source as much as the output. Hidden entirely for videos with
+ * no ladder and nothing in flight — an empty stack would say nothing.
+ */
+const LADDER_HEIGHTS = [360, 480, 720, 1080];
+
+function renditionLadder(video) {
+  const have = new Set((video.renditions || []).map((r) => r.height));
+  const working = video.status === 'processing';
+  if (!have.size && !working) return '';
+
+  const names = LADDER_HEIGHTS.filter((h) => have.has(h)).map((h) => `${h}p`);
+  const label = working
+    ? `Обрабатывается${names.length ? `, готово: ${names.join(', ')}` : ''}`
+    : `Качество: ${names.join(', ')}`;
+
+  const rungs = LADDER_HEIGHTS
+    .map((h) => `<i class="rung${have.has(h) ? ' on' : ''}"></i>`)
+    .join('');
+
+  return `<span class="ladder${working ? ' working' : ''}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${rungs}</span>`;
+}
+
 function videoCard(video, { showAuthor = true } = {}) {
   const thumb = video.thumbUrl
     ? `<img src="${video.thumbUrl}" alt="" loading="lazy">`
@@ -254,6 +279,7 @@ function videoCard(video, { showAuthor = true } = {}) {
       <a href="/watch/${video.id}">
         <div class="thumb">
           ${thumb}${badge}
+          ${renditionLadder(video)}
           ${video.duration ? `<span class="duration">${fmt.duration(video.duration)}</span>` : ''}
         </div>
         <div class="card-title">${escapeHtml(video.title)}</div>
@@ -261,6 +287,49 @@ function videoCard(video, { showAuthor = true } = {}) {
       ${author}
       <div class="card-meta">${fmt.views(video.views)} · ${fmt.ago(video.createdAt)}</div>
     </div>`;
+}
+
+/**
+ * The report dialog, shared by every surface that can be reported. `target` is
+ * the payload the moderation API expects — {targetType:'video', videoId},
+ * {targetType:'comment', commentId} or {targetType:'user', username} — so the
+ * dialog itself stays ignorant of what is being reported.
+ */
+async function openReportDialog({ title = 'Пожаловаться', extra = '', onExtra, ...target } = {}) {
+  if (!auth.user) return auth.requireLogin();
+
+  const { reasons } = await api.get('/api/moderation/reasons');
+  const modal = openModal(title, `
+    <form id="report-form">
+      ${reasons.map((reason, index) => `
+        <label class="choice">
+          <input type="radio" name="reason" value="${reason.id}" ${index === 0 ? 'checked' : ''}>
+          <span>${escapeHtml(reason.label)}</span>
+        </label>`).join('')}
+      <div class="field mt-16">
+        <label for="details">Подробности (необязательно)</label>
+        <textarea class="input" id="details" name="details" rows="3" maxlength="1000"></textarea>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Отправить жалобу</button>
+    </form>${extra}`);
+
+  modal.body.querySelector('#report-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.target);
+    try {
+      await api.post('/api/moderation/reports', {
+        ...target,
+        reason: form.get('reason'),
+        details: form.get('details'),
+      });
+      modal.body.innerHTML = '<div class="alert alert-ok">Жалоба отправлена — модераторы её рассмотрят.</div>';
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  if (onExtra) onExtra(modal);
+  return modal;
 }
 
 /** Minimal modal used by the report, copyright and playlist dialogs. */
