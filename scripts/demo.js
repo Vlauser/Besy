@@ -10,6 +10,9 @@
  */
 'use strict';
 
+// Fails with an explanation before anything reaches node:sqlite.
+require('./check-node');
+
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
