@@ -38,11 +38,6 @@ async function waitFor(check, timeoutMs, label) {
 }
 
 (async function run() {
-  if (!hasFfmpeg()) {
-    console.log('⚠ ffmpeg не найден — тест эфиров пропущен');
-    return;
-  }
-
   const client = createClient();
   await client.get('/api/health');
   const user = await createVerifiedUser(client, 'live');
@@ -126,32 +121,44 @@ async function waitFor(check, timeoutMs, label) {
 
   /* ------------------------------------------------------------ shorts */
 
-  step = 'a tall short clip is detected as a Short';
-  const shortClip = makeSampleVideo({ real: true, size: '360x640', duration: 4 });
-  res = await uploadVideo(client, shortClip, { title: 'Вертикальный ролик' });
-  assert.equal(res.status, 201);
-  const shortId = res.data.video.id;
+  // Shorts are flagged from the frame size ffprobe reports, so this section
+  // needs a real clip. The caption checks above run on the stub file.
+  let shortId = null;
+  let shortClip = null;
+  if (!hasFfmpeg()) {
+    console.log('⚠ ffmpeg не найден — проверки Shorts пропущены');
+  } else {
+    step = 'a tall short clip is detected as a Short';
+    shortClip = makeSampleVideo({ real: true, size: '360x640', duration: 4 });
+    res = await uploadVideo(client, shortClip, { title: 'Вертикальный ролик' });
+    assert.equal(res.status, 201);
+    shortId = res.data.video.id;
 
-  const readyShort = await waitForStatus(client, shortId, ['ready', 'failed']);
-  assert.equal(readyShort.status, 'ready', readyShort.statusError || '');
-  assert.equal(readyShort.isShort, true, 'a 360x640 clip must be flagged as a Short');
+    const readyShort = await waitForStatus(client, shortId, ['ready', 'failed']);
+    assert.equal(readyShort.status, 'ready', readyShort.statusError || '');
+    assert.equal(readyShort.isShort, true, 'a 360x640 clip must be flagged as a Short');
 
-  step = 'the Shorts feed only carries Shorts';
-  res = await client.get('/api/videos?kind=short&limit=50');
-  assert.ok(res.data.videos.some((v) => v.id === shortId), 'the Short is missing from the feed');
-  assert.ok(res.data.videos.every((v) => v.isShort), 'the feed must not contain regular videos');
+    step = 'the Shorts feed only carries Shorts';
+    res = await client.get('/api/videos?kind=short&limit=50');
+    assert.ok(res.data.videos.some((v) => v.id === shortId), 'the Short is missing from the feed');
+    assert.ok(res.data.videos.every((v) => v.isShort), 'the feed must not contain regular videos');
 
-  step = 'the regular feed excludes Shorts';
-  res = await client.get('/api/videos?kind=video&limit=50');
-  assert.ok(!res.data.videos.some((v) => v.id === shortId));
+    step = 'the regular feed excludes Shorts';
+    res = await client.get('/api/videos?kind=video&limit=50');
+    assert.ok(!res.data.videos.some((v) => v.id === shortId));
+  }
 
   /* -------------------------------------------------------------- live */
 
+  let liveChecked = false;
   step = 'live config';
   res = await client.get('/api/live/config');
   if (!res.data.enabled) {
     console.log('⚠ эфиры выключены (BESY_LIVE != on) — часть проверок пропущена');
+  } else if (!hasFfmpeg()) {
+    console.log('⚠ ffmpeg не найден — проверки эфиров пропущены');
   } else {
+    liveChecked = true;
     step = 'create a stream';
     res = await client.post('/api/live', { title: 'Тестовый эфир', visibility: 'public' });
     assert.equal(res.status, 201, JSON.stringify(res.data));
@@ -244,11 +251,14 @@ async function waitFor(check, timeoutMs, label) {
 
   step = 'cleanup';
   await client.del(`/api/videos/${videoId}`);
-  await client.del(`/api/videos/${shortId}`);
   fs.rmSync(clip, { force: true });
-  fs.rmSync(shortClip, { force: true });
+  if (shortId) await client.del(`/api/videos/${shortId}`);
+  if (shortClip) fs.rmSync(shortClip, { force: true });
 
-  console.log('✅ Субтитры, Shorts и эфиры проверены');
+  const covered = ['Субтитры'];
+  if (shortId) covered.push('Shorts');
+  if (liveChecked) covered.push('эфиры');
+  console.log(`✅ Проверено: ${covered.join(', ')}`);
 })().catch((err) => {
   console.error(`❌ Live test failed on "${step}":`, err.message);
   process.exit(1);
