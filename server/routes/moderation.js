@@ -5,6 +5,7 @@ const express = require('express');
 const { db } = require('../db');
 const { requireAuth, requireAdmin } = require('../auth');
 const { rateLimit } = require('../security');
+const { logAction } = require('../audit');
 const { storage, keys } = require('../storage');
 const { notify } = require('../notifications');
 
@@ -32,12 +33,6 @@ const reportLimit = rateLimit({
   keyFn: (req) => (req.user ? `u${req.user.id}` : req.ip),
 });
 
-function logAction(actorId, action, targetType, targetId, details = '') {
-  db.prepare(`
-    INSERT INTO moderation_log (actor_id, action, target_type, target_id, details, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(actorId, action, targetType, String(targetId), details, Date.now());
-}
 
 /** Counts only strikes that have not expired yet. */
 function activeStrikes(userId) {
@@ -67,14 +62,19 @@ router.get('/reasons', (req, res) => {
   res.json({ reasons: Object.entries(REPORT_REASONS).map(([id, label]) => ({ id, label })) });
 });
 
-// Anyone signed in can report a video or a comment.
+// Anyone signed in can report a video, a comment, or a whole channel. Channel
+// reports exist because harassment is often a pattern across many items rather
+// than any single one a moderator could be pointed at.
+const REPORT_TARGETS = new Set(['video', 'comment', 'user']);
+
 router.post('/reports', requireAuth, reportLimit, (req, res) => {
-  const targetType = req.body.targetType === 'comment' ? 'comment' : 'video';
+  const targetType = REPORT_TARGETS.has(req.body.targetType) ? req.body.targetType : 'video';
   const reason = REPORT_REASONS[req.body.reason] ? req.body.reason : 'other';
   const details = String(req.body.details || '').slice(0, 1000);
 
   let videoId = null;
   let commentId = null;
+  let reportedUserId = null;
 
   if (targetType === 'comment') {
     const comment = db.prepare('SELECT id, video_id FROM comments WHERE id = ?')
@@ -82,6 +82,12 @@ router.post('/reports', requireAuth, reportLimit, (req, res) => {
     if (!comment) return res.status(404).json({ error: 'Комментарий не найден' });
     commentId = comment.id;
     videoId = comment.video_id;
+  } else if (targetType === 'user') {
+    const user = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)')
+      .get(String(req.body.username || ''));
+    if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+    if (user.id === req.user.id) return res.status(400).json({ error: 'Нельзя пожаловаться на себя' });
+    reportedUserId = user.id;
   } else {
     const video = db.prepare('SELECT id FROM videos WHERE id = ?').get(String(req.body.videoId || ''));
     if (!video) return res.status(404).json({ error: 'Видео не найдено' });
@@ -90,15 +96,15 @@ router.post('/reports', requireAuth, reportLimit, (req, res) => {
 
   const duplicate = db.prepare(`
     SELECT 1 FROM reports
-    WHERE reporter_id = ? AND status = 'open'
-      AND ((video_id IS ? AND comment_id IS ?) OR (comment_id IS NOT NULL AND comment_id IS ?))
-  `).get(req.user.id, videoId, commentId, commentId);
+    WHERE reporter_id = ? AND status = 'open' AND target_type = ?
+      AND video_id IS ? AND comment_id IS ? AND reported_user_id IS ?
+  `).get(req.user.id, targetType, videoId, commentId, reportedUserId);
   if (duplicate) return res.status(409).json({ error: 'Вы уже отправляли жалобу на это' });
 
   db.prepare(`
-    INSERT INTO reports (target_type, video_id, comment_id, reporter_id, reason, details, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(targetType, videoId, commentId, req.user.id, reason, details, Date.now());
+    INSERT INTO reports (target_type, video_id, comment_id, reported_user_id, reporter_id, reason, details, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(targetType, videoId, commentId, reportedUserId, req.user.id, reason, details, Date.now());
 
   res.status(201).json({ ok: true });
 });
@@ -107,12 +113,14 @@ router.get('/reports', requireAdmin, (req, res) => {
   const status = ['open', 'resolved', 'dismissed'].includes(req.query.status) ? req.query.status : 'open';
   const rows = db.prepare(`
     SELECT r.*, v.title AS video_title, v.user_id AS video_owner, u.username AS reporter,
-           c.body AS comment_body, cu.username AS comment_author
+           c.body AS comment_body, cu.username AS comment_author,
+           ru.username AS reported_user
     FROM reports r
     LEFT JOIN videos v ON v.id = r.video_id
     LEFT JOIN users u ON u.id = r.reporter_id
     LEFT JOIN comments c ON c.id = r.comment_id
     LEFT JOIN users cu ON cu.id = c.user_id
+    LEFT JOIN users ru ON ru.id = r.reported_user_id
     WHERE r.status = ?
     ORDER BY r.created_at DESC
     LIMIT 100

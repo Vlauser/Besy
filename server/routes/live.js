@@ -9,6 +9,7 @@ const { db } = require('../db');
 const { requireAuth, requireVerifiedEmail } = require('../auth');
 const { rateLimit } = require('../security');
 const live = require('../live');
+const blocks = require('../blocks');
 
 const router = express.Router();
 
@@ -148,8 +149,11 @@ router.get('/:id/chat', (req, res) => {
 });
 
 router.post('/:id/chat', requireAuth, requireVerifiedEmail, chatLimit, (req, res) => {
-  const video = db.prepare('SELECT id, live_status FROM videos WHERE id = ?').get(req.params.id);
+  const video = db.prepare('SELECT id, user_id, live_status FROM videos WHERE id = ?').get(req.params.id);
   if (!video) return res.status(404).json({ error: 'Трансляция не найдена' });
+  if (blocks.eitherBlocked(video.user_id, req.user.id)) {
+    return res.status(403).json({ error: 'Чат для вас недоступен на этом канале' });
+  }
 
   const body = String(req.body.body || '').trim();
   if (!body) return res.status(400).json({ error: 'Пустое сообщение' });

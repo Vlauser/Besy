@@ -3,6 +3,7 @@
 const express = require('express');
 const { db } = require('../db');
 const { requireAuth } = require('../auth');
+const blocks = require('../blocks');
 
 const router = express.Router();
 
@@ -42,6 +43,9 @@ router.post('/:username/subscribe', requireAuth, (req, res) => {
   const user = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)').get(req.params.username);
   if (!user) return res.status(404).json({ error: 'Канал не найден' });
   if (user.id === req.user.id) return res.status(400).json({ error: 'Нельзя подписаться на себя' });
+  if (blocks.eitherBlocked(user.id, req.user.id)) {
+    return res.status(403).json({ error: 'Подписка на этот канал недоступна' });
+  }
 
   const existing = db.prepare('SELECT 1 FROM subscriptions WHERE channel_id = ? AND subscriber_id = ?')
     .get(user.id, req.user.id);
