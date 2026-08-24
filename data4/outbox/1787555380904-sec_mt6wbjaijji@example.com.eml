@@ -1,9 +1,0 @@
-From: Besy <no-reply@besy.local>
-To: sec_mt6wbjaijji@example.com
-Subject: Сброс пароля на Besy
-Date: Mon, 24 Aug 2026 07:09:40 GMT
-
-Чтобы задать новый пароль, откройте ссылку:
-http://127.0.0.1:3010/reset?token=aPGHPy1I1R6D1U2Y6xXLpZE0f13KREUPPLGEWrEOZvw
-
-Ссылка действует 1 час. Если вы не запрашивали сброс — просто проигнорируйте письмо.
