@@ -260,6 +260,9 @@
               `<option value="${value}"${v.visibility === value ? ' selected' : ''}>${label}</option>`).join('')}
           </select>
           <button class="btn" data-action="rename">${icon('edit')}Изменить</button>
+          <label class="btn" title="Изменить обложку">${icon('image')}Обложка
+            <input type="file" accept="image/*" hidden data-cover="${v.id}">
+          </label>
           <button class="btn" data-action="captions">CC</button>
           <a class="btn btn-icon" href="/analytics?video=${v.id}" title="Аналитика">${icon('chart', 'Аналитика')}</a>
           <button class="btn btn-danger btn-icon" data-action="delete" title="Удалить">${icon('trash', 'Удалить')}</button>
@@ -269,6 +272,28 @@
     clearTimeout(window.__besyStudioTimer);
     if (processing) window.__besyStudioTimer = setTimeout(loadVideos, 3000);
   }
+
+  // A cover chosen at upload time was picked before anyone had watched the
+  // video; this replaces it later, through the same cropper the channel art
+  // uses so the 16:9 frame is decided here rather than by object-fit.
+  gridEl.addEventListener('change', async (event) => {
+    const input = event.target.closest('[data-cover]');
+    if (!input || !input.files[0]) return;
+    try {
+      const blob = await openCropper(input.files[0], 'thumb');
+      if (blob) {
+        const form = new FormData();
+        form.append('image', blob, 'cover.jpg');
+        await api.upload(`/api/videos/${input.dataset.cover}/thumbnail`, form);
+        notify('Обложка обновлена');
+        loadVideos();
+      }
+    } catch (err) {
+      notify(err.message, 'error');
+    } finally {
+      input.value = '';
+    }
+  });
 
   /** Keeps the studio in sync while the transcoder is still working. */
   function statusLine(video) {

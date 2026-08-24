@@ -15,39 +15,104 @@
   const progressText = document.getElementById('progress-text');
   const titleInput = document.getElementById('title');
 
+  const picker = document.getElementById('thumb-picker');
+  const options = document.getElementById('thumb-options');
+  const thumbFile = document.getElementById('thumb-file');
+
   let file = null;
   let meta = { duration: 0, width: 0, height: 0 };
   let thumbBlob = null;
+  // Every candidate cover offered so far: the automatic frames, anything
+  // grabbed from the playhead, and anything uploaded. Keeping them all means
+  // changing your mind costs a click instead of a re-seek.
+  let covers = [];
 
   function showError(message) {
     alertBox.innerHTML = `<div class="alert alert-error">${escapeHtml(message)}</div>`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  /** Reads duration/size and grabs a poster frame straight from the browser — no ffmpeg needed. */
+  /** Reads duration and dimensions; no ffmpeg needed, the browser already decoded it. */
   function analyze(selected) {
     return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(selected);
-      previewVideo.src = url;
+      previewVideo.src = URL.createObjectURL(selected);
       previewVideo.onloadedmetadata = () => {
         meta = {
           duration: previewVideo.duration || 0,
           width: previewVideo.videoWidth || 0,
           height: previewVideo.videoHeight || 0,
         };
-        // Seek slightly into the clip so the poster is not a black first frame.
-        previewVideo.currentTime = Math.min(1, (previewVideo.duration || 2) / 3);
-      };
-      previewVideo.onseeked = () => {
-        const width = 640;
-        const height = Math.round(width * (meta.height / meta.width || 9 / 16));
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext('2d').drawImage(previewVideo, 0, 0, width, height);
-        canvas.toBlob((blob) => { thumbBlob = blob; resolve(); }, 'image/jpeg', 0.82);
+        resolve();
       };
       previewVideo.onerror = () => reject(new Error('Не удалось прочитать видеофайл — возможно, формат не поддерживается браузером'));
     });
+  }
+
+  /** Moves the preview to a moment and waits for the picture to actually be there. */
+  function seek(time) {
+    return new Promise((resolve) => {
+      const done = () => { previewVideo.removeEventListener('seeked', done); resolve(); };
+      previewVideo.addEventListener('seeked', done);
+      previewVideo.currentTime = Math.max(0, Math.min(time, Math.max(0, (meta.duration || 0) - 0.05)));
+    });
+  }
+
+  /** The frame currently on screen, as a 16:9 JPEG letterboxed the way the feed shows it. */
+  function grabFrame() {
+    const width = 1280;
+    const height = Math.round(width * 9 / 16);
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height);
+    // Fit inside 16:9 rather than crop: a vertical clip keeps its whole frame.
+    const ratio = (meta.width && meta.height) ? meta.width / meta.height : 16 / 9;
+    const drawWidth = ratio > 16 / 9 ? width : Math.round(height * ratio);
+    const drawHeight = ratio > 16 / 9 ? Math.round(width / ratio) : height;
+    ctx.drawImage(previewVideo, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+  }
+
+  /** Shows the candidates and marks the chosen one; clicking a tile is the whole gesture. */
+  function renderCovers() {
+    options.innerHTML = covers.map((cover, index) => `
+      <button type="button" class="thumb-option${cover.blob === thumbBlob ? ' is-active' : ''}"
+              data-cover="${index}" aria-pressed="${cover.blob === thumbBlob}">
+        <img src="${cover.url}" alt="">
+        <span>${escapeHtml(cover.label)}</span>
+      </button>`).join('');
+    picker.hidden = !covers.length;
+  }
+
+  function addCover(blob, label, { select = true } = {}) {
+    if (!blob) return;
+    covers.push({ blob, label, url: URL.createObjectURL(blob) });
+    if (select) thumbBlob = blob;
+    renderCovers();
+  }
+
+  function clearCovers() {
+    covers.forEach((cover) => URL.revokeObjectURL(cover.url));
+    covers = [];
+    thumbBlob = null;
+    renderCovers();
+  }
+
+  /*
+   * Three moments spread across the clip, the way a video service offers them:
+   * near the start but past any black lead-in, the middle, and near the end.
+   */
+  async function suggestCovers() {
+    const duration = meta.duration || 0;
+    const marks = duration > 3
+      ? [duration * 0.15, duration * 0.5, duration * 0.85]
+      : [Math.min(0.2, duration / 2)];
+    for (const [index, mark] of marks.entries()) {
+      await seek(mark);
+      addCover(await grabFrame(), `Кадр ${index + 1}`, { select: index === 0 });
+    }
+    await seek(marks[0]);
   }
 
   async function selectFile(selected) {
@@ -66,6 +131,7 @@
       await analyze(selected);
       document.getElementById('file-info').textContent =
         `${fmt.size(selected.size)} · ${fmt.duration(meta.duration)} · ${meta.width}×${meta.height}`;
+      await suggestCovers();
     } catch (err) {
       document.getElementById('file-info').textContent = fmt.size(selected.size);
       showError(err.message);
@@ -87,9 +153,34 @@
   }));
   dropzone.addEventListener('drop', (event) => selectFile(event.dataTransfer.files[0]));
 
+  options.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-cover]');
+    if (!button) return;
+    thumbBlob = covers[Number(button.dataset.cover)].blob;
+    renderCovers();
+  });
+
+  // The playhead is the finest control there is: scrub to the exact moment and
+  // take it. The three suggestions above are only shortcuts to the common ones.
+  document.getElementById('thumb-current').addEventListener('click', async () => {
+    addCover(await grabFrame(), `Кадр на ${fmt.duration(previewVideo.currentTime)}`);
+  });
+
+  thumbFile.addEventListener('change', async () => {
+    const picked = thumbFile.files[0];
+    if (!picked) return;
+    try {
+      addCover(await openCropper(picked, 'thumb'), 'Своя картинка');
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      thumbFile.value = '';
+    }
+  });
+
   document.getElementById('reset-btn').addEventListener('click', () => {
     file = null;
-    thumbBlob = null;
+    clearCovers();
     fileInput.value = '';
     previewVideo.removeAttribute('src');
     preview.hidden = true;

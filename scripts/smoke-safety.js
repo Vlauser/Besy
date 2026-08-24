@@ -207,6 +207,54 @@ let step = 'start';
   res = await owner.del('/api/branding/avatar');
   assert.equal(res.status, 404);
 
+  /* ------------------------------------------------------------ cover */
+
+  const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 0x22)]);
+
+  async function putCover(client, id, buffer, type = 'image/png') {
+    const form = new FormData();
+    form.append('image', new Blob([buffer], { type }), 'cover.png');
+    return client.call('POST', `/api/videos/${id}/thumbnail`, form, true);
+  }
+
+  step = 'the owner replaces the cover of a published video';
+  res = await putCover(owner, videoId, PNG);
+  assert.equal(res.status, 201, JSON.stringify(res.data));
+
+  step = 'the cover is served as what it actually is';
+  let raw = await stranger.fetchRaw(`/media/thumb/${videoId}`);
+  assert.equal(raw.status, 200);
+  assert.equal(raw.headers.get('content-type'), 'image/png', 'the stored format decides the type');
+
+  step = 'a cover keeps its URL, so it must revalidate rather than be cached blind';
+  const etag = raw.headers.get('etag');
+  assert.ok(etag, 'no ETag on a cover');
+  assert.match(raw.headers.get('cache-control'), /must-revalidate/);
+  raw = await stranger.fetchRaw(`/media/thumb/${videoId}`, { headers: { 'if-none-match': etag } });
+  assert.equal(raw.status, 304, 'an unchanged cover must answer 304');
+
+  step = 'a new format replaces the old file instead of leaving it behind';
+  res = await putCover(owner, videoId, JPEG, 'image/jpeg');
+  assert.equal(res.status, 201, JSON.stringify(res.data));
+  raw = await stranger.fetchRaw(`/media/thumb/${videoId}`);
+  assert.equal(raw.headers.get('content-type'), 'image/jpeg');
+  assert.notEqual(raw.headers.get('etag'), etag, 'a replaced cover must not keep the old ETag');
+
+  step = 'bytes that are not an image are refused';
+  res = await putCover(owner, videoId, Buffer.from('<svg onload=alert(1)>            '));
+  assert.equal(res.status, 400, 'the cover is sniffed, not trusted');
+
+  step = 'a stranger cannot re-cover someone else\'s video';
+  const intruder = createClient();
+  await intruder.get('/api/health');
+  await createVerifiedUser(intruder, 'safecover');
+  res = await putCover(intruder, videoId, PNG);
+  assert.equal(res.status, 403, 'only the owner may change a cover');
+
+  step = 'signed out, the cover cannot be touched at all';
+  res = await putCover(stranger, videoId, PNG);
+  assert.equal(res.status, 401);
+
   /* ----------------------------------------------------------- handle */
 
   step = 'a bad handle is refused';

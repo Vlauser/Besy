@@ -47,7 +47,7 @@ const storage = createStorage();
 /** Key helpers keep the storage layout in one place. */
 const keys = {
   video: (id, ext) => `videos/${id}${ext}`,
-  thumb: (id) => `thumbs/${id}.jpg`,
+  thumb: (id, ext = '.jpg') => `thumbs/${id}${ext}`,
   hlsDir: (id) => `hls/${id}`,
   hlsMaster: (id) => `hls/${id}/master.m3u8`,
   hlsFile: (id, name) => `hls/${id}/${name}`,

@@ -11,16 +11,14 @@
 
 const express = require('express');
 const multer = require('multer');
-const path = require('node:path');
 
 const { db } = require('../db');
 const { storage, keys } = require('../storage');
 const { requireAuth } = require('../auth');
 const { rateLimit } = require('../security');
+const { identify, MAX_BYTES } = require('../images');
 
 const router = express.Router();
-
-const MAX_BYTES = Number(process.env.BESY_ARTWORK_MAX_KB || 4096) * 1024;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -34,19 +32,6 @@ const artworkLimit = rateLimit({
   message: 'Слишком много загрузок изображений за час',
   keyFn: (req) => (req.user ? `u${req.user.id}` : req.ip),
 });
-
-/* Sniffed from the bytes, never from the name the browser sent. */
-const SIGNATURES = [
-  { ext: '.jpg', type: 'image/jpeg', test: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
-  { ext: '.png', type: 'image/png', test: (b) => b.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])) },
-  { ext: '.webp', type: 'image/webp', test: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' },
-  { ext: '.gif', type: 'image/gif', test: (b) => b.subarray(0, 3).toString('latin1') === 'GIF' },
-];
-
-function identify(buffer) {
-  if (!buffer || buffer.length < 12) return null;
-  return SIGNATURES.find((sig) => sig.test(buffer)) || null;
-}
 
 const KINDS = {
   avatar: { column: 'avatar_file', key: keys.avatar },
@@ -99,5 +84,3 @@ for (const kind of Object.keys(KINDS)) {
 }
 
 module.exports = router;
-module.exports.SIGNATURES = SIGNATURES;
-module.exports.MAX_BYTES = MAX_BYTES;

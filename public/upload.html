@@ -22,7 +22,7 @@
 
       <div id="preview" hidden>
         <div class="row mt-16">
-          <video id="preview-video" style="width:200px;border-radius:10px" muted playsinline></video>
+          <video id="preview-video" style="width:260px;border-radius:10px" muted playsinline controls preload="metadata"></video>
           <div>
             <div id="file-name" style="font-weight:600"></div>
             <div class="hint" id="file-info"></div>
@@ -30,6 +30,19 @@
           </div>
         </div>
         <canvas id="thumb-canvas" hidden></canvas>
+
+        <div id="thumb-picker" class="mt-24" hidden>
+          <div class="field-label">Обложка</div>
+          <p class="hint">Выберите кадр или поставьте свою картинку. Перемотайте превью и нажмите «Взять текущий кадр», если нужен точный момент.</p>
+          <div class="thumb-options" id="thumb-options"></div>
+          <div class="row mt-16">
+            <button type="button" class="btn btn-ghost" id="thumb-current">Взять текущий кадр</button>
+            <label class="btn btn-ghost">
+              Загрузить свою
+              <input type="file" id="thumb-file" accept="image/*" hidden>
+            </label>
+          </div>
+        </div>
       </div>
 
       <div class="mt-24">

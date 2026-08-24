@@ -247,9 +247,16 @@ router.get('/thumb/:id', async (req, res, next) => {
   try {
     const info = await storage.stat(row.thumb_key);
     if (!info) return res.status(404).end();
-    res.setHeader('Content-Type', 'image/jpeg');
+
+    // The URL stays the same when a cover is replaced, so a long max-age would
+    // leave the old picture on screen for a day. Revalidation is one cheap 304.
+    const etag = `"${info.size}-${info.mtime || 0}"`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    if (req.headers['if-none-match'] === etag) return res.status(304).end();
+
+    res.setHeader('Content-Type', CONTENT_TYPES[path.extname(row.thumb_key)] || 'image/jpeg');
     res.setHeader('Content-Length', info.size);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
     pipeStream(await storage.getStream(row.thumb_key), res);
   } catch (err) {
     next(err);

@@ -14,6 +14,7 @@ const transcode = require('../transcode');
 const { notify, notifySubscribers } = require('../notifications');
 const blocks = require('../blocks');
 const { RETENTION_BUCKETS, SOURCES, dayKey } = require('./analytics');
+const images = require('../images');
 
 const router = express.Router();
 
@@ -442,6 +443,49 @@ router.patch('/:id', requireAuth, (req, res) => {
 });
 
 // DELETE /api/videos/:id
+/*
+ * POST /api/videos/:id/thumbnail  (multipart: image)
+ *
+ * The cover chosen while uploading was a guess made before the video existed
+ * anywhere; this is how it gets corrected afterwards. The picture comes in
+ * already cropped by the page — the server only checks that it really is an
+ * image and that the person sending it owns the video.
+ */
+const coverUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: images.MAX_BYTES, files: 1 },
+});
+
+const coverLimit = rateLimit({
+  name: 'cover',
+  limit: Number(process.env.BESY_ARTWORK_RATE_LIMIT) || 30,
+  windowMs: 60 * 60 * 1000,
+  message: 'Слишком много загрузок обложек за час',
+  keyFn: (req) => (req.user ? `u${req.user.id}` : req.ip),
+});
+
+router.post('/:id/thumbnail', requireAuth, coverLimit, coverUpload.single('image'), async (req, res, next) => {
+  const row = db.prepare('SELECT id, user_id, thumb_key FROM videos WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Видео не найдено' });
+  if (row.user_id !== req.user.id) return res.status(403).json({ error: 'Это не ваше видео' });
+  if (!req.file) return res.status(400).json({ error: 'Файл не получен' });
+  const image = images.identify(req.file.buffer);
+  if (!image) return res.status(400).json({ error: 'Нужен файл JPEG, PNG, WebP или GIF' });
+
+  try {
+    const thumbKey = keys.thumb(row.id, image.ext);
+    await storage.putBuffer(thumbKey, req.file.buffer);
+    db.prepare('UPDATE videos SET thumb_key = ? WHERE id = ?').run(thumbKey, row.id);
+    // A different format lands on a different key, so the old file would stay.
+    if (row.thumb_key && row.thumb_key !== thumbKey) {
+      await storage.delete(row.thumb_key).catch(() => {});
+    }
+    res.status(201).json({ ok: true, thumbUrl: `/media/thumb/${row.id}?v=${Date.now()}` });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.delete('/:id', requireAuth, async (req, res, next) => {
   const row = db.prepare('SELECT * FROM videos WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Видео не найдено' });
