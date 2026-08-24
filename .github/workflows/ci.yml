@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    name: Сквозные тесты
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Установить ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Проверить синтаксис
+        run: |
+          find server scripts public/js -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Запустить сервер
+        env:
+          PORT: 3000
+          BESY_DATA_DIR: ${{ runner.temp }}/besy-data
+          BESY_LIVE: 'on'
+          BESY_RTMP_PORT: '1935'
+          BESY_LIVE_STALE_MS: '8000'
+          # The suites hammer auth and mail from a single address; keep the
+          # limiters on but wide enough that they do not fail the run.
+          BESY_AUTH_RATE_LIMIT: '400'
+          BESY_EMAIL_RATE_LIMIT: '100'
+        run: |
+          node --experimental-sqlite server/index.js > "${{ runner.temp }}/server.log" 2>&1 &
+          echo $! > "${{ runner.temp }}/server.pid"
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:3000/api/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:3000/api/health || { cat "${{ runner.temp }}/server.log"; exit 1; }
+
+      - name: Основной набор
+        env:
+          BESY_URL: http://127.0.0.1:3000
+          BESY_DATA_DIR: ${{ runner.temp }}/besy-data
+        run: node scripts/smoke.js
+
+      - name: Безопасность
+        env:
+          BESY_URL: http://127.0.0.1:3000
+          BESY_DATA_DIR: ${{ runner.temp }}/besy-data
+        run: node scripts/smoke-security.js
+
+      - name: Плейлисты и модерация
+        env:
+          BESY_URL: http://127.0.0.1:3000
+          BESY_DATA_DIR: ${{ runner.temp }}/besy-data
+        run: node scripts/smoke-social.js
+
+      - name: Субтитры, Shorts и эфиры
+        env:
+          BESY_URL: http://127.0.0.1:3000
+          BESY_DATA_DIR: ${{ runner.temp }}/besy-data
+        run: node scripts/smoke-live.js
+
+      - name: Аналитика и рост
+        env:
+          BESY_URL: http://127.0.0.1:3000
+          BESY_DATA_DIR: ${{ runner.temp }}/besy-data
+        run: node scripts/smoke-growth.js
+
+      - name: Лог сервера при падении
+        if: failure()
+        run: tail -100 "${{ runner.temp }}/server.log"
+
+      - name: Остановить сервер
+        if: always()
+        run: kill "$(cat "${{ runner.temp }}/server.pid")" 2>/dev/null || true
