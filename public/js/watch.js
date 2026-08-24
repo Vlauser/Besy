@@ -85,6 +85,7 @@
       chapters: parseChapters(video.description),
     });
     renderStatusBanner();
+    renderContentClaims();
 
     barEl.innerHTML = `
       <div class="channel-row">
@@ -503,6 +504,73 @@
       } catch (err) {
         alert(err.message);
       }
+    });
+  }
+
+  /* --------------------------------------------------------- content claims */
+
+  let claimsBox = null;
+
+  /**
+   * Shows any rights-holder claim standing against this video. Matching runs
+   * after transcoding, so a claim can appear after the page already loaded —
+   * poll a few times early on rather than requiring a manual refresh.
+   */
+  async function renderContentClaims(attempt = 0) {
+    let claims = [];
+    try {
+      ({ claims } = await api.get(`/api/matching/video/${video.id}`));
+    } catch {
+      return; // matching may be switched off
+    }
+
+    if (!claims.length) {
+      // Give a freshly processed upload a little time for the scan to land:
+      // matching runs after transcoding, or fire-and-forget right after upload
+      // when ffmpeg is unavailable, so it can still be running a moment after
+      // this page first loads even once the video itself already reads ready.
+      const stillWorking = video.status === 'processing' || video.progress < 100;
+      if (attempt < 12 && (stillWorking || attempt < 2)) {
+        setTimeout(() => renderContentClaims(attempt + 1), 5000);
+      }
+      return;
+    }
+
+    if (!claimsBox) {
+      claimsBox = document.createElement('div');
+      claimsBox.className = 'mt-16';
+      statusBanner.after(claimsBox);
+    }
+    const box = claimsBox;
+    box.innerHTML = claims.map((claim) => `
+      <div class="status-banner" data-claim="${claim.id}">
+        <span>©</span>
+        <div style="flex:1">
+          <div>Заявка правообладателя: <strong>${escapeHtml(claim.workTitle)}</strong>
+            ${claim.owner ? `— ${escapeHtml(claim.owner)}` : ''}</div>
+          <div class="card-meta">
+            ${escapeHtml(claim.kindLabel || '')}
+            ${claim.secondsMatched ? ` · совпадение ${fmt.duration(claim.secondsMatched)}` : ''}
+            ${claim.status === 'disputed' ? ' · оспаривается' : ''}
+            ${claim.status === 'upheld' ? ' · подтверждена модератором' : ''}
+          </div>
+        </div>
+        ${video.isOwner && claim.status === 'active'
+          ? '<button class="btn" data-action="dispute">Оспорить</button>'
+          : ''}
+      </div>`).join('');
+
+    box.querySelectorAll('[data-action="dispute"]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const note = prompt('Почему заявка неверна? Опишите права на материал:');
+        if (!note) return;
+        try {
+          await api.post(`/api/matching/claims/${button.closest('[data-claim]').dataset.claim}/dispute`, { note });
+          location.reload();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
     });
   }
 

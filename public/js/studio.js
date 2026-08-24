@@ -27,6 +27,137 @@
 
   const VISIBILITY_LABELS = { public: 'Публичное', unlisted: 'По ссылке', private: 'Приватное' };
 
+  /* ---------------------------------------------------- content protection */
+
+  async function renderRights() {
+    const config = await api.get('/api/matching/policies');
+    if (!config.enabled) return;
+
+    const panel = document.getElementById('rights-panel');
+    const box = document.getElementById('rights-content');
+    panel.hidden = false;
+
+    const [{ works }, { detections }, { claims }] = await Promise.all([
+      api.get('/api/matching/works'),
+      api.get('/api/matching/detections'),
+      api.get('/api/matching/claims'),
+    ]);
+
+    const policyOptions = (selected) => config.policies
+      .map((policy) => `<option value="${policy.id}"${policy.id === selected ? ' selected' : ''}>${escapeHtml(policy.label)}</option>`)
+      .join('');
+
+    box.innerHTML = `
+      <p class="hint">Заявите своё видео как эталон — новые загрузки будут сверяться с ним
+        по отпечатку видеоряда и аудиодорожки.</p>
+
+      <form id="new-work" class="row" style="gap:8px;margin:14px 0">
+        <select class="input" name="videoId" style="flex:1" required>
+          <option value="">Выберите своё видео…</option>
+        </select>
+        <select class="input" name="policy" style="width:auto">${policyOptions('flag')}</select>
+        <button class="btn btn-primary" type="submit">Заявить</button>
+      </form>
+
+      ${works.length ? `
+        <h3 style="font-size:15px;margin:16px 0 8px">Мои эталоны</h3>
+        ${works.map((work) => `
+          <div class="row" style="gap:8px;padding:8px 0;border-bottom:1px solid var(--border)" data-work="${work.id}">
+            <div style="flex:1;min-width:0">
+              <div>${escapeHtml(work.title)}</div>
+              <div class="card-meta">${fmt.duration(work.duration)} · совпадений: ${work.matches}
+                ${work.active ? '' : ' · отключён'}</div>
+            </div>
+            <select class="input" style="width:auto;padding:6px 10px" data-action="policy">${policyOptions(work.policy)}</select>
+            <button class="btn" data-action="toggle">${work.active ? 'Отключить' : 'Включить'}</button>
+            <button class="btn btn-danger" data-action="remove">🗑</button>
+          </div>`).join('')}` : ''}
+
+      ${detections.length ? `
+        <h3 style="font-size:15px;margin:18px 0 8px">Найденные совпадения</h3>
+        ${detections.map((detection) => `
+          <div class="row" style="gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
+            <div style="flex:1;min-width:0">
+              <a href="/watch/${detection.videoId}">${escapeHtml(detection.videoTitle || detection.videoId)}</a>
+              <div class="card-meta">${escapeHtml(detection.uploader || '')} · ${escapeHtml(detection.kindLabel)}
+                · ${fmt.duration(detection.secondsMatched)} · ${escapeHtml(detection.status)}</div>
+            </div>
+            ${['active', 'disputed', 'upheld'].includes(detection.status)
+              ? `<button class="btn" data-release="${detection.id}">Снять заявку</button>` : ''}
+          </div>`).join('')}` : ''}
+
+      ${claims.length ? `
+        <h3 style="font-size:15px;margin:18px 0 8px">Заявки на мои видео</h3>
+        ${claims.map((claim) => `
+          <div class="row" style="gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
+            <div style="flex:1;min-width:0">
+              <a href="/watch/${claim.videoId}">${escapeHtml(claim.videoTitle || claim.videoId)}</a>
+              <div class="card-meta">«${escapeHtml(claim.workTitle)}» от ${escapeHtml(claim.owner || '')}
+                · ${escapeHtml(claim.status)}</div>
+            </div>
+          </div>`).join('')}` : ''}`;
+
+    // Only videos that are not references yet can be registered.
+    const { videos } = await api.get(`/api/videos?channel=${encodeURIComponent(auth.user.username)}&limit=60`);
+    const taken = new Set(works.map((work) => work.videoId));
+    const select = box.querySelector('[name="videoId"]');
+    for (const video of videos) {
+      if (taken.has(video.id) || video.kind === 'live') continue;
+      const option = document.createElement('option');
+      option.value = video.id;
+      option.textContent = video.title;
+      select.appendChild(option);
+    }
+
+    box.querySelector('#new-work').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = event.target.querySelector('button');
+      button.disabled = true;
+      button.textContent = 'Считаем отпечаток…';
+      try {
+        await api.post('/api/matching/works', {
+          videoId: event.target.videoId.value,
+          policy: event.target.policy.value,
+        });
+        renderRights();
+      } catch (err) {
+        alert(err.message);
+        button.disabled = false;
+        button.textContent = 'Заявить';
+      }
+    });
+
+    box.querySelectorAll('[data-work] [data-action]').forEach((control) => {
+      const workId = control.closest('[data-work]').dataset.work;
+      const handler = async () => {
+        try {
+          if (control.dataset.action === 'policy') {
+            await api.patch(`/api/matching/works/${workId}`, { policy: control.value });
+          } else if (control.dataset.action === 'toggle') {
+            await api.patch(`/api/matching/works/${workId}`, {
+              active: control.textContent.trim() === 'Включить',
+            });
+          } else {
+            if (!confirm('Удалить эталон? Существующие заявки останутся.')) return;
+            await api.del(`/api/matching/works/${workId}`);
+          }
+          renderRights();
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+      control.addEventListener(control.dataset.action === 'policy' ? 'change' : 'click', handler);
+    });
+
+    box.querySelectorAll('[data-release]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!confirm('Снять заявку с этого видео?')) return;
+        await api.post(`/api/matching/claims/${button.dataset.release}/release`, {});
+        renderRights();
+      });
+    });
+  }
+
   /* ------------------------------------------------------------ live */
 
   async function renderLive() {
@@ -333,4 +464,5 @@
 
   loadVideos();
   renderLive().catch(() => {});
+  renderRights().catch(() => {});
 })();

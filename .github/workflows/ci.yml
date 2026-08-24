@@ -82,6 +82,12 @@ jobs:
           BESY_DATA_DIR: ${{ runner.temp }}/besy-data
         run: node scripts/smoke-growth.js
 
+      - name: Сопоставление контента
+        env:
+          BESY_URL: http://127.0.0.1:3000
+          BESY_DATA_DIR: ${{ runner.temp }}/besy-data
+        run: node scripts/smoke-matching.js
+
       - name: Лог сервера при падении
         if: failure()
         run: tail -100 "${{ runner.temp }}/server.log"

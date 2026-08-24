@@ -126,6 +126,43 @@ CREATE TABLE IF NOT EXISTS videos (
   created_at     INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS reference_works (
+  id          TEXT    PRIMARY KEY,
+  owner_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  video_id    TEXT    REFERENCES videos(id) ON DELETE SET NULL,
+  title       TEXT    NOT NULL,
+  description TEXT    NOT NULL DEFAULT '',
+  policy      TEXT    NOT NULL DEFAULT 'flag',
+  duration    REAL    NOT NULL DEFAULT 0,
+  active      INTEGER NOT NULL DEFAULT 1,
+  created_at  INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reference_prints (
+  work_id TEXT    NOT NULL REFERENCES reference_works(id) ON DELETE CASCADE,
+  kind    TEXT    NOT NULL,
+  step    REAL    NOT NULL,
+  hashes  TEXT    NOT NULL,
+  PRIMARY KEY (work_id, kind)
+);
+
+CREATE TABLE IF NOT EXISTS content_matches (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  video_id        TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+  work_id         TEXT    NOT NULL REFERENCES reference_works(id) ON DELETE CASCADE,
+  kind            TEXT    NOT NULL,
+  seconds_matched REAL    NOT NULL DEFAULT 0,
+  score           REAL    NOT NULL DEFAULT 0,
+  policy          TEXT    NOT NULL,
+  status          TEXT    NOT NULL DEFAULT 'active',
+  dispute_note    TEXT,
+  resolution      TEXT,
+  resolved_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  resolved_at     INTEGER,
+  created_at      INTEGER NOT NULL,
+  UNIQUE (video_id, work_id)
+);
+
 CREATE TABLE IF NOT EXISTS video_stats_daily (
   video_id      TEXT    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
   day           TEXT    NOT NULL,
@@ -354,6 +391,9 @@ CREATE INDEX IF NOT EXISTS idx_stats_day       ON video_stats_daily(video_id, da
 CREATE INDEX IF NOT EXISTS idx_history_user    ON watch_history(user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notif_user      ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_user      ON posts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_works_owner     ON reference_works(owner_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_matches_video   ON content_matches(video_id);
+CREATE INDEX IF NOT EXISTS idx_matches_status  ON content_matches(status, created_at DESC);
 `);
 
 module.exports = { db, DATA_DIR, TMP_DIR };

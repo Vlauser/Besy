@@ -177,6 +177,17 @@ async function uploadDirectory(localDir, videoId) {
   }
 }
 
+/** Content matching is best-effort: it must never fail an upload. */
+async function scanForMatches(videoId) {
+  try {
+    // Required lazily: matching pulls in the storage layer, which requires db.
+    const matching = require('./matching');
+    await matching.scanVideo(videoId);
+  } catch (err) {
+    console.error(`[match] ${videoId}: ${err.message}`);
+  }
+}
+
 /* --------------------------------------------------------------- job queue */
 
 const queue = [];
@@ -250,10 +261,13 @@ async function processVideo(videoId) {
       videoId,
       body: `«${video.title}» обработано: ${renditions.map((r) => r.name).join(', ')}`,
     });
+
+    await scanForMatches(videoId);
   } catch (err) {
     console.error(`[transcode] ${videoId}: ${err.message}`);
     // The original file is untouched, so the video stays watchable progressively.
     setStatus(videoId, { status: 'failed', progress: 0, status_error: err.message.slice(0, 500) });
+    await scanForMatches(videoId);
   } finally {
     await fsp.rm(workDir, { recursive: true, force: true });
     queued.delete(videoId);
@@ -292,4 +306,6 @@ async function resumePending() {
   if (pending.length) console.log(`[transcode] возобновлено задач: ${pending.length}`);
 }
 
-module.exports = { enqueue, resumePending, checkTools, probe, makeThumbnail, LADDER, ENABLED };
+module.exports = {
+  enqueue, resumePending, checkTools, probe, makeThumbnail, scanForMatches, LADDER, ENABLED,
+};

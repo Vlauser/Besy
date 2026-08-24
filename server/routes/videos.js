@@ -377,6 +377,8 @@ router.post(
       const queuedForTranscode = await transcode.enqueue(id);
       if (!queuedForTranscode) {
         db.prepare("UPDATE videos SET status = 'ready' WHERE id = ?").run(id);
+        // With no transcode step there is nothing else that would scan it.
+        transcode.scanForMatches(id);
       }
 
       if (visibility === 'public' && !publishAt) {
