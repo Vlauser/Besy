@@ -275,6 +275,15 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   PRIMARY KEY (channel_id, subscriber_id)
 );
 
+-- One person deciding they want nothing to do with another. Enforced on every
+-- surface where the blocked account could otherwise reach the blocker.
+CREATE TABLE IF NOT EXISTS user_blocks (
+  blocker_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  blocked_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at  INTEGER NOT NULL,
+  PRIMARY KEY (blocker_id, blocked_id)
+);
+
 CREATE TABLE IF NOT EXISTS playlists (
   id          TEXT    PRIMARY KEY,
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -353,6 +362,7 @@ function migrate() {
     ['sessions', 'user_agent', "TEXT NOT NULL DEFAULT ''"],
     ['sessions', 'last_seen_at', 'INTEGER NOT NULL DEFAULT 0'],
     ['playlists', 'system', 'TEXT'],
+    ['reports', 'reported_user_id', 'INTEGER REFERENCES users(id) ON DELETE CASCADE'],
   ];
 
   for (const [table, column, definition] of additions) {
@@ -394,6 +404,7 @@ CREATE INDEX IF NOT EXISTS idx_posts_user      ON posts(user_id, created_at DESC
 CREATE INDEX IF NOT EXISTS idx_works_owner     ON reference_works(owner_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_matches_video   ON content_matches(video_id);
 CREATE INDEX IF NOT EXISTS idx_matches_status  ON content_matches(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_blocks_blocked  ON user_blocks(blocked_id);
 `);
 
 module.exports = { db, DATA_DIR, TMP_DIR };

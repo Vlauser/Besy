@@ -6,8 +6,19 @@ const { db } = require('../db');
 const { requireAuth, requireAdmin, requireVerifiedEmail } = require('../auth');
 const { rateLimit } = require('../security');
 const matching = require('../matching');
+const { logAction } = require('../audit');
 
 const router = express.Router();
+
+// A rescan re-fingerprints the whole file, so it is the most expensive thing
+// an ordinary account can ask for. Budget it separately from registration.
+const rescanLimit = rateLimit({
+  name: 'rescan',
+  limit: Number(process.env.BESY_RESCAN_RATE_LIMIT) || 10,
+  windowMs: 60 * 60 * 1000,
+  message: 'Слишком много пересканирований за час',
+  keyFn: (req) => (req.user ? `u${req.user.id}` : req.ip),
+});
 
 const registerLimit = rateLimit({
   name: 'reference',
@@ -161,8 +172,14 @@ router.get('/detections', requireAuth, (req, res) => {
 });
 
 router.get('/video/:id', (req, res) => {
-  const video = db.prepare('SELECT id, user_id FROM videos WHERE id = ?').get(req.params.id);
+  const video = db.prepare('SELECT id, user_id, visibility FROM videos WHERE id = ?').get(req.params.id);
   if (!video) return res.status(404).json({ error: 'Видео не найдено' });
+
+  // A private video must not confirm its own existence, let alone who claimed
+  // it, to anyone but its owner and the moderators.
+  const maySee = video.visibility !== 'private'
+    || (req.user && (req.user.id === video.user_id || req.user.isAdmin));
+  if (!maySee) return res.status(404).json({ error: 'Видео не найдено' });
 
   const rows = db.prepare(`${MATCH_SELECT} WHERE m.video_id = ? AND m.status IN ('active','disputed','upheld')`)
     .all(video.id);
@@ -205,7 +222,9 @@ router.post('/claims/:id/release', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'Снять заявку может правообладатель или модератор' });
   }
 
-  releaseClaim(row, req.user.id, String(req.body.resolution || 'Заявка отозвана'));
+  const resolution = String(req.body.resolution || 'Заявка отозвана');
+  releaseClaim(row, req.user.id, resolution);
+  logAction(req.user.id, 'claim_released', 'match', row.id, `${row.work_title}: ${resolution}`);
   res.json({ ok: true });
 });
 
@@ -246,8 +265,10 @@ router.post('/disputes/:id/resolve', requireAdmin, (req, res) => {
       UPDATE content_matches SET status = 'upheld', resolution = ?, resolved_by = ?, resolved_at = ?
       WHERE id = ?
     `).run(resolution, req.user.id, Date.now(), row.id);
+    logAction(req.user.id, 'claim_upheld', 'match', row.id, `${row.work_title}: ${resolution}`);
   } else {
     releaseClaim(row, req.user.id, resolution || 'Заявка отклонена модератором');
+    logAction(req.user.id, 'claim_dismissed', 'match', row.id, `${row.work_title}: ${resolution}`);
   }
 
   res.json({ ok: true });
@@ -255,7 +276,7 @@ router.post('/disputes/:id/resolve', requireAdmin, (req, res) => {
 
 /* --------------------------------------------------------------- rescan */
 
-router.post('/rescan/:videoId', requireAuth, async (req, res, next) => {
+router.post('/rescan/:videoId', requireAuth, rescanLimit, async (req, res, next) => {
   const video = db.prepare('SELECT * FROM videos WHERE id = ?').get(req.params.videoId);
   if (!video) return res.status(404).json({ error: 'Видео не найдено' });
   if (video.user_id !== req.user.id && !req.user.isAdmin) {

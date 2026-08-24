@@ -12,6 +12,7 @@ const { requireAuth, requireVerifiedEmail } = require('../auth');
 const { rateLimit, viewerKey, signMedia, SIGNED_MEDIA } = require('../security');
 const transcode = require('../transcode');
 const { notify, notifySubscribers } = require('../notifications');
+const blocks = require('../blocks');
 const { RETENTION_BUCKETS, SOURCES, dayKey } = require('./analytics');
 
 const router = express.Router();
@@ -641,9 +642,16 @@ router.get('/:id/comments', (req, res) => {
 });
 
 router.post('/:id/comments', requireAuth, requireVerifiedEmail, commentLimit, (req, res) => {
-  const video = db.prepare('SELECT id, blocked_at FROM videos WHERE id = ?').get(req.params.id);
+  const video = db.prepare('SELECT id, user_id, blocked_at FROM videos WHERE id = ?').get(req.params.id);
   if (!video) return res.status(404).json({ error: 'Видео не найдено' });
   if (video.blocked_at) return res.status(451).json({ error: 'Видео заблокировано' });
+
+  // Either direction of a block closes the comment box: a channel owner does
+  // not have to read this person, and someone who blocked the owner is not
+  // kept around to argue under their videos.
+  if (blocks.eitherBlocked(video.user_id, req.user.id)) {
+    return res.status(403).json({ error: 'Комментарии для вас недоступны на этом канале' });
+  }
 
   const body = String(req.body.body || '').trim();
   if (!body) return res.status(400).json({ error: 'Комментарий пустой' });

@@ -1,12 +1,18 @@
 'use strict';
 
-/** Personal surfaces: notifications, watch history, Watch Later, recommendations. */
+/**
+ * Personal surfaces: notifications, watch history, Watch Later, recommendations,
+ * plus the controls a person has over their own account — who may reach them,
+ * what the service holds about them, and leaving.
+ */
 
 const express = require('express');
 const crypto = require('node:crypto');
 
 const { db } = require('../db');
-const { requireAuth } = require('../auth');
+const { requireAuth, verifyPassword } = require('../auth');
+const blocks = require('../blocks');
+const { rateLimit } = require('../security');
 const { unreadCount } = require('../notifications');
 
 const router = express.Router();
@@ -221,6 +227,98 @@ router.get('/recommended', requireAuth, (req, res) => {
     .slice(0, limit);
 
   res.json({ videos: scored.map((entry) => shapeCard(entry.row)) });
+});
+
+/* --------------------------------------------------------------- blocks */
+
+router.get('/blocks', requireAuth, (req, res) => {
+  res.json({
+    blocks: blocks.list(req.user.id).map((row) => ({
+      username: row.username,
+      createdAt: row.created_at,
+    })),
+  });
+});
+
+router.post('/blocks', requireAuth, (req, res) => {
+  const target = db.prepare('SELECT id, username, is_admin FROM users WHERE lower(username) = lower(?)')
+    .get(String(req.body.username || ''));
+  if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+  if (target.id === req.user.id) return res.status(400).json({ error: 'Нельзя заблокировать себя' });
+  // Blocking a moderator would let anyone opt out of moderation contact.
+  if (target.is_admin) return res.status(403).json({ error: 'Модератора заблокировать нельзя' });
+
+  blocks.block(req.user.id, target.id);
+  res.status(201).json({ ok: true, username: target.username });
+});
+
+router.delete('/blocks/:username', requireAuth, (req, res) => {
+  const target = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)')
+    .get(req.params.username);
+  if (!target) return res.status(404).json({ error: 'Пользователь не найден' });
+
+  const removed = blocks.unblock(req.user.id, target.id);
+  if (!removed) return res.status(404).json({ error: 'Этот пользователь не заблокирован' });
+  res.json({ ok: true });
+});
+
+/* ----------------------------------------------------------------- data */
+
+const exportLimit = rateLimit({
+  name: 'export',
+  limit: Number(process.env.BESY_EXPORT_RATE_LIMIT) || 5,
+  windowMs: 60 * 60 * 1000,
+  message: 'Слишком много выгрузок за час',
+  keyFn: (req) => (req.user ? `u${req.user.id}` : req.ip),
+});
+
+// Everything the service holds about the requester, in one JSON file. Secrets
+// are deliberately absent: password hash, TOTP seed, backup codes and session
+// tokens are credentials, not personal data to hand back.
+router.get('/export', requireAuth, exportLimit, (req, res) => {
+  const uid = req.user.id;
+  const one = (sql, ...args) => db.prepare(sql).all(...args);
+
+  const account = db.prepare(`
+    SELECT username, email, created_at, email_verified_at, totp_enabled, strikes
+    FROM users WHERE id = ?
+  `).get(uid);
+
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    account,
+    videos: one('SELECT id, title, description, visibility, created_at, views FROM videos WHERE user_id = ?', uid),
+    comments: one('SELECT video_id, body, created_at FROM comments WHERE user_id = ?', uid),
+    posts: one('SELECT body, created_at FROM posts WHERE user_id = ?', uid),
+    playlists: one('SELECT id, title, visibility, created_at FROM playlists WHERE user_id = ?', uid),
+    subscriptions: one(`
+      SELECT u.username, s.created_at FROM subscriptions s
+      JOIN users u ON u.id = s.channel_id WHERE s.subscriber_id = ?`, uid),
+    subscribers: one('SELECT COUNT(*) AS total FROM subscriptions WHERE channel_id = ?', uid),
+    watchHistory: one('SELECT video_id, position, updated_at FROM watch_history WHERE user_id = ?', uid),
+    blocked: blocks.list(uid).map((r) => ({ username: r.username, createdAt: r.created_at })),
+    sessions: one('SELECT ip, user_agent, created_at, last_seen_at FROM sessions WHERE user_id = ?', uid),
+    strikes: one('SELECT reason, created_at, expires_at FROM strikes WHERE user_id = ?', uid),
+  };
+
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="besy-export-${account.username}.json"`);
+  res.send(JSON.stringify(payload, null, 2));
+});
+
+// Leaving. Requires the current password, because a hijacked session must not
+// be able to destroy the account it stole.
+router.delete('/account', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id);
+  if (!verifyPassword(String(req.body.password || ''), row.password_hash)) {
+    return res.status(403).json({ error: 'Неверный пароль' });
+  }
+
+  // Foreign keys cascade from users, so videos, comments, sessions, blocks and
+  // the rest go with the row. Moderation history keeps a null actor instead.
+  db.prepare('DELETE FROM users WHERE id = ?').run(req.user.id);
+  res.clearCookie('besy_session');
+  res.json({ ok: true });
 });
 
 module.exports = router;
