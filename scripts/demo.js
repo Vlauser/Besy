@@ -15,6 +15,7 @@ require('./check-node');
 
 const path = require('node:path');
 const fs = require('node:fs');
+const os = require('node:os');
 const { spawn } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
@@ -194,12 +195,32 @@ async function alreadySeeded(createClient) {
   return res.status === 200;
 }
 
+/**
+ * Addresses this machine can actually be reached on. Printing only the
+ * loopback is misleading over SSH, where the browser is somewhere else.
+ */
+function reachableUrls() {
+  const urls = [`http://localhost:${PORT}`];
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const net of list || []) {
+      if (net.family === 'IPv4' && !net.internal) urls.push(`http://${net.address}:${PORT}`);
+    }
+  }
+  return urls;
+}
+
 function banner(seeded) {
   const line = '─'.repeat(58);
+  const urls = reachableUrls();
   const rows = [
     '',
     line,
-    `  Besy готов:  ${BASE}`,
+    `  Besy готов:  ${urls[0]}`,
+    ...(urls.length > 1 ? urls.slice(1).map((u) => `               ${u}`) : []),
+    ...(urls.length > 1
+      ? ['', '  Если сервер удалённый, откройте его адрес выше — или пробросьте',
+         `  порт: ssh -L ${PORT}:127.0.0.1:${PORT} <пользователь>@<сервер>`]
+      : []),
     '',
     `  Автор и модератор   ${ACCOUNTS.owner.username} / ${ACCOUNTS.owner.password}`,
     `  Зритель             ${ACCOUNTS.viewer.username} / ${ACCOUNTS.viewer.password}`,
