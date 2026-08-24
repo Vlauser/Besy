@@ -8,7 +8,20 @@ const blocks = require('../blocks');
 const router = express.Router();
 
 router.get('/:username', (req, res) => {
-  const user = db.prepare('SELECT * FROM users WHERE lower(username) = lower(?)').get(req.params.username);
+  let user = db.prepare('SELECT * FROM users WHERE lower(username) = lower(?)').get(req.params.username);
+
+  // A handle this channel used before still finds it, so links shared under the
+  // old name keep working. The response says where it moved so the client can
+  // put the current address in the bar.
+  let movedFrom = null;
+  if (!user) {
+    const past = db.prepare('SELECT user_id FROM username_history WHERE username = ?')
+      .get(req.params.username);
+    if (past) {
+      user = db.prepare('SELECT * FROM users WHERE id = ?').get(past.user_id);
+      if (user) movedFrom = req.params.username;
+    }
+  }
   if (!user) return res.status(404).json({ error: 'Канал не найден' });
 
   const isOwner = Boolean(req.user && req.user.id === user.id);
@@ -37,6 +50,7 @@ router.get('/:username', (req, res) => {
       subscribers,
       subscribed,
       isOwner,
+      movedFrom,
     },
   });
 });

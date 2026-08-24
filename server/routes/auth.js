@@ -233,6 +233,68 @@ router.patch('/me', requireAuth, (req, res) => {
   res.json({ user: publicUser(user) });
 });
 
+/**
+ * Changing the handle. It is also the channel address, so this is not a display
+ * setting: every link anyone has shared points at the old one.
+ *
+ * The old handle stays reserved to the same account rather than going back into
+ * the pool, because a handle someone has been linking to is exactly the one an
+ * impersonator wants next. Old links keep resolving through it.
+ */
+const HANDLE_COOLDOWN_MS = Number(process.env.BESY_HANDLE_COOLDOWN_DAYS || 14) * 24 * 60 * 60 * 1000;
+
+router.post('/me/username', requireAuth, authLimit, (req, res) => {
+  const username = String(req.body.username || '').trim();
+
+  if (!USERNAME_RE.test(username)) {
+    return res.status(400).json({ error: 'Логин: 3–24 символа, латиница, цифры и «_»' });
+  }
+  if (username.toLowerCase() === req.user.username.toLowerCase()) {
+    // Same letters in a different case is a rename worth allowing; the same
+    // string is not a change at all.
+    if (username === req.user.username) {
+      return res.status(400).json({ error: 'Это ваш текущий логин' });
+    }
+  }
+
+  const changedAt = db.prepare('SELECT username_changed_at AS at FROM users WHERE id = ?')
+    .get(req.user.id).at;
+  if (changedAt && Date.now() - changedAt < HANDLE_COOLDOWN_MS) {
+    const days = Math.ceil((HANDLE_COOLDOWN_MS - (Date.now() - changedAt)) / (24 * 60 * 60 * 1000));
+    return res.status(429).json({
+      error: `Логин можно менять раз в ${HANDLE_COOLDOWN_MS / (24 * 60 * 60 * 1000)} дней. Осталось ${days}.`,
+    });
+  }
+
+  const takenByUser = db.prepare('SELECT id FROM users WHERE lower(username) = lower(?)').get(username);
+  if (takenByUser && takenByUser.id !== req.user.id) {
+    return res.status(409).json({ error: 'Такой логин уже занят' });
+  }
+
+  const reserved = db.prepare('SELECT user_id FROM username_history WHERE username = ?').get(username);
+  if (reserved && reserved.user_id !== req.user.id) {
+    return res.status(409).json({ error: 'Этот логин недавно использовал другой канал' });
+  }
+
+  const previous = req.user.username;
+  const now = Date.now();
+
+  db.prepare(`
+    INSERT INTO username_history (username, user_id, released_at) VALUES (?, ?, ?)
+    ON CONFLICT(username) DO UPDATE SET user_id = excluded.user_id, released_at = excluded.released_at
+  `).run(previous, req.user.id, now);
+
+  db.prepare('UPDATE users SET username = ?, username_changed_at = ? WHERE id = ?')
+    .run(username, now, req.user.id);
+
+  // The handle it is moving to may itself be one this account used before.
+  db.prepare('DELETE FROM username_history WHERE username = ? AND user_id = ?')
+    .run(username, req.user.id);
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  res.json({ user: publicUser(user), previous });
+});
+
 /* ------------------------------------------------------- email verification */
 
 router.post('/verify/resend', requireAuth, emailLimit, async (req, res, next) => {

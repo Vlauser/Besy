@@ -207,7 +207,52 @@ let step = 'start';
   res = await owner.del('/api/branding/avatar');
   assert.equal(res.status, 404);
 
-  console.log('✅ Блокировки, жалобы на каналы, экспорт, удаление аккаунта и оформление канала проверены');
+  /* ----------------------------------------------------------- handle */
+
+  step = 'a bad handle is refused';
+  for (const bad of ['ab', 'с-кириллицей', 'a'.repeat(25), 'has space']) {
+    res = await owner.post('/api/auth/me/username', { username: bad });
+    assert.equal(res.status, 400, `«${bad}» must be refused`);
+  }
+
+  step = 'a handle in use is refused';
+  const rival = createClient();
+  await rival.get('/api/health');
+  const rivalUser = await createVerifiedUser(rival, 'rival');
+  res = await owner.post('/api/auth/me/username', { username: rivalUser.username });
+  assert.equal(res.status, 409);
+
+  step = 'change the handle';
+  const newHandle = `${ownerUser.username}_2`.slice(0, 24);
+  res = await owner.post('/api/auth/me/username', { username: newHandle });
+  assert.equal(res.status, 200, JSON.stringify(res.data));
+  assert.equal(res.data.user.username, newHandle);
+  assert.equal(res.data.previous, ownerUser.username);
+
+  step = 'the channel answers on the new handle';
+  res = await owner.get(`/api/channels/${newHandle}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.channel.movedFrom, null, 'the current handle is not a redirect');
+
+  step = 'and still answers on the old one';
+  res = await owner.get(`/api/channels/${ownerUser.username}`);
+  assert.equal(res.status, 200, 'links shared under the old handle must keep working');
+  assert.equal(res.data.channel.username, newHandle);
+  assert.equal(res.data.channel.movedFrom, ownerUser.username);
+
+  step = 'the released handle is not up for grabs';
+  res = await rival.post('/api/auth/me/username', { username: ownerUser.username });
+  assert.equal(res.status, 409, 'a freed handle must stay reserved to its previous owner');
+
+  step = 'changing again is refused until the cooldown passes';
+  res = await owner.post('/api/auth/me/username', { username: `${newHandle}x`.slice(0, 24) });
+  assert.equal(res.status, 429);
+
+  step = 'artwork follows the new handle';
+  const rawArt = await owner.fetchRaw(`/media/banner/${newHandle}`);
+  assert.equal(rawArt.status, 200, 'the banner must answer on the current handle');
+
+  console.log('✅ Блокировки, жалобы, экспорт, удаление аккаунта, оформление и смена логина проверены');
 })().catch((err) => {
   console.error(`❌ Safety test failed on "${step}":`, err.message);
   process.exit(1);

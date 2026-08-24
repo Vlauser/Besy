@@ -284,6 +284,15 @@ CREATE TABLE IF NOT EXISTS user_blocks (
   PRIMARY KEY (blocker_id, blocked_id)
 );
 
+-- Handles a channel used to answer on. Kept so old links still resolve, and so
+-- a freed handle cannot be claimed by someone else the moment it is released —
+-- which is how impersonation usually starts.
+CREATE TABLE IF NOT EXISTS username_history (
+  username    TEXT    PRIMARY KEY COLLATE NOCASE,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  released_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS playlists (
   id          TEXT    PRIMARY KEY,
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -364,6 +373,7 @@ function migrate() {
     ['playlists', 'system', 'TEXT'],
     ['reports', 'reported_user_id', 'INTEGER REFERENCES users(id) ON DELETE CASCADE'],
     ['users', 'banner_file', 'TEXT'],
+    ['users', 'username_changed_at', 'INTEGER'],
   ];
 
   for (const [table, column, definition] of additions) {

@@ -618,6 +618,15 @@ textarea.input { resize: vertical; min-height: 96px; }
   padding: 22px;
 }
 
+code {
+  font-family: var(--mono);
+  font-size: .9em;
+  padding: 1px 5px;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  border-radius: 3px;
+}
+
 .hint { color: var(--text-dim); font-size: 13px; }
 
 .alert {
@@ -678,6 +687,7 @@ textarea.input { resize: vertical; min-height: 96px; }
 
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .spacer { flex: 1; }
+.mt-8 { margin-top: 8px; }
 .mt-16 { margin-top: 16px; }
 .mt-24 { margin-top: 24px; }
 

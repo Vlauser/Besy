@@ -83,6 +83,20 @@
           <button class="btn" type="submit">Сменить пароль</button>
           <div class="hint mt-16">Остальные устройства будут разлогинены.</div>
         </form>`)}
+      ${section('Логин и адрес канала', `
+        <p class="hint">Логин — это и адрес вашего канала: <code>/@${escapeHtml(user.username)}</code>.
+          После смены старый адрес продолжит работать и останется закреплён за вами,
+          но ссылки, которыми вы уже делились, будут вести через переадресацию.
+          Менять можно раз в 14 дней.</p>
+        <form id="handle-form" class="mt-16">
+          <div class="field">
+            <label for="handle">Новый логин</label>
+            <input class="input" id="handle" name="username" value="${escapeHtml(user.username)}"
+                   pattern="[a-zA-Z0-9_]{3,24}" minlength="3" maxlength="24" required>
+            <div class="hint mt-8">3–24 символа: латиница, цифры и «_»</div>
+          </div>
+          <button class="btn" type="submit">Сменить логин</button>
+        </form>`)}
       ${section('Двухфакторная защита', twoFactorBlock)}
       ${section('Активные сессии', `${sessions}
         <button class="btn mt-16" id="revoke-others">Завершить все другие сессии</button>`)}
@@ -187,6 +201,22 @@
         render();
       } catch (err) {
         notify(err.message, 'error');
+      }
+    });
+
+    document.getElementById('handle-form')?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const username = document.getElementById('handle').value.trim();
+      const button = event.target.querySelector('button');
+      button.disabled = true;
+      try {
+        const { previous } = await api.post('/api/auth/me/username', { username });
+        notify(`Логин сменён. Старый адрес /@${previous} продолжит вести на ваш канал.`);
+        render();
+      } catch (err) {
+        notify(err.message, 'error');
+      } finally {
+        button.disabled = false;
       }
     });
 
