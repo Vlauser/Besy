@@ -133,10 +133,12 @@ let step = 'start';
   step = 'signing in again is impossible';
   const ghost = createClient();
   await ghost.get('/api/health');
+  // The field is `login`, not `username`: sending the wrong one fails for the
+  // wrong reason and the assertion would pass on any account.
   res = await ghost.post('/api/auth/login', {
-    username: pestUser.username, password: pestUser.password,
+    login: pestUser.username, password: pestUser.password,
   });
-  assert.ok(res.status >= 400, 'a deleted account must not be able to sign in');
+  assert.equal(res.status, 401, 'a deleted account must not be able to sign in');
 
   step = 'the channel is gone';
   res = await ghost.get(`/api/channels/${pestUser.username}`);

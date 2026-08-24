@@ -16,7 +16,8 @@
     "smoke:live": "node scripts/smoke-live.js",
     "smoke:growth": "node scripts/smoke-growth.js",
     "smoke:matching": "node scripts/smoke-matching.js",
-    "smoke:safety": "node scripts/smoke-safety.js"
+    "smoke:safety": "node scripts/smoke-safety.js",
+    "demo": "node scripts/demo.js"
   },
   "engines": {
     "node": ">=22.5.0"
