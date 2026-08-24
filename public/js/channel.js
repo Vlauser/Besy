@@ -15,13 +15,6 @@
 
   document.title = `${channel.displayName} — Besy`;
 
-  // Arrived on a handle this channel used to have: put the current one in the
-  // address bar without adding a history entry, so Back still works.
-  if (channel.movedFrom) {
-    history.replaceState(null, '', `/@${channel.username}`);
-    notify(`Канал переехал: @${channel.movedFrom} теперь @${channel.username}`);
-  }
-
   headEl.innerHTML = `
     <div class="channel-banner${channel.banner ? '' : ' is-empty'}">
       ${channel.banner ? `<img src="${escapeHtml(channel.banner)}" alt="">` : ''}

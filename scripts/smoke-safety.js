@@ -232,17 +232,15 @@ let step = 'start';
   step = 'the channel answers on the new handle';
   res = await owner.get(`/api/channels/${newHandle}`);
   assert.equal(res.status, 200);
-  assert.equal(res.data.channel.movedFrom, null, 'the current handle is not a redirect');
 
-  step = 'and still answers on the old one';
+  step = 'and the old handle stops resolving';
   res = await owner.get(`/api/channels/${ownerUser.username}`);
-  assert.equal(res.status, 200, 'links shared under the old handle must keep working');
-  assert.equal(res.data.channel.username, newHandle);
-  assert.equal(res.data.channel.movedFrom, ownerUser.username);
+  assert.equal(res.status, 404, 'a released handle must not still point at the channel');
 
-  step = 'the released handle is not up for grabs';
+  step = 'the released handle is free for anyone';
   res = await rival.post('/api/auth/me/username', { username: ownerUser.username });
-  assert.equal(res.status, 409, 'a freed handle must stay reserved to its previous owner');
+  assert.equal(res.status, 200, 'a released handle goes back into the pool');
+  assert.equal(res.data.user.username, ownerUser.username);
 
   step = 'changing again is refused until the cooldown passes';
   res = await owner.post('/api/auth/me/username', { username: `${newHandle}x`.slice(0, 24) });

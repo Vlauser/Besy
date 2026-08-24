@@ -284,15 +284,6 @@ CREATE TABLE IF NOT EXISTS user_blocks (
   PRIMARY KEY (blocker_id, blocked_id)
 );
 
--- Handles a channel used to answer on. Kept so old links still resolve, and so
--- a freed handle cannot be claimed by someone else the moment it is released —
--- which is how impersonation usually starts.
-CREATE TABLE IF NOT EXISTS username_history (
-  username    TEXT    PRIMARY KEY COLLATE NOCASE,
-  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  released_at INTEGER NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS playlists (
   id          TEXT    PRIMARY KEY,
   user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -381,6 +372,11 @@ function migrate() {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
     }
   }
+
+  // A handle used to be reserved to its previous owner after a rename. It is
+  // released immediately now, the way every other service does it, so the table
+  // that held those reservations goes.
+  db.exec('DROP TABLE IF EXISTS username_history');
 
   // Legacy rows stored bare file names; storage keys are prefixed folders now.
   db.exec(`UPDATE videos SET file_key  = 'videos/' || file_key  WHERE file_key  NOT LIKE '%/%'`);

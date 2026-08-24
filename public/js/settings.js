@@ -84,10 +84,12 @@
           <div class="hint mt-16">Остальные устройства будут разлогинены.</div>
         </form>`)}
       ${section('Логин и адрес канала', `
-        <p class="hint">Логин — это и адрес вашего канала: <code>/@${escapeHtml(user.username)}</code>.
-          После смены старый адрес продолжит работать и останется закреплён за вами,
-          но ссылки, которыми вы уже делились, будут вести через переадресацию.
-          Менять можно раз в 14 дней.</p>
+        <p class="hint">Логин — это и адрес вашего канала: <code>/@${escapeHtml(user.username)}</code>.</p>
+        <p class="hint mt-8"><strong>После смены старый адрес перестанет работать</strong> и сразу
+          освободится — его сможет занять кто угодно, включая того, кто захочет,
+          чтобы его приняли за вас. Ссылки на ваш канал в чужих постах, закладках
+          и описаниях видео перестанут вести куда нужно.</p>
+        <p class="hint mt-8">Менять можно раз в 14 дней.</p>
         <form id="handle-form" class="mt-16">
           <div class="field">
             <label for="handle">Новый логин</label>
@@ -210,8 +212,15 @@
       const button = event.target.querySelector('button');
       button.disabled = true;
       try {
+        const ok = await confirmAction(
+          `Адрес /@${document.getElementById('handle').defaultValue} перестанет работать и освободится. `
+          + 'Ссылки на ваш канал, которыми вы делились, перестанут вести куда нужно.',
+          { title: `Сменить логин на @${username}?`, confirmLabel: 'Сменить', danger: true },
+        );
+        if (!ok) { button.disabled = false; return; }
+
         const { previous } = await api.post('/api/auth/me/username', { username });
-        notify(`Логин сменён. Старый адрес /@${previous} продолжит вести на ваш канал.`);
+        notify(`Логин сменён. Адрес /@${previous} больше не ваш.`);
         render();
       } catch (err) {
         notify(err.message, 'error');

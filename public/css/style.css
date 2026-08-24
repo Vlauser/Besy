@@ -628,6 +628,8 @@ code {
 }
 
 .hint { color: var(--text-dim); font-size: 13px; }
+/* A warning inside a hint still has to read as a warning. */
+.hint strong { color: var(--text); font-weight: 600; }
 
 .alert {
   padding: 11px 14px;
