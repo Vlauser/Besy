@@ -9,7 +9,7 @@
   try {
     ({ channel } = await api.get(`/api/channels/${encodeURIComponent(username)}`));
   } catch (err) {
-    headEl.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div>${escapeHtml(err.message)}</div>`;
+    headEl.innerHTML = `<div class="empty"><div class="empty-icon">${icon('search', '', ICON_HERO)}</div>${escapeHtml(err.message)}</div>`;
     return;
   }
 
@@ -89,7 +89,7 @@
     const { videos } = await api.get(`/api/videos?channel=${encodeURIComponent(channel.username)}&limit=60`);
     gridEl.innerHTML = videos.length
       ? videos.map((v) => videoCard(v, { showAuthor: false })).join('')
-      : '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🎬</div>На этом канале пока нет видео</div>';
+      : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('film', '', ICON_HERO)}</div>На этом канале пока нет видео</div>`;
   }
 
   async function showPlaylists() {
@@ -99,14 +99,14 @@
         <div class="card">
           <a href="/playlist/${playlist.id}">
             <div class="thumb">
-              ${playlist.cover ? `<img src="${playlist.cover}" alt="" loading="lazy">` : '<div class="thumb-empty">☰</div>'}
+              ${playlist.cover ? `<img src="${playlist.cover}" alt="" loading="lazy">` : `<div class="thumb-empty">${icon('save', '', 30)}</div>`}
               <span class="badge">${playlist.count} ${fmt.plural(playlist.count, 'видео', 'видео', 'видео')}</span>
             </div>
             <div class="card-title">${escapeHtml(playlist.title)}</div>
           </a>
           <div class="card-meta">${playlist.visibility === 'public' ? 'Открытый' : playlist.visibility === 'unlisted' ? 'По ссылке' : 'Приватный'} · обновлён ${fmt.ago(playlist.updatedAt)}</div>
         </div>`).join('')
-      : '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">☰</div>Плейлистов пока нет</div>';
+      : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('save', '', ICON_HERO)}</div>Плейлистов пока нет</div>`;
   }
 
   async function showPosts() {
@@ -130,13 +130,13 @@
               <div class="card-meta">${fmt.ago(post.createdAt)}</div>
             </div>
             <span class="spacer"></span>
-            ${post.isOwner ? '<button class="btn btn-ghost" data-action="delete">✕</button>' : ''}
+            ${post.isOwner ? `<button class="btn btn-ghost btn-icon" data-action="delete" title="Удалить">${icon('close', 'Удалить')}</button>` : ''}
           </div>
           <div class="description-text mt-16">${escapeHtml(post.body)}</div>
           <div class="row mt-16">
-            <button class="btn${post.liked ? ' active' : ''}" data-action="like">👍 <span>${fmt.count(post.likes)}</span></button>
+            <button class="btn${post.liked ? ' active' : ''}" data-action="like">${icon('like')}<span>${fmt.count(post.likes)}</span></button>
           </div>
-        </div>`).join('') : '<div class="empty"><div class="empty-icon">💬</div>Записей пока нет</div>'}`;
+        </div>`).join('') : `<div class="empty"><div class="empty-icon">${icon('comment', '', ICON_HERO)}</div>Записей пока нет</div>`}`;
 
     gridEl.querySelector('#new-post')?.addEventListener('submit', async (event) => {
       event.preventDefault();

@@ -84,20 +84,20 @@ class BesyPlayer {
         <div class="player-tooltip" data-role="tooltip" hidden></div>
       </div>
       <div class="player-controls">
-        <button class="player-btn" data-role="play" title="Воспроизвести (k)">▶</button>
-        <button class="player-btn" data-role="next" title="Следующее видео (shift+n)" hidden>⏭</button>
+        <button class="player-btn" data-role="play" title="Воспроизвести (k)">${icon('play', 'Воспроизвести')}</button>
+        <button class="player-btn" data-role="next" title="Следующее видео (shift+n)" hidden>${icon('next', 'Следующее видео')}</button>
         <div class="player-volume">
-          <button class="player-btn" data-role="mute" title="Звук (m)">🔊</button>
+          <button class="player-btn" data-role="mute" title="Звук (m)">${icon('volume', 'Звук')}</button>
           <input type="range" min="0" max="1" step="0.05" value="1" data-role="volume" title="Громкость">
         </div>
         <span class="player-time" data-role="time">0:00 / 0:00</span>
         <span class="player-chapter" data-role="chapter-name"></span>
         <span class="player-spacer"></span>
         <button class="player-btn" data-role="cc" title="Субтитры (c)" hidden>CC</button>
-        <button class="player-btn" data-role="settings" title="Настройки">⚙</button>
-        <button class="player-btn" data-role="pip" title="Картинка в картинке (i)">⧉</button>
-        <button class="player-btn" data-role="theater" title="Режим театра (t)">▭</button>
-        <button class="player-btn" data-role="fullscreen" title="Во весь экран (f)">⛶</button>
+        <button class="player-btn" data-role="settings" title="Настройки">${icon('settings', 'Настройки')}</button>
+        <button class="player-btn" data-role="pip" title="Картинка в картинке (i)">${icon('pip', 'Картинка в картинке')}</button>
+        <button class="player-btn" data-role="theater" title="Режим театра (t)">${icon('theater', 'Режим театра')}</button>
+        <button class="player-btn" data-role="fullscreen" title="Во весь экран (f)">${icon('fullscreen', 'Во весь экран')}</button>
       </div>
       <div class="player-settings" data-role="settings-menu" hidden></div>
       <div class="player-toast" data-role="toast" hidden></div>`;
@@ -131,10 +131,11 @@ class BesyPlayer {
       v.muted = v.volume === 0;
     });
 
-    v.addEventListener('play', () => { this.el.play.textContent = '⏸'; this.root.classList.add('playing'); });
-    v.addEventListener('pause', () => { this.el.play.textContent = '▶'; this.root.classList.remove('playing'); });
+    v.addEventListener('play', () => { this.el.play.innerHTML = icon('pause', 'Пауза'); this.root.classList.add('playing'); });
+    v.addEventListener('pause', () => { this.el.play.innerHTML = icon('play', 'Воспроизвести'); this.root.classList.remove('playing'); });
     v.addEventListener('volumechange', () => {
-      this.el.mute.textContent = v.muted || v.volume === 0 ? '🔇' : v.volume < 0.5 ? '🔉' : '🔊';
+      const level = v.muted || v.volume === 0 ? 'mute' : v.volume < 0.5 ? 'volumeLow' : 'volume';
+      this.el.mute.innerHTML = icon(level, level === 'mute' ? 'Включить звук' : 'Выключить звук');
       this.el.volume.value = v.muted ? 0 : v.volume;
     });
     v.addEventListener('loadedmetadata', () => this.renderTime());

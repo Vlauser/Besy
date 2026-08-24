@@ -70,7 +70,7 @@
             </div>
             <select class="input" style="width:auto;padding:6px 10px" data-action="policy">${policyOptions(work.policy)}</select>
             <button class="btn" data-action="toggle">${work.active ? 'Отключить' : 'Включить'}</button>
-            <button class="btn btn-danger" data-action="remove">🗑</button>
+            <button class="btn btn-danger btn-icon" data-action="remove" title="Убрать">${icon('trash', 'Убрать')}</button>
           </div>`).join('')}` : ''}
 
       ${detections.length ? `
@@ -169,7 +169,7 @@
     panel.hidden = false;
 
     const { streams } = await api.get('/api/live/mine');
-    const STATUS = { idle: 'Ожидает подключения', live: '● В эфире', ended: 'Завершён' };
+    const STATUS = { idle: 'Ожидает подключения', live: 'В эфире', ended: 'Завершён' };
 
     box.innerHTML = `
       <form id="new-stream" class="row" style="gap:8px;margin-bottom:14px">
@@ -229,7 +229,7 @@
   async function loadVideos() {
     const { videos } = await api.get(`/api/videos?channel=${encodeURIComponent(auth.user.username)}&limit=60`);
     if (!videos.length) {
-      gridEl.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🎬</div>Вы ещё ничего не загрузили</div>';
+      gridEl.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('film', '', ICON_HERO)}</div>Вы ещё ничего не загрузили</div>`;
       return;
     }
 
@@ -242,24 +242,24 @@
         </label>
         <a class="card" href="/watch/${v.id}">
           <div class="thumb">
-            ${v.thumbUrl ? `<img src="${v.thumbUrl}" alt="" loading="lazy">` : '<div class="thumb-empty">▶</div>'}
+            ${v.thumbUrl ? `<img src="${v.thumbUrl}" alt="" loading="lazy">` : `<div class="thumb-empty">${icon('play', '', 30)}</div>`}
             ${v.visibility !== 'public' ? `<span class="badge">${VISIBILITY_LABELS[v.visibility]}</span>` : ''}
             ${v.duration ? `<span class="duration">${fmt.duration(v.duration)}</span>` : ''}
           </div>
           <div class="card-title">${escapeHtml(v.title)}</div>
         </a>
         ${statusLine(v)}
-        <div class="card-meta">${fmt.views(v.views)} · 👍 ${fmt.count(v.likes)} · 💬 ${fmt.count(v.comments)}</div>
+        <div class="card-meta stat-row">${fmt.views(v.views)}<span class="stat">${icon('like')}${fmt.count(v.likes)}</span><span class="stat">${icon('comment')}${fmt.count(v.comments)}</span></div>
         <div class="card-meta">${fmt.ago(v.createdAt)} · ${fmt.size(v.fileSize)}</div>
         <div class="row mt-16">
           <select class="input" style="width:auto;padding:6px 10px" data-action="visibility">
             ${Object.entries(VISIBILITY_LABELS).map(([value, label]) =>
               `<option value="${value}"${v.visibility === value ? ' selected' : ''}>${label}</option>`).join('')}
           </select>
-          <button class="btn" data-action="rename">✎ Изменить</button>
+          <button class="btn" data-action="rename">${icon('edit')}Изменить</button>
           <button class="btn" data-action="captions">CC</button>
-          <a class="btn" href="/analytics?video=${v.id}">📊</a>
-          <button class="btn btn-danger" data-action="delete">🗑</button>
+          <a class="btn btn-icon" href="/analytics?video=${v.id}" title="Аналитика">${icon('chart', 'Аналитика')}</a>
+          <button class="btn btn-danger btn-icon" data-action="delete" title="Удалить">${icon('trash', 'Удалить')}</button>
         </div>
       </div>`).join('');
 
@@ -270,20 +270,20 @@
   /** Keeps the studio in sync while the transcoder is still working. */
   function statusLine(video) {
     if (video.blocked) {
-      return `<div class="card-meta" style="color:var(--accent)">⛔ Заблокировано модерацией${
+      return `<div class="card-meta state-bad">${icon('ban')}Заблокировано модерацией${
         video.blockedReason ? `: ${escapeHtml(video.blockedReason)}` : ''}</div>`;
     }
     if (video.status === 'processing') {
       return `<div class="card-meta"><span class="status-dot" style="display:inline-block;margin-right:6px"></span>Обработка — ${video.progress || 0}%</div>`;
     }
     if (video.status === 'failed') {
-      return `<div class="card-meta" title="${escapeHtml(video.statusError || '')}">⚠ Без адаптивного качества</div>`;
+      return `<div class="card-meta state-warn" title="${escapeHtml(video.statusError || '')}">${icon('warning')}Без адаптивного качества</div>`;
     }
     if (video.publishAt && video.publishAt > Date.now()) {
-      return `<div class="card-meta">🕒 Публикация ${new Date(video.publishAt).toLocaleString('ru-RU')}</div>`;
+      return `<div class="card-meta stat-row">${icon('history')}Публикация ${new Date(video.publishAt).toLocaleString('ru-RU')}</div>`;
     }
     if (video.renditions?.length) {
-      return `<div class="card-meta">✓ ${video.renditions.map((r) => r.name).join(' · ')}</div>`;
+      return `<div class="card-meta state-ok">${icon('check')}${video.renditions.map((r) => r.name).join(' · ')}</div>`;
     }
     return '';
   }

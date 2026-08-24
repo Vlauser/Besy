@@ -4,7 +4,7 @@
   if (!auth.user) return auth.requireLogin('/moderation');
   if (!auth.user.isAdmin) {
     document.getElementById('content').innerHTML =
-      '<div class="empty"><div class="empty-icon">🔒</div>Раздел доступен только модераторам</div>';
+      `<div class="empty"><div class="empty-icon">${icon('lock', '', ICON_HERO)}</div>Раздел доступен только модераторам</div>`;
     document.getElementById('tabs').hidden = true;
     return;
   }
@@ -33,7 +33,7 @@
   async function renderReports() {
     const { reports } = await api.get('/api/moderation/reports');
     if (!reports.length) {
-      content.innerHTML = '<div class="empty"><div class="empty-icon">✅</div>Открытых жалоб нет</div>';
+      content.innerHTML = `<div class="empty"><div class="empty-icon state-ok">${icon('check', '', ICON_HERO)}</div>Открытых жалоб нет</div>`;
       return;
     }
 
@@ -65,7 +65,7 @@
   async function renderCopyright() {
     const { claims } = await api.get('/api/moderation/copyright');
     if (!claims.length) {
-      content.innerHTML = '<div class="empty"><div class="empty-icon">✅</div>Заявлений нет</div>';
+      content.innerHTML = `<div class="empty"><div class="empty-icon state-ok">${icon('check', '', ICON_HERO)}</div>Заявлений нет</div>`;
       return;
     }
 

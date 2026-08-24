@@ -9,7 +9,7 @@
   try {
     data = await api.get(`/api/playlists/${playlistId}`);
   } catch (err) {
-    headEl.innerHTML = `<div class="empty"><div class="empty-icon">🚫</div>${escapeHtml(err.message)}</div>`;
+    headEl.innerHTML = `<div class="empty"><div class="empty-icon">${icon('ban', '', ICON_HERO)}</div>${escapeHtml(err.message)}</div>`;
     return;
   }
 
@@ -22,7 +22,7 @@
   headEl.innerHTML = `
     <div class="channel-head">
       <div class="thumb" style="width:260px;margin:0">
-        ${playlist.cover ? `<img src="${playlist.cover}" alt="">` : '<div class="thumb-empty">☰</div>'}
+        ${playlist.cover ? `<img src="${playlist.cover}" alt="">` : `<div class="thumb-empty">${icon('save', '', 30)}</div>`}
       </div>
       <div style="flex:1;min-width:220px">
         <h1 style="margin-bottom:6px">${escapeHtml(playlist.title)}</h1>
@@ -33,9 +33,9 @@
         </div>
         ${playlist.description ? `<div class="hint mt-16" style="white-space:pre-wrap">${escapeHtml(playlist.description)}</div>` : ''}
         <div class="row mt-16">
-          ${videos.length ? `<a class="btn btn-primary" href="/watch/${videos[0].id}?list=${playlist.id}">▶ Смотреть подряд</a>` : ''}
-          ${isOwner ? '<button class="btn" id="edit-btn">✎ Изменить</button>' : ''}
-          ${isOwner ? '<button class="btn btn-danger" id="delete-btn">🗑 Удалить плейлист</button>' : ''}
+          ${videos.length ? `<a class="btn btn-primary" href="/watch/${videos[0].id}?list=${playlist.id}">${icon('play')}Смотреть подряд</a>` : ''}
+          ${isOwner ? `<button class="btn" id="edit-btn">${icon('edit')}Изменить</button>` : ''}
+          ${isOwner ? `<button class="btn btn-danger" id="delete-btn">${icon('trash')}Удалить плейлист</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -46,7 +46,7 @@
         <div class="related-item" data-id="${video.id}">
           <a href="/watch/${video.id}?list=${playlist.id}">
             <div class="thumb">
-              ${video.thumbUrl ? `<img src="${video.thumbUrl}" alt="" loading="lazy">` : '<div class="thumb-empty">▶</div>'}
+              ${video.thumbUrl ? `<img src="${video.thumbUrl}" alt="" loading="lazy">` : `<div class="thumb-empty">${icon('play', '', 30)}</div>`}
               ${video.duration ? `<span class="duration">${fmt.duration(video.duration)}</span>` : ''}
             </div>
           </a>
@@ -56,13 +56,13 @@
             <div class="card-meta">${fmt.views(video.views)} · ${fmt.ago(video.createdAt)}</div>
             ${isOwner ? `
               <div class="row mt-16">
-                <button class="btn" data-action="up" ${index === 0 ? 'disabled' : ''}>↑</button>
-                <button class="btn" data-action="down" ${index === videos.length - 1 ? 'disabled' : ''}>↓</button>
+                <button class="btn btn-icon" data-action="up" title="Выше" ${index === 0 ? 'disabled' : ''}>${icon('up', 'Выше')}</button>
+                <button class="btn btn-icon" data-action="down" title="Ниже" ${index === videos.length - 1 ? 'disabled' : ''}>${icon('down', 'Ниже')}</button>
                 <button class="btn btn-danger" data-action="remove">Убрать</button>
               </div>` : ''}
           </div>
         </div>`).join('')}</div>`
-      : '<div class="empty"><div class="empty-icon">☰</div>В плейлисте пока нет видео</div>';
+      : `<div class="empty"><div class="empty-icon">${icon('save', '', ICON_HERO)}</div>В плейлисте пока нет видео</div>`;
   }
 
   renderItems();

@@ -60,7 +60,7 @@
           <div class="row" style="gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
             <a href="/watch/${video.id}" style="width:96px;flex-shrink:0">
               <div class="thumb" style="margin:0">
-                ${video.thumbUrl ? `<img src="${video.thumbUrl}" alt="">` : '<div class="thumb-empty">▶</div>'}
+                ${video.thumbUrl ? `<img src="${video.thumbUrl}" alt="">` : `<div class="thumb-empty">${icon('play', '', 30)}</div>`}
               </div>
             </a>
             <div style="flex:1;min-width:0">

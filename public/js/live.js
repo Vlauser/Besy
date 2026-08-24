@@ -12,7 +12,7 @@
     if (!config.enabled) {
       grid.innerHTML = `
         <div class="empty" style="grid-column:1/-1">
-          <div class="empty-icon">📡</div>
+          <div class="empty-icon">${icon('live', '', ICON_HERO)}</div>
           Эфиры на этом сервере выключены.
           <div class="hint mt-16">Включаются переменной BESY_LIVE=on</div>
         </div>`;
@@ -24,8 +24,8 @@
         <div class="card">
           <a href="/watch/${stream.id}">
             <div class="thumb">
-              ${stream.thumbUrl ? `<img src="${stream.thumbUrl}" alt="" loading="lazy">` : '<div class="thumb-empty">📡</div>'}
-              <span class="badge" style="background:var(--accent)">● В ЭФИРЕ</span>
+              ${stream.thumbUrl ? `<img src="${stream.thumbUrl}" alt="" loading="lazy">` : `<div class="thumb-empty">${icon('live', '', 30)}</div>`}
+              <span class="live-badge">В эфире</span>
             </div>
             <div class="card-title">${escapeHtml(stream.title)}</div>
           </a>
@@ -35,7 +35,7 @@
           <div class="card-meta">начало ${fmt.ago(stream.createdAt)}</div>
         </div>`).join('')
       : `<div class="empty" style="grid-column:1/-1">
-           <div class="empty-icon">📡</div>Сейчас никто не транслирует
+           <div class="empty-icon">${icon('live', '', ICON_HERO)}</div>Сейчас никто не транслирует
            <div class="mt-24"><a class="btn btn-primary" href="/studio">Начать свой эфир</a></div>
          </div>`;
   }

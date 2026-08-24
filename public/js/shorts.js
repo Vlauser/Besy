@@ -20,9 +20,9 @@
               <div class="card-meta">${fmt.views(video.views)} · ${fmt.ago(video.createdAt)}</div>
             </div>
             <div class="short-actions">
-              <button class="short-btn" data-action="like" title="Нравится">👍<span>${fmt.count(video.likes)}</span></button>
-              <button class="short-btn" data-action="mute" title="Звук">🔇</button>
-              <a class="short-btn" href="/watch/${video.id}" title="Открыть страницу">↗</a>
+              <button class="short-btn" data-action="like" title="Нравится">${icon('like', 'Нравится')}<span>${fmt.count(video.likes)}</span></button>
+              <button class="short-btn" data-action="mute" title="Звук">${icon('mute', 'Звук')}</button>
+              <a class="short-btn" href="/watch/${video.id}" title="Открыть страницу">${icon('share', 'Открыть страницу')}</a>
             </div>
           </div>
         </div>
@@ -40,7 +40,7 @@
       if (!data.videos.length && !feed.children.length) {
         feed.innerHTML = `
           <div class="empty" style="color:#fff">
-            <div class="empty-icon">📱</div>
+            <div class="empty-icon">${icon('phone', '', ICON_HERO)}</div>
             Пока нет вертикальных видео.<br>Загрузите ролик в вертикальном формате короче минуты.
             <div class="mt-24"><a class="btn btn-primary" href="/upload">Загрузить</a></div>
           </div>`;
@@ -109,7 +109,7 @@
     if (button.dataset.action === 'mute') {
       const media = node.querySelector('video');
       media.muted = !media.muted;
-      button.textContent = media.muted ? '🔇' : '🔊';
+      button.innerHTML = icon(media.muted ? 'mute' : 'volume', 'Звук');
       return;
     }
 

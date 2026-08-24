@@ -12,7 +12,7 @@
         <div class="card" data-id="${video.id}">
           <a href="/watch/${video.id}">
             <div class="thumb">
-              ${video.thumbUrl ? `<img src="${video.thumbUrl}" alt="" loading="lazy">` : '<div class="thumb-empty">▶</div>'}
+              ${video.thumbUrl ? `<img src="${video.thumbUrl}" alt="" loading="lazy">` : `<div class="thumb-empty">${icon('play', '', 30)}</div>`}
               ${video.duration ? `<span class="duration">${fmt.duration(video.duration)}</span>` : ''}
             </div>
             <div class="card-title">${escapeHtml(video.title)}</div>
@@ -23,10 +23,10 @@
           <div class="row">
             <span class="card-meta">${fmt.views(video.views)}</span>
             <span class="spacer"></span>
-            <button class="btn btn-ghost" data-remove="${video.id}" title="Убрать">✕</button>
+            <button class="btn btn-ghost btn-icon" data-remove="${video.id}" title="Убрать">${icon('close', 'Убрать')}</button>
           </div>
         </div>`).join('')
-      : '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🔖</div>Список пуст</div>';
+      : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('later', '', ICON_HERO)}</div>Список пуст</div>`;
   }
 
   grid.addEventListener('click', async (event) => {

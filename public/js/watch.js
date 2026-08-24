@@ -52,7 +52,7 @@
   } catch (err) {
     console.error(err);
     document.getElementById('main-col').innerHTML =
-      `<div class="empty"><div class="empty-icon">🚫</div>${escapeHtml(err.message)}</div>`;
+      `<div class="empty"><div class="empty-icon">${icon('ban', '', ICON_HERO)}</div>${escapeHtml(err.message)}</div>`;
     return;
   }
 
@@ -62,7 +62,7 @@
     if (isLive) {
       titleEl.insertAdjacentHTML('afterbegin',
         `<span class="live-badge${video.liveStatus === 'live' ? '' : ' off'}">${
-          video.liveStatus === 'live' ? '● В ЭФИРЕ' : 'ЭФИР ЗАВЕРШЁН'}</span> `);
+          video.liveStatus === 'live' ? 'В эфире' : 'Эфир завершён'}</span> `);
     }
 
     nextVideo = queueNext() || related[0] || null;
@@ -127,7 +127,7 @@
       ? related.map((v) => `
         <a class="related-item" href="/watch/${v.id}">
           <div class="thumb">
-            ${v.thumbUrl ? `<img src="${v.thumbUrl}" alt="" loading="lazy">` : '<div class="thumb-empty">▶</div>'}
+            ${v.thumbUrl ? `<img src="${v.thumbUrl}" alt="" loading="lazy">` : `<div class="thumb-empty">${icon('play', '', 30)}</div>`}
             ${v.duration ? `<span class="duration">${fmt.duration(v.duration)}</span>` : ''}
           </div>
           <div>
@@ -163,9 +163,9 @@
           ${queue.videos.map((item, index) => `
             <a class="queue-item${item.id === video.id ? ' current' : ''}"
                href="/watch/${item.id}?list=${queue.playlist.id}">
-              <span class="card-meta">${item.id === video.id ? '▶' : index + 1}</span>
+              <span class="card-meta">${item.id === video.id ? icon('play', 'Сейчас играет') : index + 1}</span>
               <div class="thumb">
-                ${item.thumbUrl ? `<img src="${item.thumbUrl}" alt="" loading="lazy">` : '<div class="thumb-empty">▶</div>'}
+                ${item.thumbUrl ? `<img src="${item.thumbUrl}" alt="" loading="lazy">` : `<div class="thumb-empty">${icon('play', '', 30)}</div>`}
               </div>
               <div>
                 <div class="card-title" style="font-size:13px">${escapeHtml(item.title)}</div>
@@ -196,7 +196,7 @@
 
     if (video.status === 'failed' && video.isOwner) {
       statusBanner.innerHTML = `
-        <div class="status-banner">⚠ Не удалось подготовить адаптивные версии: ${escapeHtml(video.statusError || 'ошибка обработки')}.
+        <div class="status-banner">${icon('warning')}Не удалось подготовить адаптивные версии: ${escapeHtml(video.statusError || 'ошибка обработки')}.
         Видео доступно в исходном качестве.</div>`;
       return;
     }
@@ -625,7 +625,7 @@
             <div class="comment-head">
               <a class="comment-author" href="/@${escapeHtml(c.author.username)}">${escapeHtml(c.author.displayName)}</a>
               <span class="comment-time">${fmt.ago(c.createdAt)}</span>
-              ${c.isOwner || video.isOwner ? '<button class="comment-del" title="Удалить">✕</button>' : ''}
+              ${c.isOwner || video.isOwner ? `<button class="comment-del" title="Удалить">${icon('close', 'Удалить')}</button>` : ''}
             </div>
             <div class="comment-body">${escapeHtml(c.body)}</div>
           </div>

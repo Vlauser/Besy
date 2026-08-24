@@ -34,7 +34,7 @@
       const { videos } = await api.get('/api/me/recommended');
       grid.innerHTML = videos.length
         ? videos.map((v) => videoCard(v)).join('')
-        : '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">✨</div>Посмотрите несколько роликов — и здесь появятся рекомендации</div>';
+        : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('compass', '', ICON_HERO)}</div>Посмотрите несколько роликов — и здесь появятся рекомендации</div>`;
       return;
     }
 
@@ -42,7 +42,7 @@
       const { videos } = await api.get('/api/channels/me/feed');
       grid.innerHTML = videos.length
         ? videos.map((v) => videoCard(v)).join('')
-        : '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">📭</div>Пока нет видео от каналов, на которые вы подписаны</div>';
+        : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('inbox', '', ICON_HERO)}</div>Пока нет видео от каналов, на которые вы подписаны</div>`;
       return;
     }
 
@@ -60,7 +60,7 @@
     if (reset) {
       grid.innerHTML = html || `
         <div class="empty" style="grid-column:1/-1">
-          <div class="empty-icon">🎬</div>
+          <div class="empty-icon">${icon('film', '', ICON_HERO)}</div>
           ${query ? 'Ничего не найдено' : 'Пока нет ни одного видео — станьте первым!'}
         </div>`;
     } else {
