@@ -196,6 +196,46 @@ router.get('/captions/:videoId/:file', async (req, res, next) => {
   }
 });
 
+/* ------------------------------------------------------------- artwork */
+
+const ARTWORK = {
+  avatar: 'avatar_file',
+  banner: 'banner_file',
+};
+
+const CONTENT_TYPES = {
+  '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif',
+};
+
+// Channel artwork is public by definition — it is what a channel looks like.
+for (const [kind, column] of Object.entries(ARTWORK)) {
+  router.get(`/${kind}/:username`, async (req, res, next) => {
+    const row = db.prepare(`SELECT ${column} AS key FROM users WHERE lower(username) = lower(?)`)
+      .get(req.params.username);
+    if (!row || !row.key) return res.status(404).end();
+
+    try {
+      const info = await storage.stat(row.key);
+      if (!info) return res.status(404).end();
+      // Artwork keeps its URL when it is replaced, so a plain max-age would
+      // serve the old picture for as long as it lasts. Revalidating against an
+      // ETag costs one conditional request and answers 304 while nothing
+      // changed.
+      const etag = `"${info.size}-${info.mtime || 0}"`;
+      res.setHeader('ETag', etag);
+      res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      if (req.headers['if-none-match'] === etag) return res.status(304).end();
+
+      const ext = row.key.slice(row.key.lastIndexOf('.'));
+      res.setHeader('Content-Type', CONTENT_TYPES[ext] || 'application/octet-stream');
+      res.setHeader('Content-Length', info.size);
+      pipeStream(await storage.getStream(row.key), res);
+    } catch (err) {
+      next(err);
+    }
+  });
+}
+
 router.get('/thumb/:id', async (req, res, next) => {
   const row = db.prepare('SELECT id, thumb_key, visibility, user_id FROM videos WHERE id = ?')
     .get(req.params.id);

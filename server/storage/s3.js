@@ -67,7 +67,7 @@ class S3Storage {
         Bucket: this.bucket,
         Key: this.objectKey(key),
       }));
-      return { size: Number(res.ContentLength) };
+      return { size: Number(res.ContentLength), mtime: res.LastModified ? res.LastModified.getTime() : 0 };
     } catch {
       return null;
     }

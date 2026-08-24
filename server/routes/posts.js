@@ -32,7 +32,7 @@ function shapePost(row, viewer) {
 }
 
 const SELECT = `
-  SELECT p.*, u.username, u.display_name,
+  SELECT p.*, u.username, u.display_name, u.avatar_file,
          (SELECT COUNT(*) FROM post_likes l WHERE l.post_id = p.id) AS likes
   FROM posts p JOIN users u ON u.id = p.user_id
 `;

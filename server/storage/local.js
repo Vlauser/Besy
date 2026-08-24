@@ -47,7 +47,7 @@ class LocalStorage {
   async stat(key) {
     try {
       const stats = await fsp.stat(this.resolve(key));
-      return { size: stats.size };
+      return { size: stats.size, mtime: Math.floor(stats.mtimeMs) };
     } catch {
       return null;
     }

@@ -51,6 +51,8 @@ const keys = {
   hlsDir: (id) => `hls/${id}`,
   hlsMaster: (id) => `hls/${id}/master.m3u8`,
   hlsFile: (id, name) => `hls/${id}/${name}`,
+  avatar: (userId, ext) => `avatars/${userId}${ext}`,
+  banner: (userId, ext) => `banners/${userId}${ext}`,
   caption: (videoId, captionId) => `captions/${videoId}/${captionId}.vtt`,
   captionDir: (videoId) => `captions/${videoId}`,
 };

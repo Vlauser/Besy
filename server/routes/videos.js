@@ -166,12 +166,13 @@ function shapeVideo(row, viewer, req) {
       id: row.user_id,
       username: row.username,
       displayName: row.display_name,
+      avatar: row.avatar_file ? `/media/avatar/${row.username}` : null,
     },
   };
 }
 
 const LIST_SELECT = `
-  SELECT v.*, u.username, u.display_name,
+  SELECT v.*, u.username, u.display_name, u.avatar_file,
          (SELECT COUNT(*) FROM reactions r WHERE r.video_id = v.id AND r.value =  1) AS likes,
          (SELECT COUNT(*) FROM reactions r WHERE r.video_id = v.id AND r.value = -1) AS dislikes,
          (SELECT COUNT(*) FROM comments c WHERE c.video_id = v.id)                   AS comment_count
@@ -623,7 +624,7 @@ function spamProblem(body, userId, videoId) {
 
 router.get('/:id/comments', (req, res) => {
   const rows = db.prepare(`
-    SELECT c.id, c.body, c.created_at, u.id AS user_id, u.username, u.display_name
+    SELECT c.id, c.body, c.created_at, u.id AS user_id, u.username, u.display_name, u.avatar_file
     FROM comments c JOIN users u ON u.id = c.user_id
     WHERE c.video_id = ?
     ORDER BY c.created_at DESC

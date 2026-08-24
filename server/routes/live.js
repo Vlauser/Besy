@@ -49,7 +49,7 @@ router.get('/config', (req, res) => {
 // GET /api/live — streams that are on air right now
 router.get('/', (req, res) => {
   const rows = db.prepare(`
-    SELECT v.*, u.username, u.display_name FROM videos v JOIN users u ON u.id = v.user_id
+    SELECT v.*, u.username, u.display_name, u.avatar_file FROM videos v JOIN users u ON u.id = v.user_id
     WHERE v.kind = 'live' AND v.live_status = 'live'
       AND v.visibility = 'public' AND v.blocked_at IS NULL
     ORDER BY v.created_at DESC LIMIT 40
@@ -132,7 +132,7 @@ router.get('/:id/chat', (req, res) => {
 
   const after = Number(req.query.after) || 0;
   const rows = db.prepare(`
-    SELECT m.*, u.username, u.display_name FROM live_messages m
+    SELECT m.*, u.username, u.display_name, u.avatar_file FROM live_messages m
     JOIN users u ON u.id = m.user_id
     WHERE m.video_id = ? AND m.id > ?
     ORDER BY m.id LIMIT 200

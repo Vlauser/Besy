@@ -363,6 +363,7 @@ function migrate() {
     ['sessions', 'last_seen_at', 'INTEGER NOT NULL DEFAULT 0'],
     ['playlists', 'system', 'TEXT'],
     ['reports', 'reported_user_id', 'INTEGER REFERENCES users(id) ON DELETE CASCADE'],
+    ['users', 'banner_file', 'TEXT'],
   ];
 
   for (const [table, column, definition] of additions) {

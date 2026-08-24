@@ -115,7 +115,7 @@
         await api.post('/api/auth/verify/resend');
         event.target.textContent = 'Письмо отправлено';
       } catch (err) {
-        alert(err.message);
+        notify(err.message, 'error');
         event.target.disabled = false;
       }
     });
@@ -129,10 +129,10 @@
           newPassword: form.newPassword.value,
         });
         form.reset();
-        alert('Пароль изменён');
+        notify('Пароль изменён');
         render();
       } catch (err) {
-        alert(err.message);
+        notify(err.message, 'error');
       }
     });
 
@@ -171,11 +171,11 @@
               <button class="btn" id="twofa-done">Я сохранил коды</button>`;
             document.getElementById('twofa-done').addEventListener('click', render);
           } catch (err) {
-            alert(err.message);
+            notify(err.message, 'error');
           }
         });
       } catch (err) {
-        alert(err.message);
+        notify(err.message, 'error');
         event.target.disabled = false;
       }
     });
@@ -186,7 +186,7 @@
         await api.post('/api/auth/2fa/disable', { password: event.target.password.value });
         render();
       } catch (err) {
-        alert(err.message);
+        notify(err.message, 'error');
       }
     });
 
@@ -210,7 +210,7 @@
           render();
         } catch (err) {
           button.disabled = false;
-          alert(err.message);
+          notify(err.message, 'error');
         }
       });
     });
@@ -218,7 +218,11 @@
     document.getElementById('delete-form')?.addEventListener('submit', async (event) => {
       event.preventDefault();
       const password = document.getElementById('del-pass').value;
-      if (!confirm('Удалить аккаунт вместе с видео, комментариями и подписками? Отменить будет нельзя.')) return;
+      if (!await confirmAction(
+        'Удалятся канал, все видео, комментарии, плейлисты и подписки. '
+        + 'Отменить нельзя, имя канала освободится.',
+        { title: 'Удалить аккаунт навсегда?', confirmLabel: 'Удалить аккаунт', danger: true },
+      )) return;
 
       const button = event.target.querySelector('button');
       button.disabled = true;
@@ -227,7 +231,7 @@
         location.href = '/';
       } catch (err) {
         button.disabled = false;
-        alert(err.message);
+        notify(err.message, 'error');
       }
     });
   }

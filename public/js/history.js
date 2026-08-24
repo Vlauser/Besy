@@ -40,7 +40,8 @@
   });
 
   document.getElementById('clear-btn').addEventListener('click', async () => {
-    if (!confirm('Очистить всю историю просмотров?')) return;
+    if (!await confirmAction('Позиции воспроизведения тоже сотрутся — видео начнутся сначала.',
+      { title: 'Очистить историю?', confirmLabel: 'Очистить', danger: true })) return;
     await api.del('/api/me/history');
     load();
   });

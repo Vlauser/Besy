@@ -85,7 +85,7 @@ router.delete('/notifications', requireAuth, (req, res) => {
 
 router.get('/history', requireAuth, (req, res) => {
   const rows = db.prepare(`
-    SELECT v.*, u.username, u.display_name, h.position, h.updated_at AS watched_at
+    SELECT v.*, u.username, u.display_name, u.avatar_file, h.position, h.updated_at AS watched_at
     FROM watch_history h
     JOIN videos v ON v.id = h.video_id
     JOIN users u ON u.id = v.user_id
@@ -134,7 +134,7 @@ function watchLaterPlaylist(userId) {
 router.get('/watch-later', requireAuth, (req, res) => {
   const playlist = watchLaterPlaylist(req.user.id);
   const rows = db.prepare(`
-    SELECT v.*, u.username, u.display_name, i.added_at
+    SELECT v.*, u.username, u.display_name, u.avatar_file, i.added_at
     FROM playlist_items i
     JOIN videos v ON v.id = i.video_id
     JOIN users u ON u.id = v.user_id
@@ -200,7 +200,7 @@ router.get('/recommended', requireAuth, (req, res) => {
   );
 
   const candidates = db.prepare(`
-    SELECT v.*, u.username, u.display_name FROM videos v JOIN users u ON u.id = v.user_id
+    SELECT v.*, u.username, u.display_name, u.avatar_file FROM videos v JOIN users u ON u.id = v.user_id
     WHERE v.visibility = 'public' AND v.blocked_at IS NULL AND v.is_short = 0
       AND (v.publish_at IS NULL OR v.publish_at <= ?)
     ORDER BY v.created_at DESC LIMIT 300

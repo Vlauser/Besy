@@ -29,6 +29,8 @@ router.get('/:username', (req, res) => {
       username: user.username,
       displayName: user.display_name,
       about: user.about,
+      avatar: user.avatar_file ? `/media/avatar/${user.username}` : null,
+      banner: user.banner_file ? `/media/banner/${user.username}` : null,
       createdAt: user.created_at,
       videos: stats.videos,
       views: stats.views,
@@ -65,7 +67,7 @@ router.post('/:username/subscribe', requireAuth, (req, res) => {
 // Feed of videos from channels the current user follows.
 router.get('/me/feed', requireAuth, (req, res) => {
   const rows = db.prepare(`
-    SELECT v.*, u.username, u.display_name,
+    SELECT v.*, u.username, u.display_name, u.avatar_file,
            (SELECT COUNT(*) FROM reactions r WHERE r.video_id = v.id AND r.value = 1) AS likes
     FROM videos v
     JOIN users u ON u.id = v.user_id

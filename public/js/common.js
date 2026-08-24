@@ -33,6 +33,8 @@ const api = {
   post: (url, body) => api.request('POST', url, body),
   patch: (url, body) => api.request('PATCH', url, body),
   del: (url, body) => api.request('DELETE', url, body),
+  /** Multipart POST: fetch sets its own boundary, so no Content-Type here. */
+  upload: (url, formData) => api.request('POST', url, undefined, { body: formData }),
 };
 
 const fmt = {
@@ -95,6 +97,18 @@ function initials(name) {
   return String(name || '?').trim().slice(0, 1).toUpperCase();
 }
 
+/**
+ * The inside of an avatar: the uploaded picture when there is one, the first
+ * letter otherwise. Callers keep owning the element and its class, because an
+ * avatar is a link in the header, a span in a comment and a div on a channel.
+ */
+function avatarInner(person) {
+  const src = person && (person.avatar || person.avatarUrl);
+  return src
+    ? `<img src="${escapeHtml(src)}" alt="">`
+    : initials(person && person.displayName);
+}
+
 const auth = {
   user: null,
   async load() {
@@ -125,7 +139,7 @@ function renderHeader() {
       <button class="btn btn-ghost btn-icon" id="bell-btn" title="Уведомления">${icon('bell', 'Уведомления')}<span class="bell-dot" hidden></span></button>
       ${auth.user.isAdmin ? `<a class="btn btn-ghost btn-icon" href="/moderation" title="Модерация">${icon('shield', 'Модерация')}</a>` : ''}
       <a class="btn btn-ghost btn-icon" href="/settings" title="Аккаунт и безопасность">${icon('settings', 'Аккаунт и безопасность')}</a>
-      <a class="avatar" href="/@${escapeHtml(auth.user.username)}" title="${escapeHtml(auth.user.displayName)}">${initials(auth.user.displayName)}</a>
+      <a class="avatar" href="/@${escapeHtml(auth.user.username)}" title="${escapeHtml(auth.user.displayName)}">${avatarInner(auth.user)}</a>
       <button class="btn btn-ghost" id="logout-btn">Выйти</button>`
     : `
       <a class="btn btn-ghost" href="/auth">Войти</a>
@@ -400,7 +414,7 @@ async function openReportDialog({ title = 'Пожаловаться', extra = ''
       });
       modal.body.innerHTML = '<div class="alert alert-ok">Жалоба отправлена — модераторы её рассмотрят.</div>';
     } catch (err) {
-      alert(err.message);
+      notify(err.message, 'error');
     }
   });
 
@@ -434,6 +448,113 @@ function openModal(title, bodyHtml, { wide = false } = {}) {
   document.body.appendChild(overlay);
 
   return { overlay, body: overlay.querySelector('.modal-body'), close };
+}
+
+/*
+ * Dialogs and notices, on the same modal the rest of the interface uses.
+ *
+ * The browser's own confirm() and alert() were doing this job, and they arrive
+ * in the operating system's dress rather than the product's, block the whole
+ * page, and cannot say which of two things a destructive button will do. These
+ * return promises so callers read the same as before: `if (!await confirmAction(…)) return;`
+ */
+
+/** Asks once. Resolves true only when the confirming button is pressed. */
+function confirmAction(message, { title = 'Подтвердите', confirmLabel = 'Продолжить', danger = false } = {}) {
+  return new Promise((resolve) => {
+    let decided = false;
+    const modal = openModal(title, `
+      <p class="dialog-text">${escapeHtml(message).replace(/\n/g, '<br>')}</p>
+      <div class="dialog-actions">
+        <button class="btn" data-dialog="cancel">Отмена</button>
+        <button class="btn ${danger ? 'btn-danger-solid' : 'btn-primary'}" data-dialog="ok">${escapeHtml(confirmLabel)}</button>
+      </div>`);
+
+    const finish = (value) => {
+      if (decided) return;
+      decided = true;
+      resolve(value);
+      modal.close();
+    };
+
+    modal.body.querySelector('[data-dialog="ok"]').addEventListener('click', () => finish(true));
+    modal.body.querySelector('[data-dialog="cancel"]').addEventListener('click', () => finish(false));
+    modal.overlay.addEventListener('click', (event) => {
+      // Dismissing by backdrop or Escape is a decision too, and it is "no".
+      if (event.target === modal.overlay) finish(false);
+    });
+    modal.body.querySelector('[data-dialog="ok"]').focus();
+  });
+}
+
+/** Asks for one line of text. Resolves null when dismissed. */
+function promptAction(message, { title = 'Введите значение', value = '', confirmLabel = 'Сохранить', multiline = false, maxLength = 500 } = {}) {
+  return new Promise((resolve) => {
+    let decided = false;
+    const field = multiline
+      ? `<textarea class="input" id="dialog-input" rows="4" maxlength="${maxLength}">${escapeHtml(value)}</textarea>`
+      : `<input class="input" id="dialog-input" value="${escapeHtml(value)}" maxlength="${maxLength}">`;
+
+    const modal = openModal(title, `
+      <form id="dialog-form">
+        <div class="field">
+          <label for="dialog-input">${escapeHtml(message)}</label>
+          ${field}
+        </div>
+        <div class="dialog-actions">
+          <button class="btn" type="button" data-dialog="cancel">Отмена</button>
+          <button class="btn btn-primary" type="submit">${escapeHtml(confirmLabel)}</button>
+        </div>
+      </form>`);
+
+    const finish = (result) => {
+      if (decided) return;
+      decided = true;
+      resolve(result);
+      modal.close();
+    };
+
+    const input = modal.body.querySelector('#dialog-input');
+    modal.body.querySelector('#dialog-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      finish(input.value);
+    });
+    modal.body.querySelector('[data-dialog="cancel"]').addEventListener('click', () => finish(null));
+    modal.overlay.addEventListener('click', (event) => {
+      if (event.target === modal.overlay) finish(null);
+    });
+    input.focus();
+    input.select();
+  });
+}
+
+/**
+ * A notice that does not need answering. Stacks in the corner and leaves on its
+ * own, so a failed save no longer stops the page until someone clicks OK.
+ */
+function notify(message, kind = 'info', { timeout = 5000 } = {}) {
+  let host = document.querySelector('.toast-host');
+  if (!host) {
+    host = document.createElement('div');
+    host.className = 'toast-host';
+    host.setAttribute('role', 'status');
+    host.setAttribute('aria-live', 'polite');
+    document.body.appendChild(host);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${kind}`;
+  toast.innerHTML = `${icon(kind === 'error' ? 'warning' : 'check')}<span></span>`;
+  toast.querySelector('span').textContent = message;
+  host.appendChild(toast);
+
+  const remove = () => {
+    toast.classList.add('leaving');
+    setTimeout(() => toast.remove(), 200);
+  };
+  toast.addEventListener('click', remove);
+  setTimeout(remove, timeout);
+  return toast;
 }
 
 /**

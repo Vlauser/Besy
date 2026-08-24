@@ -126,7 +126,12 @@
 
     try {
       if (action === 'block' || action === 'strike') {
-        const reason = prompt('Причина блокировки:', 'Нарушение правил сообщества');
+        const reason = await promptAction('Она попадёт в аудит-лог и будет видна автору.', {
+          title: 'Причина блокировки',
+          value: 'Нарушение правил сообщества',
+          confirmLabel: 'Заблокировать',
+          multiline: true,
+        });
         if (reason === null) return;
         await api.post(`/api/moderation/videos/${button.dataset.video}/block`, {
           reason, strike: action === 'strike',
@@ -147,7 +152,7 @@
       }
       refresh();
     } catch (err) {
-      alert(err.message);
+      notify(err.message, 'error');
     }
   });
 

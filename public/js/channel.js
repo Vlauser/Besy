@@ -16,8 +16,26 @@
   document.title = `${channel.displayName} — Besy`;
 
   headEl.innerHTML = `
+    <div class="channel-banner${channel.banner ? '' : ' is-empty'}">
+      ${channel.banner ? `<img src="${escapeHtml(channel.banner)}" alt="">` : ''}
+      ${channel.isOwner ? `
+        <div class="artwork-actions">
+          <label class="btn btn-ghost">
+            ${icon('upload')}${channel.banner ? 'Заменить шапку' : 'Добавить шапку'}
+            <input type="file" accept="image/*" hidden data-artwork="banner">
+          </label>
+          ${channel.banner ? `<button class="btn btn-ghost btn-icon" data-artwork-remove="banner" title="Убрать шапку">${icon('trash', 'Убрать шапку')}</button>` : ''}
+        </div>` : ''}
+    </div>
     <div class="channel-head">
-      <div class="avatar avatar-lg">${initials(channel.displayName)}</div>
+      <div class="avatar avatar-lg${channel.isOwner ? ' avatar-editable' : ''}">
+        ${avatarInner(channel)}
+        ${channel.isOwner ? `
+          <label class="avatar-edit" title="Сменить аватар">
+            ${icon('edit', 'Сменить аватар')}
+            <input type="file" accept="image/*" hidden data-artwork="avatar">
+          </label>` : ''}
+      </div>
       <div>
         <h1 style="margin-bottom:4px">${escapeHtml(channel.displayName)}</h1>
         <div class="channel-stats">
@@ -36,23 +54,54 @@
            <button class="btn btn-ghost btn-danger" id="channel-block">Заблокировать</button>`}
     </div>`;
 
+  // Artwork uploads: the file input is inside its label, so picking a file is
+  // the whole interaction — there is no separate confirm step to forget.
+  headEl.querySelectorAll('[data-artwork]').forEach((input) => {
+    input.addEventListener('change', async () => {
+      const file = input.files[0];
+      if (!file) return;
+      const form = new FormData();
+      form.append('image', file);
+      try {
+        await api.upload(`/api/branding/${input.dataset.artwork}`, form);
+        location.reload();
+      } catch (err) {
+        notify(err.message, 'error');
+        input.value = '';
+      }
+    });
+  });
+
+  headEl.querySelectorAll('[data-artwork-remove]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await api.del(`/api/branding/${button.dataset.artworkRemove}`);
+        location.reload();
+      } catch (err) {
+        button.disabled = false;
+        notify(err.message, 'error');
+      }
+    });
+  });
+
   // Blocking is the strongest thing one person can do to another here, so it
   // asks once and says exactly what it will do.
   document.getElementById('channel-block')?.addEventListener('click', async () => {
     if (!auth.user) return auth.requireLogin();
-    const ok = confirm(
-      `Заблокировать ${channel.username}?\n\n`
-      + 'Этот канал больше не сможет комментировать ваши видео, писать в чат ваших '
+    const ok = await confirmAction(
+      'Этот канал больше не сможет комментировать ваши видео, писать в чат ваших '
       + 'эфиров и подписываться на вас. Взаимные подписки будут сняты. '
       + 'Пользователь об этом не узнает.',
+      { title: `Заблокировать ${channel.username}?`, confirmLabel: 'Заблокировать', danger: true },
     );
     if (!ok) return;
     try {
       await api.post('/api/me/blocks', { username: channel.username });
-      alert(`${channel.username} заблокирован. Снять блокировку можно в настройках аккаунта.`);
+      notify(`${channel.username} заблокирован. Снять блокировку можно в настройках аккаунта.`);
       location.reload();
     } catch (err) {
-      alert(err.message);
+      notify(err.message, 'error');
     }
   });
 
@@ -124,7 +173,7 @@
       ${posts.length ? posts.map((post) => `
         <div class="panel" style="margin-bottom:12px" data-post="${post.id}">
           <div class="row" style="gap:10px">
-            <span class="avatar">${initials(post.author.displayName)}</span>
+            <span class="avatar">${avatarInner(post.author)}</span>
             <div>
               <strong>${escapeHtml(post.author.displayName)}</strong>
               <div class="card-meta">${fmt.ago(post.createdAt)}</div>
@@ -146,7 +195,7 @@
         await api.post('/api/posts', { body });
         showPosts();
       } catch (err) {
-        alert(err.message);
+        notify(err.message, 'error');
       }
     });
 
@@ -155,7 +204,8 @@
         const id = button.closest('[data-post]').dataset.post;
         try {
           if (button.dataset.action === 'delete') {
-            if (!confirm('Удалить запись?')) return;
+            if (!await confirmAction('Запись исчезнет у всех, кто её видел.',
+              { title: 'Удалить запись?', confirmLabel: 'Удалить', danger: true })) return;
             await api.del(`/api/posts/${id}`);
             showPosts();
           } else {
@@ -165,7 +215,7 @@
             button.querySelector('span').textContent = fmt.count(res.likes);
           }
         } catch (err) {
-          alert(err.message);
+          notify(err.message, 'error');
         }
       });
     });

@@ -26,7 +26,7 @@ function shapePlaylist(row, viewer) {
 }
 
 const LIST_SELECT = `
-  SELECT p.*, u.username, u.display_name,
+  SELECT p.*, u.username, u.display_name, u.avatar_file,
          (SELECT COUNT(*) FROM playlist_items i WHERE i.playlist_id = p.id) AS item_count,
          (SELECT i.video_id FROM playlist_items i
            JOIN videos v ON v.id = i.video_id
@@ -114,7 +114,7 @@ router.get('/:id', (req, res) => {
 
   const isOwner = req.user && req.user.id === row.user_id;
   const items = db.prepare(`
-    SELECT v.*, u.username, u.display_name, i.position
+    SELECT v.*, u.username, u.display_name, u.avatar_file, i.position
     FROM playlist_items i
     JOIN videos v ON v.id = i.video_id
     JOIN users u ON u.id = v.user_id

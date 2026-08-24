@@ -13,7 +13,7 @@
           <div class="short-overlay">
             <div class="short-meta">
               <a class="row" href="/@${escapeHtml(video.author.username)}" style="gap:9px">
-                <span class="avatar">${initials(video.author.displayName)}</span>
+                <span class="avatar">${avatarInner(video.author)}</span>
                 <strong>${escapeHtml(video.author.displayName)}</strong>
               </a>
               <div class="short-title">${escapeHtml(video.title)}</div>
@@ -121,7 +121,7 @@
         button.querySelector('span').textContent = fmt.count(res.likes);
       } catch (err) {
         button.classList.toggle('active');
-        alert(err.message);
+        notify(err.message, 'error');
       }
     }
   });

@@ -42,6 +42,7 @@ app.use('/api/captions', require('./routes/captions'));
 app.use('/api/live', require('./routes/live'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/me', require('./routes/me'));
+app.use('/api/branding', require('./routes/branding'));
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/matching', require('./routes/matching'));
 app.use('/media', require('./routes/media'));

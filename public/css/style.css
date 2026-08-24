@@ -403,18 +403,74 @@ textarea:focus-visible,
 .channel-row { display: flex; align-items: center; gap: 12px; }
 
 .avatar {
+  position: relative;
   width: 40px;
   height: 40px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--accent), #ff9a5b);
-  color: #fff;
+  background: linear-gradient(135deg, var(--accent), #2aa6d6);
+  color: var(--accent-ink);
   font-weight: 700;
   flex-shrink: 0;
+  overflow: hidden;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.avatar-lg { width: 88px; height: 88px; font-size: 32px; }
+
+/* The owner gets a pencil over their own avatar, not a separate button. */
+.avatar-edit {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 12, 16, .62);
+  color: #fff;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.avatar-editable:hover .avatar-edit,
+.avatar-edit:focus-within { opacity: 1; }
+
+/* ------------------------------------------------------------ channel art */
+
+.channel-banner {
+  position: relative;
+  aspect-ratio: 6 / 1;
+  min-height: 120px;
+  margin-bottom: -34px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: linear-gradient(120deg, var(--bg-elevated), var(--bg-hover));
+  border: 1px solid var(--border-soft);
 }
 
-.avatar-lg { width: 72px; height: 72px; font-size: 28px; }
+.channel-banner img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Without a banner the strip stays, quieter, so the page does not jump when
+   one is added. */
+.channel-banner.is-empty { aspect-ratio: auto; min-height: 96px; }
+
+/* Top-right, not bottom-right: the channel's own actions sit under the banner
+   on that side, and the two rows would collide. */
+.artwork-actions {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.artwork-actions .btn {
+  background: rgba(10, 12, 16, .72);
+  backdrop-filter: blur(4px);
+  border-color: rgba(255, 255, 255, .16);
+  cursor: pointer;
+}
+
+.channel-head { position: relative; z-index: 1; }
 
 .description {
   margin-top: 16px;
@@ -455,6 +511,66 @@ textarea:focus-visible,
 .comment-del { margin-left: auto; opacity: 0; background: none; border: none; cursor: pointer; color: var(--text-dim); }
 .comment:hover .comment-del { opacity: 1; }
 .comment-del:hover { color: var(--accent); }
+
+/* -------------------------------------------------------- dialogs, toasts */
+
+.dialog-text { margin: 0 0 20px; white-space: pre-wrap; }
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* A destructive confirmation is the one place red sits at rest outside live:
+   this button is the moment the damage happens, and it should look like it. */
+.btn-danger-solid {
+  background: var(--tally);
+  border-color: var(--tally);
+  color: #fff;
+  font-weight: 600;
+}
+.btn-danger-solid:hover { background: #ff6b63; border-color: #ff6b63; }
+
+.toast-host {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 40px));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--ok);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .38);
+  cursor: pointer;
+  animation: toast-in .18s ease-out;
+}
+
+.toast-error { border-left-color: var(--tally); }
+.toast-error .icon { color: var(--tally); }
+.toast-info .icon { color: var(--ok); }
+.toast.leaving { opacity: 0; transition: opacity .2s; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
 
 /* --------------------------------------------------------------- blocking */
 

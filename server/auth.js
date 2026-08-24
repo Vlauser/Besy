@@ -52,7 +52,7 @@ function destroySession(token) {
 function userFromToken(token) {
   if (!token) return null;
   const row = db.prepare(`
-    SELECT u.id, u.username, u.email, u.display_name, u.about, u.avatar_file,
+    SELECT u.id, u.username, u.email, u.display_name, u.about, u.avatar_file, u.banner_file,
            u.is_admin, u.banned_at, u.ban_reason, u.email_verified_at, u.totp_enabled,
            u.strikes, u.created_at, s.expires_at
     FROM sessions s JOIN users u ON u.id = s.user_id
@@ -70,6 +70,7 @@ function userFromToken(token) {
     displayName: row.display_name,
     about: row.about,
     avatar: row.avatar_file,
+    banner: row.banner_file,
     isAdmin: row.is_admin === 1,
     bannedAt: row.banned_at,
     banReason: row.ban_reason,

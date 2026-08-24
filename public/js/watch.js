@@ -89,7 +89,7 @@
 
     barEl.innerHTML = `
       <div class="channel-row">
-        <a class="avatar" href="/@${escapeHtml(video.author.username)}">${initials(video.author.displayName)}</a>
+        <a class="avatar" href="/@${escapeHtml(video.author.username)}">${avatarInner(video.author)}</a>
         <div>
           <a href="/@${escapeHtml(video.author.username)}"><strong>${escapeHtml(video.author.displayName)}</strong></a>
           <div class="card-meta" id="subs-count">${fmt.count(channel.subscribers)} ${fmt.plural(channel.subscribers, 'подписчик', 'подписчика', 'подписчиков')}</div>
@@ -287,7 +287,9 @@
         const restore = event.currentTarget;
         setTimeout(() => { restore.innerHTML = `${icon('share')}Поделиться`; }, 2000);
       } catch {
-        prompt('Скопируйте ссылку:', url);
+        await promptAction('Скопируйте ссылку вручную — браузер не дал доступ к буферу обмена.', {
+          title: 'Ссылка на видео', value: url, confirmLabel: 'Готово',
+        });
       }
     });
   }
@@ -351,7 +353,7 @@
       try {
         await api.post(`/api/live/${video.id}/chat`, { body });
       } catch (err) {
-        alert(err.message);
+        notify(err.message, 'error');
         input.value = body;
       }
     });
@@ -404,7 +406,7 @@
           else await api.del(`/api/playlists/${id}/items/${video.id}`);
         } catch (err) {
           checkbox.checked = !checkbox.checked;
-          alert(err.message);
+          notify(err.message, 'error');
         }
       });
     });
@@ -417,7 +419,7 @@
         await api.post('/api/playlists', { title, videoId: video.id });
         modal.close();
       } catch (err) {
-        alert(err.message);
+        notify(err.message, 'error');
       }
     });
   }
@@ -477,7 +479,7 @@
         });
         modal.body.innerHTML = '<div class="alert alert-ok">Заявление принято и передано модераторам.</div>';
       } catch (err) {
-        alert(err.message);
+        notify(err.message, 'error');
       }
     });
   }
@@ -537,13 +539,18 @@
 
     box.querySelectorAll('[data-action="dispute"]').forEach((button) => {
       button.addEventListener('click', async () => {
-        const note = prompt('Почему заявка неверна? Опишите права на материал:');
+        const note = await promptAction('Опишите, на каком основании материал ваш. Текст увидит правообладатель и модератор.', {
+          title: 'Оспорить заявку',
+          confirmLabel: 'Отправить',
+          multiline: true,
+          maxLength: 1000,
+        });
         if (!note) return;
         try {
           await api.post(`/api/matching/claims/${button.closest('[data-claim]').dataset.claim}/dispute`, { note });
           location.reload();
         } catch (err) {
-          alert(err.message);
+          notify(err.message, 'error');
         }
       });
     });
@@ -620,7 +627,7 @@
     commentsEl.innerHTML = comments.length
       ? comments.map((c) => `
         <div class="comment" data-id="${c.id}">
-          <a class="avatar" href="/@${escapeHtml(c.author.username)}">${initials(c.author.displayName)}</a>
+          <a class="avatar" href="/@${escapeHtml(c.author.username)}">${avatarInner(c.author)}</a>
           <div style="flex:1;min-width:0">
             <div class="comment-head">
               <a class="comment-author" href="/@${escapeHtml(c.author.username)}">${escapeHtml(c.author.displayName)}</a>
@@ -647,7 +654,8 @@
     const btn = event.target.closest('.comment-del');
     if (!btn) return;
     const id = btn.closest('.comment').dataset.id;
-    if (!confirm('Удалить комментарий?')) return;
+    if (!await confirmAction('Комментарий исчезнет у всех.',
+      { title: 'Удалить комментарий?', confirmLabel: 'Удалить', danger: true })) return;
     await api.del(`/api/videos/${video.id}/comments/${id}`);
     loadComments();
   });

@@ -42,7 +42,10 @@ function publicUser(user) {
     username: user.username,
     displayName: user.displayName ?? user.display_name,
     about: user.about,
-    avatar: user.avatar ?? user.avatar_file,
+    // A URL, not the storage key: the key is an implementation detail and the
+    // browser cannot fetch it.
+    avatar: (user.avatar ?? user.avatar_file) ? `/media/avatar/${user.username}` : null,
+    banner: (user.banner ?? user.banner_file) ? `/media/banner/${user.username}` : null,
     isAdmin: Boolean(user.isAdmin ?? user.is_admin),
     emailVerified: Boolean(user.emailVerifiedAt ?? user.email_verified_at),
     twoFactor: Boolean(user.twoFactor ?? user.totp_enabled),

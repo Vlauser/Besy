@@ -144,7 +144,70 @@ let step = 'start';
   res = await ghost.get(`/api/channels/${pestUser.username}`);
   assert.equal(res.status, 404, 'the channel must disappear with the account');
 
-  console.log('✅ Блокировки, жалобы на каналы, экспорт и удаление аккаунта проверены');
+  /* ---------------------------------------------------------- artwork */
+
+  const PNG = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.alloc(64, 0x11),
+  ]);
+
+  async function putArtwork(client, kind, buffer, filename = 'art.png', type = 'image/png') {
+    const form = new FormData();
+    form.append('image', new Blob([buffer], { type }), filename);
+    return client.call('POST', `/api/branding/${kind}`, form, true);
+  }
+
+  step = 'no artwork before anything is uploaded';
+  res = await owner.get(`/api/channels/${ownerUser.username}`);
+  assert.equal(res.data.channel.avatar, null);
+  assert.equal(res.data.channel.banner, null);
+
+  step = 'upload an avatar and a banner';
+  for (const kind of ['avatar', 'banner']) {
+    res = await putArtwork(owner, kind, PNG);
+    assert.equal(res.status, 201, `${kind}: ${JSON.stringify(res.data)}`);
+  }
+
+  step = 'the channel now reports both';
+  res = await owner.get(`/api/channels/${ownerUser.username}`);
+  assert.ok(res.data.channel.avatar, 'avatar missing from the channel');
+  assert.ok(res.data.channel.banner, 'banner missing from the channel');
+
+  step = 'artwork is public — a signed-out visitor sees it';
+  const stranger = createClient();
+  await stranger.get('/api/health');
+  for (const kind of ['avatar', 'banner']) {
+    const raw = await stranger.fetchRaw(`/media/${kind}/${ownerUser.username}`);
+    assert.equal(raw.status, 200, `${kind} must be readable`);
+    assert.equal(raw.headers.get('content-type'), 'image/png', `${kind} content type`);
+  }
+
+  step = 'the avatar rides along with the video author';
+  res = await stranger.get(`/api/videos/${videoId}`);
+  assert.ok(res.data.video.author.avatar, 'author avatar missing');
+
+  step = 'a file that is not an image is refused';
+  res = await putArtwork(owner, 'avatar', Buffer.from('<svg onload=alert(1)>'), 'x.png');
+  assert.equal(res.status, 400, 'content type is sniffed, not trusted');
+
+  step = 'strangers cannot set artwork for someone else';
+  // There is no path that names a target user — branding always writes to the
+  // caller — so the check is that signing out closes it entirely.
+  res = await putArtwork(stranger, 'avatar', PNG);
+  assert.equal(res.status, 401);
+
+  step = 'remove the avatar';
+  res = await owner.del('/api/branding/avatar');
+  assert.equal(res.status, 200, JSON.stringify(res.data));
+  res = await owner.get(`/api/channels/${ownerUser.username}`);
+  assert.equal(res.data.channel.avatar, null, 'avatar should be gone');
+  assert.ok(res.data.channel.banner, 'removing the avatar must not touch the banner');
+
+  step = 'removing it twice reports that there is nothing to remove';
+  res = await owner.del('/api/branding/avatar');
+  assert.equal(res.status, 404);
+
+  console.log('✅ Блокировки, жалобы на каналы, экспорт, удаление аккаунта и оформление канала проверены');
 })().catch((err) => {
   console.error(`❌ Safety test failed on "${step}":`, err.message);
   process.exit(1);

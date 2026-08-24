@@ -121,7 +121,7 @@
         });
         renderRights();
       } catch (err) {
-        alert(err.message);
+        notify(err.message, 'error');
         button.disabled = false;
         button.textContent = 'Заявить';
       }
@@ -138,12 +138,13 @@
               active: control.textContent.trim() === 'Включить',
             });
           } else {
-            if (!confirm('Удалить эталон? Существующие заявки останутся.')) return;
+            if (!await confirmAction('Уже заведённые заявки останутся — новые загрузки перестанут сверяться.',
+              { title: 'Удалить эталон?', confirmLabel: 'Удалить', danger: true })) return;
             await api.del(`/api/matching/works/${workId}`);
           }
           renderRights();
         } catch (err) {
-          alert(err.message);
+          notify(err.message, 'error');
         }
       };
       control.addEventListener(control.dataset.action === 'policy' ? 'change' : 'click', handler);
@@ -151,7 +152,8 @@
 
     box.querySelectorAll('[data-release]').forEach((button) => {
       button.addEventListener('click', async () => {
-        if (!confirm('Снять заявку с этого видео?')) return;
+        if (!await confirmAction('Автор снова сможет распоряжаться видео без ограничений.',
+          { title: 'Снять заявку?', confirmLabel: 'Снять' })) return;
         await api.post(`/api/matching/claims/${button.dataset.release}/release`, {});
         renderRights();
       });
@@ -204,7 +206,7 @@
         await api.post('/api/live', { title: event.target.title.value.trim() });
         renderLive();
       } catch (err) {
-        alert(err.message);
+        notify(err.message, 'error');
       }
     });
 
@@ -213,14 +215,15 @@
         const id = button.closest('[data-stream]').dataset.stream;
         try {
           if (button.dataset.action === 'roll') {
-            if (!confirm('Сменить ключ? Текущее подключение оборвётся.')) return;
+            if (!await confirmAction('Идущая трансляция оборвётся, и в OBS нужно будет вписать новый ключ.',
+              { title: 'Сменить ключ?', confirmLabel: 'Сменить', danger: true })) return;
             await api.post(`/api/live/${id}/key`);
           } else {
             await api.post(`/api/live/${id}/stop`);
           }
           renderLive();
         } catch (err) {
-          alert(err.message);
+          notify(err.message, 'error');
         }
       });
     });
@@ -331,7 +334,8 @@
     }
 
     if (control.dataset.bulk === 'delete') {
-      if (!confirm(`Удалить ${ids.length} видео безвозвратно?`)) return;
+      if (!await confirmAction('Файлы, комментарии и статистика удалятся вместе с ними. Отменить нельзя.',
+        { title: `Удалить ${ids.length} видео?`, confirmLabel: 'Удалить', danger: true })) return;
       for (const id of ids) await api.del(`/api/videos/${id}`);
       renderBulkBar();
       loadVideos();
@@ -367,7 +371,8 @@
     const id = card.dataset.id;
 
     if (button.dataset.action === 'delete') {
-      if (!confirm('Удалить видео безвозвратно?')) return;
+      if (!await confirmAction('Файл, комментарии и статистика удалятся вместе с ним. Отменить нельзя.',
+        { title: 'Удалить видео?', confirmLabel: 'Удалить', danger: true })) return;
       await api.del(`/api/videos/${id}`);
       loadVideos();
       return;
@@ -379,18 +384,43 @@
     }
 
     if (button.dataset.action === 'rename') {
-      const currentTitle = card.querySelector('.card-title').textContent;
-      const title = prompt('Новое название:', currentTitle);
-      if (title === null) return;
-      const description = prompt('Новое описание (оставьте пустым, чтобы очистить):', '');
-      const payload = { title };
-      if (description !== null) payload.description = description;
-      try {
-        await api.patch(`/api/videos/${id}`, payload);
-        loadVideos();
-      } catch (err) {
-        alert(err.message);
-      }
+      // Both fields at once, prefilled with what is there: the old pair of
+      // prompts asked for a description without showing the current one, so
+      // the safe answer was always to cancel.
+      const current = await api.get(`/api/videos/${id}`).catch(() => null);
+      const modal = openModal('Изменить видео', `
+        <form id="rename-form">
+          <div class="field">
+            <label for="rename-title">Название</label>
+            <input class="input" id="rename-title" maxlength="200" required>
+          </div>
+          <div class="field">
+            <label for="rename-description">Описание</label>
+            <textarea class="input" id="rename-description" rows="5" maxlength="5000"></textarea>
+          </div>
+          <div class="dialog-actions">
+            <button class="btn" type="button" data-close>Отмена</button>
+            <button class="btn btn-primary" type="submit">Сохранить</button>
+          </div>
+        </form>`);
+
+      modal.body.querySelector('#rename-title').value =
+        current?.video?.title || card.querySelector('.card-title').textContent;
+      modal.body.querySelector('#rename-description').value = current?.video?.description || '';
+
+      modal.body.querySelector('#rename-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        try {
+          await api.patch(`/api/videos/${id}`, {
+            title: modal.body.querySelector('#rename-title').value,
+            description: modal.body.querySelector('#rename-description').value,
+          });
+          modal.close();
+          loadVideos();
+        } catch (err) {
+          notify(err.message, 'error');
+        }
+      });
     }
   });
 
@@ -457,7 +487,7 @@
         modal.close();
         openCaptionManager(videoId);
       } catch (err) {
-        alert(err.message);
+        notify(err.message, 'error');
       }
     });
   }

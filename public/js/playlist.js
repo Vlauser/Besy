@@ -88,20 +88,47 @@
   });
 
   document.getElementById('delete-btn')?.addEventListener('click', async () => {
-    if (!confirm('Удалить плейлист? Видео останутся на месте.')) return;
+    if (!await confirmAction('Сами видео останутся на месте — исчезнет только подборка.',
+      { title: 'Удалить плейлист?', confirmLabel: 'Удалить', danger: true })) return;
     await api.del(`/api/playlists/${playlist.id}`);
     location.href = `/@${playlist.author.username}`;
   });
 
   document.getElementById('edit-btn')?.addEventListener('click', async () => {
-    const title = prompt('Название плейлиста:', playlist.title);
-    if (title === null) return;
-    const visibility = prompt('Доступ: public, unlisted или private', playlist.visibility);
-    try {
-      await api.patch(`/api/playlists/${playlist.id}`, { title, visibility });
-      location.reload();
-    } catch (err) {
-      alert(err.message);
-    }
+    // Two prompts in a row asked for a visibility value by typing it out, which
+    // is a select in every other place it appears. One form, one submit.
+    const modal = openModal('Изменить плейлист', `
+      <form id="playlist-form">
+        <div class="field">
+          <label for="pl-title">Название</label>
+          <input class="input" id="pl-title" value="${escapeHtml(playlist.title)}" maxlength="120" required>
+        </div>
+        <div class="field">
+          <label for="pl-visibility">Доступ</label>
+          <select class="input" id="pl-visibility">
+            <option value="public">Публичный — виден всем</option>
+            <option value="unlisted">По ссылке — не попадает в каталог</option>
+            <option value="private">Приватный — только вам</option>
+          </select>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn" type="button" data-close>Отмена</button>
+          <button class="btn btn-primary" type="submit">Сохранить</button>
+        </div>
+      </form>`);
+    modal.body.querySelector('#pl-visibility').value = playlist.visibility;
+
+    modal.body.querySelector('#playlist-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await api.patch(`/api/playlists/${playlist.id}`, {
+          title: modal.body.querySelector('#pl-title').value,
+          visibility: modal.body.querySelector('#pl-visibility').value,
+        });
+        location.reload();
+      } catch (err) {
+        notify(err.message, 'error');
+      }
+    });
   });
 })();
