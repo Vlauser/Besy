@@ -152,7 +152,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
   cursor: pointer;
 }
 
-.search button:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.search button:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
 .header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
@@ -218,6 +218,15 @@ h2 { font-size: 18px; margin: 0 0 14px; }
 .btn-danger:hover { background: var(--tally-soft); border-color: var(--tally); color: var(--tally); }
 .btn-block { width: 100%; }
 .btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hover); }
+
+/* Icons sit on the text baseline and take the button's colour, including the
+   dark ink a primary button switches to. */
+.icon { flex-shrink: 0; }
+.btn .icon { margin-right: -1px; }
+
+/* A button that is only an icon stays square instead of stretching to pill. */
+.btn-icon { padding: 9px; }
+.btn-icon .icon { margin: 0; }
 
 /* Keyboard focus has to be visible on every control, not just the ones that
    happen to be buttons. */

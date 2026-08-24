@@ -97,14 +97,14 @@
         ${video.isOwner ? '' : `<button class="btn ${channel.subscribed ? 'active' : 'btn-primary'}" id="sub-btn">${channel.subscribed ? 'Вы подписаны' : 'Подписаться'}</button>`}
       </div>
       <div class="row">
-        <button class="btn ${video.myReaction === 1 ? 'active' : ''}" id="like-btn">👍 <span>${fmt.count(video.likes)}</span></button>
-        <button class="btn ${video.myReaction === -1 ? 'active' : ''}" id="dislike-btn">👎 <span>${fmt.count(video.dislikes)}</span></button>
-        <button class="btn" id="share-btn">🔗 Поделиться</button>
-        ${isLive ? '' : `<a class="btn" href="/media/download/${video.id}">⬇ Скачать</a>`}
-        <button class="btn" id="save-btn">☰ Сохранить</button>
-        <button class="btn" id="later-btn" title="Смотреть позже">🔖</button>
-        <button class="btn" id="report-btn" title="Пожаловаться">⚑</button>
-        ${video.isOwner ? '<a class="btn" href="/studio">✎ Управление</a>' : ''}
+        <button class="btn ${video.myReaction === 1 ? 'active' : ''}" id="like-btn">${icon('like')}<span>${fmt.count(video.likes)}</span></button>
+        <button class="btn ${video.myReaction === -1 ? 'active' : ''}" id="dislike-btn">${icon('dislike')}<span>${fmt.count(video.dislikes)}</span></button>
+        <button class="btn" id="share-btn">${icon('share')}Поделиться</button>
+        ${isLive ? '' : `<a class="btn" href="/media/download/${video.id}">${icon('download')}Скачать</a>`}
+        <button class="btn" id="save-btn">${icon('save')}Сохранить</button>
+        <button class="btn btn-icon" id="later-btn" title="Смотреть позже">${icon('later', 'Смотреть позже')}</button>
+        <button class="btn btn-icon" id="report-btn" title="Пожаловаться">${icon('report', 'Пожаловаться')}</button>
+        ${video.isOwner ? `<a class="btn" href="/studio">${icon('edit')}Управление</a>` : ''}
       </div>`;
 
     const stats = isLive
@@ -283,8 +283,9 @@
       const url = location.href;
       try {
         await navigator.clipboard.writeText(url);
-        event.currentTarget.textContent = '✓ Ссылка скопирована';
-        setTimeout(() => { event.currentTarget.textContent = '🔗 Поделиться'; }, 2000);
+        event.currentTarget.innerHTML = `${icon('check')}Ссылка скопирована`;
+        const restore = event.currentTarget;
+        setTimeout(() => { restore.innerHTML = `${icon('share')}Поделиться`; }, 2000);
       } catch {
         prompt('Скопируйте ссылку:', url);
       }

@@ -237,6 +237,34 @@ function setupNotifications(header) {
 
 /** Renders one grid card for a video. */
 /*
+ * One icon set, drawn on a single 20x20 grid with one stroke weight, inheriting
+ * currentColor. Emoji were doing this job before, and every platform drew them
+ * in its own style and weight, so a row of six actions read as six unrelated
+ * pictures. These are deliberately plain — the instrument-panel register the
+ * rest of the interface is in.
+ */
+const ICONS = {
+  like:     '<path d="M6 9v9H3V9h3Zm0 0 4-6a2 2 0 0 1 2 2v3h4a2 2 0 0 1 2 2.4l-1.2 5A2 2 0 0 1 14.8 18H6"/>',
+  dislike:  '<path d="M6 11V2H3v9h3Zm0 0 4 6a2 2 0 0 0 2-2v-3h4a2 2 0 0 0 2-2.4l-1.2-5A2 2 0 0 0 14.8 2H6"/>',
+  share:    '<path d="M8.5 11.5 11.5 8.5M7.5 12.5 5 15a2.8 2.8 0 1 0 4 4l2.5-2.5M12.5 7.5 15 5a2.8 2.8 0 1 1 4 4l-2.5 2.5"/>',
+  download: '<path d="M10 3v10m0 0 4-4m-4 4-4-4M3 15v2h14v-2"/>',
+  save:     '<path d="M3 5h10M3 10h10M3 15h6M15 10v6M12 13h6"/>',
+  later:    '<path d="M5 3h10v15l-5-3.5L5 18V3Z"/>',
+  report:   '<path d="M5 18V3m0 0h10l-2.5 3.5L15 10H5"/>',
+  edit:     '<path d="M13.5 3.5a2.1 2.1 0 0 1 3 3L7 16l-4 1 1-4 9.5-9.5Z"/>',
+  check:    '<path d="M4 10.5 8 15l8-9"/>',
+};
+
+/** Inline SVG icon. `title` becomes the accessible name when there is no label. */
+function icon(name, title = '') {
+  const path = ICONS[name];
+  if (!path) return '';
+  return `<svg class="icon" viewBox="0 0 20 20" width="18" height="18" fill="none"
+    stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"
+    ${title ? `role="img" aria-label="${escapeHtml(title)}"` : 'aria-hidden="true"'}>${path}</svg>`;
+}
+
+/*
  * The rendition ladder: which HLS qualities this file actually has. The
  * transcoder only builds rungs at or below the source height, so the stack
  * describes the source as much as the output. Hidden entirely for videos with
