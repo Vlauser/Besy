@@ -302,6 +302,7 @@ const ICONS = {
   check:     '<path d="M4 10.5 8 15l8-9"/>',
 
   /* empty-state illustrations, same grid at a larger size */
+  image:     '<path d="M3 4.5h14v11H3v-11Zm0 8 4-3.5 4 3.5 3-2.5 3 2.5"/><circle cx="7.2" cy="7.6" r="1.1"/>',
   film:      '<path d="M2.5 4.5h15v11h-15v-11ZM6 4.5v11M14 4.5v11M2.5 10h15M2.5 7.2h3.5M2.5 12.8h3.5M14 7.2h3.5M14 12.8h3.5"/>',
   inbox:     '<path d="M2.5 11.5 5 4.5h10l2.5 7v4h-15v-4ZM2.5 11.5H7a3 3 0 0 0 6 0h4.5"/>',
   compass:   '<path d="M10 17.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15ZM13 7l-1.8 4.2L7 13l1.8-4.2L13 7Z"/>',
@@ -422,8 +423,14 @@ async function openReportDialog({ title = 'Пожаловаться', extra = ''
   return modal;
 }
 
-/** Minimal modal used by the report, copyright and playlist dialogs. */
-function openModal(title, bodyHtml, { wide = false } = {}) {
+/**
+ * Minimal modal used by the report, copyright and playlist dialogs.
+ *
+ * onClose fires however the modal goes away — button, backdrop or Escape — so
+ * a dialog waiting on an answer always gets one instead of leaving its promise
+ * hanging when the person presses Escape.
+ */
+function openModal(title, bodyHtml, { wide = false, onClose } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
@@ -438,6 +445,7 @@ function openModal(title, bodyHtml, { wide = false } = {}) {
   const close = () => {
     overlay.remove();
     document.removeEventListener('keydown', onKey);
+    onClose?.();
   };
   const onKey = (event) => { if (event.key === 'Escape') close(); };
 
@@ -468,7 +476,7 @@ function confirmAction(message, { title = 'Подтвердите', confirmLabel
       <div class="dialog-actions">
         <button class="btn" data-dialog="cancel">Отмена</button>
         <button class="btn ${danger ? 'btn-danger-solid' : 'btn-primary'}" data-dialog="ok">${escapeHtml(confirmLabel)}</button>
-      </div>`);
+      </div>`, { onClose: () => finish(false) });
 
     const finish = (value) => {
       if (decided) return;
@@ -505,7 +513,7 @@ function promptAction(message, { title = 'Введите значение', valu
           <button class="btn" type="button" data-dialog="cancel">Отмена</button>
           <button class="btn btn-primary" type="submit">${escapeHtml(confirmLabel)}</button>
         </div>
-      </form>`);
+      </form>`, { onClose: () => finish(null) });
 
     const finish = (result) => {
       if (decided) return;
@@ -526,6 +534,322 @@ function promptAction(message, { title = 'Введите значение', valu
     input.focus();
     input.select();
   });
+}
+
+/*
+ * Choosing the frame, instead of accepting whatever the file happened to be.
+ *
+ * The avatar is a circle and the banner is a 6:1 strip; a photo is neither, so
+ * before this the browser cropped by object-fit and the person uploading found
+ * out afterwards which half of their picture survived. This picks the frame
+ * first: drag to move, wheel or the slider to zoom, and what the viewport shows
+ * is exactly what gets encoded — the same source rectangle feeds the preview
+ * and the export.
+ *
+ * It runs entirely in the page. The server still sniffs the bytes it receives,
+ * because a cropper on this side is a convenience and never a check.
+ */
+
+const ARTWORK = {
+  avatar: {
+    aspect: 1,
+    outWidth: 512,
+    round: true,
+    title: 'Аватар канала',
+    hint: 'Аватар везде показывается кругом — всё, что вне круга, обрежется.',
+  },
+  thumb: {
+    aspect: 16 / 9,
+    outWidth: 1280,
+    round: false,
+    // Covers are stored and served as JPEG, and nothing about a cover needs a
+    // transparent corner.
+    jpegOnly: true,
+    title: 'Обложка видео',
+    hint: 'Обложка стоит в ленте, в поиске и в плеере до нажатия — пропорции 16:9.',
+  },
+  banner: {
+    aspect: 6,
+    outWidth: 2048,
+    round: false,
+    title: 'Шапка канала',
+    hint: 'Шапка растягивается на всю ширину страницы, пропорции 6:1.',
+  },
+};
+
+/** Decodes a picked file, or rejects if the bytes are not an image at all. */
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Не удалось прочитать изображение')); };
+    image.src = url;
+  });
+}
+
+function toBlob(canvas, type, quality) {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+}
+
+/**
+ * Opens the crop dialog. Resolves with a Blob to upload, or null if dismissed.
+ *
+ * `kind` is a key of ARTWORK; everything about shape and output size comes from
+ * there, so the two call sites differ only by that string.
+ */
+async function openCropper(file, kind) {
+  const spec = ARTWORK[kind];
+  const image = await loadImage(file);
+  if (!image.naturalWidth || !image.naturalHeight) throw new Error('Изображение пустое');
+
+  return new Promise((resolve) => {
+    let decided = false;
+    const modal = openModal(spec.title, `
+      <div class="cropper">
+        <div class="cropper-stage${spec.round ? ' is-round' : ''}" style="aspect-ratio:${spec.aspect}"
+             tabindex="0" role="application"
+             aria-label="Область кадрирования: перетащите изображение, стрелки двигают, плюс и минус меняют масштаб">
+          <canvas></canvas>
+          <div class="cropper-mask" aria-hidden="true"></div>
+        </div>
+        <div class="cropper-zoom">
+          <button class="btn btn-ghost btn-icon" type="button" data-zoom="out" aria-label="Отдалить">${icon('minus', 'Отдалить')}</button>
+          <input type="range" min="0" max="1000" value="0" aria-label="Масштаб">
+          <button class="btn btn-ghost btn-icon" type="button" data-zoom="in" aria-label="Приблизить">${icon('plus', 'Приблизить')}</button>
+        </div>
+        <p class="hint">${escapeHtml(spec.hint)}</p>
+        <div class="dialog-actions">
+          <button class="btn" type="button" data-crop="cancel">Отмена</button>
+          <button class="btn" type="button" data-crop="reset">Сбросить</button>
+          <button class="btn btn-primary" type="button" data-crop="save">Сохранить</button>
+        </div>
+      </div>`, { wide: spec.aspect > 2, onClose: () => finish(null) });
+
+    const stage = modal.body.querySelector('.cropper-stage');
+    const canvas = stage.querySelector('canvas');
+    const ctx = canvas.getContext('2d');
+    const zoom = modal.body.querySelector('input[type="range"]');
+    const save = modal.body.querySelector('[data-crop="save"]');
+
+    // Viewport size in CSS pixels; scale converts image pixels to those. cx/cy
+    // is the point of the image sitting at the middle of the viewport, which is
+    // the one pair of numbers that survives a resize unchanged.
+    let vw = 0;
+    let vh = 0;
+    let scale = 1;
+    let minScale = 1;
+    let cx = image.naturalWidth / 2;
+    let cy = image.naturalHeight / 2;
+    const ZOOM_RANGE = 8;
+
+    const clamp = (value, low, high) => (low > high ? (low + high) / 2 : Math.min(Math.max(value, low), high));
+
+    function clampCenter() {
+      const halfW = vw / (2 * scale);
+      const halfH = vh / (2 * scale);
+      cx = clamp(cx, halfW, image.naturalWidth - halfW);
+      cy = clamp(cy, halfH, image.naturalHeight - halfH);
+    }
+
+    function draw() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(vw * dpr);
+      canvas.height = Math.round(vh * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, vw, vh);
+      ctx.imageSmoothingQuality = 'high';
+      const sw = vw / scale;
+      const sh = vh / scale;
+      ctx.drawImage(image, cx - sw / 2, cy - sh / 2, sw, sh, 0, 0, vw, vh);
+      zoom.value = String(Math.round((Math.log(scale / minScale) / Math.log(ZOOM_RANGE)) * 1000));
+    }
+
+    /** Zooms so the image point under (px, py) stays under (px, py). */
+    function zoomAt(next, px = vw / 2, py = vh / 2) {
+      const target = clamp(next, minScale, minScale * ZOOM_RANGE);
+      const ix = cx + (px - vw / 2) / scale;
+      const iy = cy + (py - vh / 2) / scale;
+      scale = target;
+      cx = ix - (px - vw / 2) / scale;
+      cy = iy - (py - vh / 2) / scale;
+      clampCenter();
+      draw();
+    }
+
+    function measure(reset = false) {
+      const rect = stage.getBoundingClientRect();
+      if (!rect.width) return;
+      vw = rect.width;
+      vh = rect.height;
+      canvas.style.width = `${vw}px`;
+      canvas.style.height = `${vh}px`;
+      // Cover: the smallest scale that leaves no empty corner.
+      const previous = minScale;
+      minScale = Math.max(vw / image.naturalWidth, vh / image.naturalHeight);
+      scale = reset ? minScale : clamp(scale * (minScale / previous), minScale, minScale * ZOOM_RANGE);
+      clampCenter();
+      draw();
+    }
+
+    // Dragging, with two fingers pinching the same way the wheel zooms.
+    const pointers = new Map();
+    let pinch = null;
+
+    stage.addEventListener('pointerdown', (event) => {
+      stage.setPointerCapture(event.pointerId);
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        pinch = { distance: Math.hypot(a.x - b.x, a.y - b.y), scale };
+      }
+      stage.classList.add('is-dragging');
+    });
+
+    stage.addEventListener('pointermove', (event) => {
+      const previous = pointers.get(event.pointerId);
+      if (!previous) return;
+      const next = { x: event.clientX, y: event.clientY };
+      pointers.set(event.pointerId, next);
+
+      if (pointers.size === 2 && pinch) {
+        const [a, b] = [...pointers.values()];
+        const distance = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch.distance > 0) {
+          const rect = stage.getBoundingClientRect();
+          zoomAt(pinch.scale * (distance / pinch.distance),
+            (a.x + b.x) / 2 - rect.left, (a.y + b.y) / 2 - rect.top);
+        }
+        return;
+      }
+      if (pointers.size !== 1) return;
+      cx -= (next.x - previous.x) / scale;
+      cy -= (next.y - previous.y) / scale;
+      clampCenter();
+      draw();
+    });
+
+    const release = (event) => {
+      pointers.delete(event.pointerId);
+      if (pointers.size < 2) pinch = null;
+      if (!pointers.size) stage.classList.remove('is-dragging');
+    };
+    stage.addEventListener('pointerup', release);
+    stage.addEventListener('pointercancel', release);
+
+    stage.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      const rect = stage.getBoundingClientRect();
+      zoomAt(scale * Math.exp(-event.deltaY * 0.0015), event.clientX - rect.left, event.clientY - rect.top);
+    }, { passive: false });
+
+    stage.addEventListener('keydown', (event) => {
+      const step = 24 / scale;
+      const moves = {
+        ArrowLeft: () => { cx -= step; }, ArrowRight: () => { cx += step; },
+        ArrowUp: () => { cy -= step; }, ArrowDown: () => { cy += step; },
+      };
+      if (moves[event.key]) {
+        event.preventDefault();
+        moves[event.key]();
+        clampCenter();
+        draw();
+      } else if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        zoomAt(scale * 1.2);
+      } else if (event.key === '-' || event.key === '_') {
+        event.preventDefault();
+        zoomAt(scale / 1.2);
+      }
+    });
+
+    zoom.addEventListener('input', () => {
+      zoomAt(minScale * (ZOOM_RANGE ** (Number(zoom.value) / 1000)));
+    });
+    modal.body.querySelector('[data-zoom="in"]').addEventListener('click', () => zoomAt(scale * 1.3));
+    modal.body.querySelector('[data-zoom="out"]').addEventListener('click', () => zoomAt(scale / 1.3));
+    modal.body.querySelector('[data-crop="reset"]').addEventListener('click', () => {
+      cx = image.naturalWidth / 2;
+      cy = image.naturalHeight / 2;
+      measure(true);
+    });
+
+    const finish = (value) => {
+      if (decided) return;
+      decided = true;
+      observer.disconnect();
+      resolve(value);
+      modal.close();
+    };
+
+    modal.body.querySelector('[data-crop="cancel"]').addEventListener('click', () => finish(null));
+    modal.overlay.addEventListener('click', (event) => {
+      if (event.target === modal.overlay) finish(null);
+    });
+
+    save.addEventListener('click', async () => {
+      save.disabled = true;
+      try {
+        finish(await encode());
+      } catch (err) {
+        save.disabled = false;
+        notify(err.message || 'Не удалось обработать изображение', 'error');
+      }
+    });
+
+    /*
+     * Encodes the visible rectangle. PNG sources stay PNG so a logo keeps its
+     * transparency; everything else becomes JPEG over white, because a JPEG
+     * cannot hold an alpha channel and would otherwise fill it with black.
+     * Quality steps down until the result fits the upload limit.
+     */
+    async function encode() {
+      const sw = vw / scale;
+      const sh = vh / scale;
+      const width = Math.max(64, Math.min(spec.outWidth, Math.round(sw)));
+      const out = document.createElement('canvas');
+      out.width = width;
+      out.height = Math.max(1, Math.round(width / spec.aspect));
+
+      const g = out.getContext('2d');
+      g.imageSmoothingQuality = 'high';
+      const png = file.type === 'image/png' && !spec.jpegOnly;
+      if (!png) {
+        g.fillStyle = '#ffffff';
+        g.fillRect(0, 0, out.width, out.height);
+      }
+      g.drawImage(image, cx - sw / 2, cy - sh / 2, sw, sh, 0, 0, out.width, out.height);
+
+      const limit = 4 * 1024 * 1024;
+      if (png) {
+        const blob = await toBlob(out, 'image/png');
+        if (blob && blob.size <= limit) return blob;
+      }
+      for (const quality of [0.92, 0.82, 0.7, 0.55]) {
+        const blob = await toBlob(out, 'image/jpeg', quality);
+        if (blob && blob.size <= limit) return blob;
+      }
+      throw new Error('Изображение слишком тяжёлое даже после сжатия');
+    }
+
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(stage);
+    measure(true);
+    stage.focus();
+  });
+}
+
+/**
+ * The whole pick-crop-upload path behind one call, so the channel page keeps
+ * the file input and nothing else.
+ */
+async function uploadArtwork(kind, file) {
+  const blob = await openCropper(file, kind);
+  if (!blob) return false;
+  const form = new FormData();
+  form.append('image', blob, `${kind}.${blob.type === 'image/png' ? 'png' : 'jpg'}`);
+  await api.upload(`/api/branding/${kind}`, form);
+  return true;
 }
 
 /**

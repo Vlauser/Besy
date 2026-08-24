@@ -54,19 +54,20 @@
            <button class="btn btn-ghost btn-danger" id="channel-block">Заблокировать</button>`}
     </div>`;
 
-  // Artwork uploads: the file input is inside its label, so picking a file is
-  // the whole interaction — there is no separate confirm step to forget.
+  // Artwork uploads: picking a file opens the cropper, and the frame chosen
+  // there is what gets sent. Nothing is uploaded until that dialog is accepted,
+  // so backing out of it leaves the current avatar or banner alone.
   headEl.querySelectorAll('[data-artwork]').forEach((input) => {
     input.addEventListener('change', async () => {
       const file = input.files[0];
       if (!file) return;
-      const form = new FormData();
-      form.append('image', file);
       try {
-        await api.upload(`/api/branding/${input.dataset.artwork}`, form);
-        location.reload();
+        if (await uploadArtwork(input.dataset.artwork, file)) location.reload();
       } catch (err) {
         notify(err.message, 'error');
+      } finally {
+        // Cleared either way: without this, picking the same file again after
+        // a cancel fires no change event and the cropper never reopens.
         input.value = '';
       }
     });
