@@ -14,6 +14,27 @@
   }
   if (query) title.textContent = `Результаты: «${query}»`;
 
+  /*
+   * Channels on air, in the row a stories tray occupies. It is the only place
+   * red appears on this page, and it appears only while someone is actually
+   * live — no ring means nobody is, rather than a row of grey circles.
+   */
+  async function renderLiveRail() {
+    let streams = [];
+    try { ({ streams } = await api.get('/api/live')); } catch { return; }
+    if (!streams.length) return;
+
+    const rail = document.createElement('div');
+    rail.className = 'live-rail';
+    rail.setAttribute('aria-label', 'Каналы в эфире');
+    rail.innerHTML = streams.map((stream) => `
+      <a href="/watch/${stream.id}" aria-label="Эфир ${escapeHtml(stream.author.displayName)}">
+        <div class="ring">${`<div class="avatar">${avatarInner(stream.author)}</div>`}</div>
+        <span class="name">${escapeHtml(stream.author.displayName)}</span>
+      </a>`).join('');
+    document.getElementById('tabs').after(rail);
+  }
+
   function skeletons(n) {
     return Array.from({ length: n }, () => `
       <div>
@@ -87,4 +108,6 @@
   load({ reset: true }).catch((err) => {
     grid.innerHTML = `<div class="alert alert-error">${escapeHtml(err.message)}</div>`;
   });
+
+  renderLiveRail();
 })();

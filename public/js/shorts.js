@@ -1,6 +1,10 @@
 (async function main() {
   await bootstrap();
 
+  // A vertical video fills the screen, so the screen goes dark around it —
+  // whatever theme the rest of the site is in.
+  document.body.classList.add('on-dark');
+
   const feed = document.getElementById('feed');
   const state = { offset: 0, limit: 6, total: Infinity, loading: false };
   const players = new Map();

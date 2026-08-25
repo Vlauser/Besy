@@ -68,7 +68,29 @@
            писать в чат ваших эфиров и подписываться на канал. Они об этом не узнают.</p>`
       : '<div class="hint">Вы никого не блокировали. Заблокировать можно со страницы канала.</div>';
 
+    /*
+     * Appearance sits first because it is the only thing here that changes
+     * while you look at it. Both controls are the phone's: which theme, and
+     * how transparent the glass is — iOS 27 put that on a slider, and three
+     * stops are enough on a screen this size. Turning on Reduce Transparency
+     * in the operating system overrules the middle one entirely, which is
+     * also how the phone behaves.
+     */
+    const appearanceBlock = `
+      <label class="field-label" id="theme-label">Тема</label>
+      <div class="choice-row" role="group" aria-labelledby="theme-label" id="theme-row">
+        ${[['system', 'Как в системе'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(([value, label]) =>
+          `<button type="button" data-theme-choice="${value}">${label}</button>`).join('')}
+      </div>
+      <label class="field-label mt-16" id="glass-label">Прозрачность</label>
+      <div class="choice-row" role="group" aria-labelledby="glass-label" id="glass-row">
+        ${[['clear', 'Прозрачно'], ['regular', 'Обычно'], ['solid', 'Плотно']].map(([value, label]) =>
+          `<button type="button" data-glass-choice="${value}">${label}</button>`).join('')}
+      </div>
+      <p class="hint mt-16">Настройки живут в этом браузере и применяются сразу.</p>`;
+
     content.innerHTML = `
+      ${section('Внешний вид', appearanceBlock)}
       ${section('E-mail', emailBlock)}
       ${section('Пароль', `
         <form id="password-form">
@@ -124,7 +146,32 @@
     wire();
   }
 
+  /** Marks the current choice and applies a new one the moment it is pressed. */
+  function wireAppearance() {
+    const rows = [
+      ['theme-row', 'themeChoice', appearance.theme, 'system'],
+      ['glass-row', 'glassChoice', appearance.glass, 'regular'],
+    ];
+    for (const [id, attribute, apply, fallback] of rows) {
+      const row = document.getElementById(id);
+      if (!row) continue;
+      const mark = (current) => row.querySelectorAll('button').forEach((button) => {
+        const mine = button.dataset[attribute] === current;
+        button.classList.toggle('active', mine);
+        button.setAttribute('aria-pressed', String(mine));
+      });
+      mark(apply());
+      row.addEventListener('click', (event) => {
+        const button = event.target.closest('button');
+        if (!button) return;
+        mark(apply(button.dataset[attribute] || fallback));
+      });
+    }
+  }
+
   function wire() {
+    wireAppearance();
+
     document.getElementById('resend-btn')?.addEventListener('click', async (event) => {
       event.target.disabled = true;
       try {

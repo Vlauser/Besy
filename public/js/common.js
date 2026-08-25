@@ -1,5 +1,39 @@
 /* Shared helpers: API client, header rendering, formatting. */
 
+/*
+ * Appearance, applied before anything is drawn.
+ *
+ * Two settings, both of them iOS 27's: which theme, and how transparent the
+ * glass is — the phone has a slider from ultra clear to fully tinted, and this
+ * is the same idea with three stops. They are per browser rather than per
+ * account: it is a property of the screen you are looking at, not of you.
+ */
+const appearance = {
+  read(key, fallback) {
+    try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
+  },
+  write(key, value) {
+    try { localStorage.setItem(key, value); } catch { /* private mode */ }
+  },
+  theme(value) {
+    if (value) appearance.write('besy:theme', value);
+    const chosen = value || appearance.read('besy:theme', 'system');
+    if (chosen === 'system') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', chosen);
+    return chosen;
+  },
+  glass(value) {
+    if (value) appearance.write('besy:glass', value);
+    const chosen = value || appearance.read('besy:glass', 'regular');
+    if (chosen === 'regular') document.documentElement.removeAttribute('data-glass');
+    else document.documentElement.setAttribute('data-glass', chosen);
+    return chosen;
+  },
+};
+
+appearance.theme();
+appearance.glass();
+
 function readCookie(name) {
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
   return match ? decodeURIComponent(match[1]) : '';
@@ -132,19 +166,24 @@ const auth = {
 
 function renderHeader() {
   const query = new URLSearchParams(location.search).get('q') || '';
+  // On a phone everything except the bell moves to the tab bar or the profile
+  // page, so the top of the screen carries the name of the place and one thing
+  // to check — which is all Instagram keeps up there too.
   const right = auth.user
     ? `
       <a class="btn btn-ghost hide-sm" href="/upload">${icon('upload')}Загрузить</a>
       <a class="btn btn-ghost hide-sm" href="/studio">Мои видео</a>
+      <button class="btn btn-ghost btn-icon" id="search-open" aria-label="Поиск">${icon('search', 'Поиск')}</button>
       <button class="btn btn-ghost btn-icon" id="bell-btn" title="Уведомления">${icon('bell', 'Уведомления')}<span class="bell-dot" hidden></span></button>
-      ${auth.user.isAdmin ? `<a class="btn btn-ghost btn-icon" href="/moderation" title="Модерация">${icon('shield', 'Модерация')}</a>` : ''}
-      <a class="btn btn-ghost btn-icon" href="/settings" title="Аккаунт и безопасность">${icon('settings', 'Аккаунт и безопасность')}</a>
-      <a class="avatar" href="/@${escapeHtml(auth.user.username)}" title="${escapeHtml(auth.user.displayName)}"
+      ${auth.user.isAdmin ? `<a class="btn btn-ghost btn-icon hide-sm" href="/moderation" title="Модерация">${icon('shield', 'Модерация')}</a>` : ''}
+      <a class="btn btn-ghost btn-icon hide-sm" href="/settings" title="Аккаунт и безопасность">${icon('settings', 'Аккаунт и безопасность')}</a>
+      <a class="avatar hide-sm" href="/@${escapeHtml(auth.user.username)}" title="${escapeHtml(auth.user.displayName)}"
          aria-label="Мой канал — ${escapeHtml(auth.user.displayName)}">${avatarInner(auth.user)}</a>
-      <button class="btn btn-ghost" id="logout-btn">Выйти</button>`
+      <button class="btn btn-ghost hide-sm" id="logout-btn">Выйти</button>`
     : `
-      <a class="btn btn-ghost" href="/auth">Войти</a>
-      <a class="btn btn-primary" href="/auth?mode=register">Регистрация</a>`;
+      <button class="btn btn-ghost btn-icon" id="search-open" aria-label="Поиск">${icon('search', 'Поиск')}</button>
+      <a class="btn btn-ghost hide-sm" href="/auth">Войти</a>
+      <a class="btn btn-primary hide-sm" href="/auth?mode=register">Регистрация</a>`;
 
   const header = document.createElement('header');
   header.className = 'header';
@@ -160,14 +199,88 @@ function renderHeader() {
 
   document.body.prepend(header);
 
+  const search = (value) => { location.href = value ? `/?q=${encodeURIComponent(value)}` : '/'; };
+
   header.querySelector('#search-form').addEventListener('submit', (event) => {
     event.preventDefault();
-    const value = new FormData(event.target).get('q').trim();
-    location.href = value ? `/?q=${encodeURIComponent(value)}` : '/';
+    search(new FormData(event.target).get('q').trim());
+  });
+
+  // The field itself does not fit next to anything on a phone, so there it is
+  // a button that raises a sheet with nothing in it but the field.
+  header.querySelector('#search-open')?.addEventListener('click', () => {
+    const modal = openModal('Поиск', `
+      <form id="search-sheet">
+        <div class="field">
+          <input class="input" name="q" placeholder="Видео и каналы" autocomplete="off"
+                 value="${escapeHtml(query)}" aria-label="Поиск видео и каналов">
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%">Искать</button>
+      </form>`);
+    const field = modal.body.querySelector('input');
+    modal.body.querySelector('form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      search(field.value.trim());
+    });
+    field.focus();
   });
 
   header.querySelector('#logout-btn')?.addEventListener('click', () => auth.logout());
   if (auth.user) setupNotifications(header);
+  watchScrollEdge();
+  renderTabBar();
+}
+
+/*
+ * The scroll edge. While the page is at the top the bar is nearly clear; the
+ * moment content passes under it the bar goes uniform — full tint, hard blur,
+ * one hairline — which is what iOS 27 replaced its soft gradient with, and for
+ * the same reason: a gradient over a moving picture never settles.
+ */
+function watchScrollEdge() {
+  let ticking = false;
+  const apply = () => {
+    document.body.classList.toggle('scrolled', window.scrollY > 4);
+    ticking = false;
+  };
+  apply();
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(apply);
+  }, { passive: true });
+}
+
+/*
+ * On a phone the destinations move to the bottom, within reach of a thumb, and
+ * the middle slot is the verb rather than a place. Signed out it is the way in,
+ * because that is the only thing there is to do.
+ */
+function renderTabBar() {
+  const here = location.pathname;
+  const isHere = (path) => (path === '/' ? here === '/' : here.startsWith(path));
+  const tab = (href, name, label) => `
+    <a href="${href}" class="${isHere(href) ? 'active' : ''}"
+       aria-label="${escapeHtml(label)}"${isHere(href) ? ' aria-current="page"' : ''}>
+      ${icon(name, '', 22)}<span>${escapeHtml(label)}</span>
+    </a>`;
+
+  const middle = auth.user
+    ? `<a href="/upload" class="tab-post" aria-label="Загрузить видео"><span>${icon('plus', '', 20)}</span></a>`
+    : `<a href="/auth" class="tab-post" aria-label="Войти"><span>${icon('lock', '', 20)}</span></a>`;
+
+  const bar = document.createElement('nav');
+  bar.className = 'tabbar glass';
+  bar.setAttribute('aria-label', 'Основная навигация');
+  bar.innerHTML = `
+    ${tab('/', 'compass', 'Лента')}
+    ${tab('/shorts', 'film', 'Shorts')}
+    ${middle}
+    ${tab('/live', 'live', 'Эфиры')}
+    ${auth.user
+      ? tab(`/@${auth.user.username}`, 'user', 'Профиль')
+      : tab('/auth', 'user', 'Аккаунт')}`;
+  document.body.appendChild(bar);
 }
 
 /* --------------------------------------------------------- notifications */
@@ -306,6 +419,7 @@ const ICONS = {
   image:     '<path d="M3 4.5h14v11H3v-11Zm0 8 4-3.5 4 3.5 3-2.5 3 2.5"/><circle cx="7.2" cy="7.6" r="1.1"/>',
   film:      '<path d="M2.5 4.5h15v11h-15v-11ZM6 4.5v11M14 4.5v11M2.5 10h15M2.5 7.2h3.5M2.5 12.8h3.5M14 7.2h3.5M14 12.8h3.5"/>',
   inbox:     '<path d="M2.5 11.5 5 4.5h10l2.5 7v4h-15v-4ZM2.5 11.5H7a3 3 0 0 0 6 0h4.5"/>',
+  user:      '<path d="M10 10.4a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z"/><path d="M3.8 17.2c.9-3.1 3.3-4.8 6.2-4.8s5.3 1.7 6.2 4.8"/>',
   compass:   '<path d="M10 17.5a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15ZM13 7l-1.8 4.2L7 13l1.8-4.2L13 7Z"/>',
   phone:     '<path d="M6 2.5h8v15H6v-15ZM8.8 15.4h2.4"/>',
   lock:      '<path d="M5.5 8.5h9v9h-9v-9ZM7.5 8.5V6a2.5 2.5 0 0 1 5 0v2.5"/>',
@@ -366,10 +480,13 @@ function videoCard(video, { showAuthor = true } = {}) {
 
   // The channel link must live outside the card link: nested <a> is invalid HTML
   // and the parser would hoist everything after it out of the card.
+  // A vertical clip gets a vertical tile — the 3:4 Instagram moved its own grid
+  // to — while landscape video keeps 16:9, because cropping it would hide the
+  // picture rather than show more of it.
   return `
     <div class="card">
       <a href="/watch/${video.id}">
-        <div class="thumb">
+        <div class="thumb${video.isShort ? ' thumb-tall' : ''}">
           ${thumb}${badge}
           ${renditionLadder(video)}
           ${video.duration ? `<span class="duration">${fmt.duration(video.duration)}</span>` : ''}

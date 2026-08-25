@@ -58,7 +58,12 @@ router.get('/', (req, res) => {
   res.json({
     streams: rows.map((row) => ({
       ...shapeStream(row, req),
-      author: { id: row.user_id, username: row.username, displayName: row.display_name },
+      author: {
+        id: row.user_id,
+        username: row.username,
+        displayName: row.display_name,
+        avatar: row.avatar_file ? `/media/avatar/${row.username}` : null,
+      },
     })),
   });
 });

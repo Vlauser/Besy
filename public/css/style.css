@@ -1,54 +1,224 @@
 /*
  * Besy — a video host you run yourself.
  *
- * The colour system carries state, and red carries exactly one thing: on air.
- * That is the tally light on a studio camera, which is never decorative, so
- * --tally appears only on live surfaces. Everything a person can click uses
- * --trace, the cyan of a waveform-monitor phosphor.
+ * The surface language is iOS 27's refined Liquid Glass, and it is refined in
+ * specific ways this sheet implements rather than gestures at: a darkened edge
+ * around every glass element, a brighter specular highlight along its top, a
+ * hard blur with a hairline border at a scroll edge instead of iOS 26's soft
+ * gradient, and a bar that turns uniform once content passes under it. The
+ * transparency itself is a setting, as it is on the phone, and it collapses to
+ * solid under Reduce Transparency or Increase Contrast.
  *
- * The ground is cool graphite rather than black on purpose: a grading suite
- * keeps a neutral surround so it does not bias the picture inside it.
+ * The structure follows Instagram's August 2026 shape: a bottom tab bar on a
+ * phone, a ring of channels that are live where the stories row sits, vertical
+ * 3:4 tiles wherever the content itself is vertical, and sheets that rise from
+ * the bottom edge. Video stays 16:9 — cropping a landscape frame into a
+ * portrait tile hides the picture, which is the one thing this site is for.
+ *
+ * Colour still carries state, and red still carries exactly one thing: on air.
+ * That is the tally light on a studio camera, so --tally appears only on live
+ * surfaces. Everything else is neutral until it can be touched.
  *
  * There are no webfonts. The CSP allows font-src 'self' and the app vendors
- * hls.js rather than pulling a CDN, so character comes from treatment: every
- * number that is a measurement — duration, timecode, resolution, count, key —
- * is set in mono with tabular figures so columns line up.
+ * hls.js rather than pulling a CDN, so the type is the system's own — SF Pro
+ * on Apple hardware, which is what an iOS-shaped interface should be set in —
+ * and character comes from treatment: every number that is a measurement is
+ * set in mono with tabular figures so columns line up.
  */
 
 :root {
-  /* surround → panel → raised panel */
-  --bg: #191c22;
-  --bg-elevated: #21252d;
-  --bg-hover: #2a2f39;
-  --border: #363c48;
-  --border-soft: #2b313c;
+  color-scheme: light dark;
 
-  --text: #e6e9ef;
-  --text-dim: #8d95a6;
+  /* ground → panel → raised panel */
+  --bg: #f5f5f7;
+  --bg-elevated: #ffffff;
+  --bg-hover: #ebebf0;
+  --border: rgba(9, 11, 16, .13);
+  --border-soft: rgba(9, 11, 16, .07);
+
+  --text: #0b0d12;
+  --text-dim: #646a79;
 
   /* interactive */
-  --accent: #4fd1ff;
-  --accent-hover: #7cdcff;
-  --accent-soft: rgba(79, 209, 255, 0.13);
-  --accent-ink: #06212b;
+  --accent: #0a7ea4;
+  --accent-hover: #086a8a;
+  --accent-soft: rgba(10, 126, 164, .12);
+  --accent-ink: #ffffff;
 
   /* state — each means one thing and nothing else */
-  --tally: #ff3b30;
-  --tally-soft: rgba(255, 59, 48, 0.14);
+  --tally: #d70015;
+  --tally-soft: rgba(215, 0, 21, .10);
+  --ready: #17803d;
+  --work: #9a5b00;
+  --ok: #17803d;
+
+  /* glass: the tint, how much of it, and the two edges that give it depth */
+  --glass-rgb: 255 255 255;
+  --glass-alpha: .72;
+  --glass-blur: 22px;
+  --glass-edge: rgba(9, 11, 16, .16);
+  --glass-specular: rgba(255, 255, 255, .9);
+  --glass-shadow: 0 10px 34px rgba(9, 11, 16, .12);
+  --scrim: rgba(9, 11, 16, .34);
+
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
+  --header-h: 56px;
+  --tabbar-h: 56px;
+  --max-w: 1400px;
+
+  /* iOS-ish spring: fast out, settles rather than stops */
+  --spring: cubic-bezier(.32, .72, 0, 1);
+  --fast: 160ms;
+  --sheet: 380ms;
+
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text",
+          "Segoe UI", Inter, Roboto, system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/*
+ * Dark is a real design rather than an inversion: the ground goes near-black so
+ * glass has something to lift off, the edge darkens further, and the specular
+ * highlight drops to a hairline because a bright line on dark reads as a seam.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0b0e;
+    --bg-elevated: #16181d;
+    --bg-hover: #21242b;
+    --border: rgba(255, 255, 255, .14);
+    --border-soft: rgba(255, 255, 255, .07);
+
+    --text: #f2f3f6;
+    --text-dim: #9aa1b1;
+
+    --accent: #4fd1ff;
+    --accent-hover: #7cdcff;
+    --accent-soft: rgba(79, 209, 255, .16);
+    --accent-ink: #06212b;
+
+    --tally: #ff453a;
+    --tally-soft: rgba(255, 69, 58, .16);
+    --ready: #4ade80;
+    --work: #fbbf24;
+    --ok: #4ade80;
+
+    --glass-rgb: 20 22 27;
+    --glass-edge: rgba(0, 0, 0, .6);
+    --glass-specular: rgba(255, 255, 255, .18);
+    --glass-shadow: 0 12px 38px rgba(0, 0, 0, .5);
+    --scrim: rgba(0, 0, 0, .6);
+  }
+}
+
+/* The same values again, for when the choice is explicit rather than the OS's. */
+:root[data-theme="dark"] {
+  --bg: #0a0b0e;
+  --bg-elevated: #16181d;
+  --bg-hover: #21242b;
+  --border: rgba(255, 255, 255, .14);
+  --border-soft: rgba(255, 255, 255, .07);
+
+  --text: #f2f3f6;
+  --text-dim: #9aa1b1;
+
+  --accent: #4fd1ff;
+  --accent-hover: #7cdcff;
+  --accent-soft: rgba(79, 209, 255, .16);
+  --accent-ink: #06212b;
+
+  --tally: #ff453a;
+  --tally-soft: rgba(255, 69, 58, .16);
   --ready: #4ade80;
   --work: #fbbf24;
   --ok: #4ade80;
 
-  --radius: 10px;
-  --radius-sm: 6px;
-  --header-h: 60px;
-  --max-w: 1400px;
+  --glass-rgb: 20 22 27;
+  --glass-edge: rgba(0, 0, 0, .6);
+  --glass-specular: rgba(255, 255, 255, .18);
+  --glass-shadow: 0 12px 38px rgba(0, 0, 0, .5);
+  --scrim: rgba(0, 0, 0, .6);
+}
 
-  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+/*
+ * A screen that is dark whatever the theme says — Shorts, where the picture
+ * fills the display. The tokens are repeated rather than shared because a
+ * custom property cannot be aliased without losing the fallback chain, and
+ * three copies that are obviously the same beat one clever one.
+ */
+body.on-dark {
+  --bg: #000000;
+  --bg-elevated: #16181d;
+  --bg-hover: #21242b;
+  --border: rgba(255, 255, 255, .14);
+  --border-soft: rgba(255, 255, 255, .07);
+
+  --text: #f2f3f6;
+  --text-dim: #9aa1b1;
+
+  --accent: #4fd1ff;
+  --accent-hover: #7cdcff;
+  --accent-soft: rgba(79, 209, 255, .16);
+  --accent-ink: #06212b;
+
+  --tally: #ff453a;
+  --tally-soft: rgba(255, 69, 58, .16);
+  --ready: #4ade80;
+  --work: #fbbf24;
+  --ok: #4ade80;
+
+  --glass-rgb: 20 22 27;
+  --glass-edge: rgba(0, 0, 0, .6);
+  --glass-specular: rgba(255, 255, 255, .18);
+  --glass-shadow: 0 12px 38px rgba(0, 0, 0, .5);
+  --scrim: rgba(0, 0, 0, .6);
+
+  background: #000;
+  color: var(--text);
+}
+
+/*
+ * Transparency is a setting on iOS 27 — a slider from ultra clear to fully
+ * tinted — so it is a setting here, stored per browser and applied to the one
+ * variable every glass surface reads.
+ */
+:root[data-glass="clear"] { --glass-alpha: .5; --glass-blur: 28px; }
+:root[data-glass="solid"] { --glass-alpha: 1; --glass-blur: 0px; }
+
+/* And it gives way entirely to the two accessibility settings that outrank it. */
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass-alpha: 1; --glass-blur: 0px; }
+}
+@media (prefers-contrast: more) {
+  /* Only the glass gives way here. The borders and the dim text belong to the
+     theme, and forcing a colour would get one of the two themes wrong. */
+  :root { --glass-alpha: 1; --glass-blur: 0px; }
+}
+
+/*
+ * One glass primitive. Everything that floats over content uses it, so the
+ * edge, the highlight and the blur stay the same thickness everywhere.
+ */
+.glass {
+  background: rgb(var(--glass-rgb) / var(--glass-alpha));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  box-shadow:
+    inset 0 0 0 .5px var(--glass-edge),
+    inset 0 .5px 0 0 var(--glass-specular),
+    var(--glass-shadow);
+}
+
+/* Where the browser cannot blur, the tint alone would be a smear. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--bg-elevated); }
 }
 
 /* Measurements: durations, resolutions, counts, keys. Tabular so they align. */
+.timecode { white-space: nowrap; }   /* 0:00 / 0:00 never breaks in half */
+
 .mono, .duration, .timecode, .stat-value, .rung-label {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
@@ -86,6 +256,13 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* ------------------------------------------------------------------ header */
 
+/*
+ * The bar floats over the page rather than sitting above it, and it changes
+ * state at the scroll edge the way iOS 27 does: clear while the page is at the
+ * top, then uniform — fully tinted, hard blur, one hairline underneath — as
+ * soon as content passes beneath it. iOS 26's soft gradient is what this
+ * replaces; a gradient over moving video never settled.
+ */
 .header {
   position: sticky;
   top: 0;
@@ -93,11 +270,23 @@ button, input, textarea, select { font: inherit; color: inherit; }
   height: var(--header-h);
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 0 20px;
-  background: rgba(25, 28, 34, 0.92);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
+  gap: 14px;
+  padding: 0 16px;
+  background: rgb(var(--glass-rgb) / calc(var(--glass-alpha) * .72));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border-bottom: .5px solid transparent;
+  transition: background var(--fast) linear, border-color var(--fast) linear;
+}
+
+body.scrolled .header {
+  background: rgb(var(--glass-rgb) / var(--glass-alpha));
+  border-bottom-color: var(--border);
+  box-shadow: inset 0 .5px 0 0 var(--glass-specular);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .header, body.scrolled .header { background: var(--bg-elevated); }
 }
 
 .logo {
@@ -129,28 +318,32 @@ button, input, textarea, select { font: inherit; color: inherit; }
   margin: 0 auto;
 }
 
+/* One filled pill, not two boxes welded together. */
 .search input {
   flex: 1;
   min-width: 0;
   height: 38px;
-  padding: 0 14px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  padding: 0 16px;
+  background: var(--bg-hover);
+  border: 1px solid transparent;
   border-right: none;
-  border-radius: 999px 0 0 999px;
+  border-radius: var(--radius-pill) 0 0 var(--radius-pill);
   outline: none;
 }
 
-.search input:focus { border-color: var(--accent); }
-
 .search button {
   height: 38px;
-  padding: 0 18px;
+  padding: 0 16px;
   background: var(--bg-hover);
-  border: 1px solid var(--border);
-  border-radius: 0 999px 999px 0;
+  border: 1px solid transparent;
+  border-left: none;
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  color: var(--text-dim);
   cursor: pointer;
 }
+
+.search:focus-within input,
+.search:focus-within button { border-color: var(--accent); }
 
 .search button:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
@@ -164,12 +357,27 @@ button, input, textarea, select { font: inherit; color: inherit; }
   padding: 24px 20px 80px;
 }
 
+@media (max-width: 700px) {
+  /* Room for the tab bar, plus whatever the phone's own gesture area needs. */
+  .page { padding-bottom: calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom, 0px)); }
+}
+
 .page-narrow { max-width: 640px; }
 
 h1 { font-size: 24px; margin: 0 0 18px; letter-spacing: -0.4px; }
 h2 { font-size: 18px; margin: 0 0 14px; }
 
-.tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+/* A filter strip scrolls sideways rather than growing a second line. */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tabs .tab { flex: 0 0 auto; }
 
 .tab {
   padding: 7px 15px;
@@ -202,8 +410,12 @@ h2 { font-size: 18px; margin: 0 0 14px; }
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  transition: background .15s, border-color .15s, transform .05s;
+  transition: background var(--fast) var(--spring), border-color var(--fast) linear,
+              transform 120ms var(--spring);
 }
+
+/* A press should feel like a press: the control gives, then springs back. */
+.btn:active { transform: scale(.96); }
 
 .btn:hover { background: var(--bg-hover); }
 .btn:active { transform: scale(.97); }
@@ -256,9 +468,20 @@ textarea:focus-visible,
   aspect-ratio: 16 / 9;
   border-radius: var(--radius);
   overflow: hidden;
-  background: linear-gradient(135deg, #1e222a, #272d38);
+  background: var(--bg-hover);
   margin-bottom: 10px;
+  transition: transform 220ms var(--spring);
 }
+
+.card > a:active .thumb { transform: scale(.985); }
+
+/*
+ * Where the content itself is vertical — Shorts, and the Shorts a channel has
+ * posted — the tile is vertical too, at the 3:4 Instagram moved its own grid
+ * to. Landscape video keeps 16:9: cropping it into a portrait tile would hide
+ * the picture, which is the whole point of the tile.
+ */
+.thumb-tall { aspect-ratio: 3 / 4; }
 
 .thumb img { width: 100%; height: 100%; object-fit: cover; }
 
@@ -273,14 +496,18 @@ textarea:focus-visible,
 .card:hover .thumb img { transform: scale(1.03); }
 .thumb img { transition: transform .25s; }
 
+/* Chips that sit on a picture are dark in both themes, so they say so rather
+   than inheriting a text colour that is black on black half the time. */
 .duration {
   position: absolute;
   right: 7px;
   bottom: 7px;
   padding: 2px 6px;
-  background: rgba(10, 12, 16, 0.72);
+  background: rgba(10, 12, 16, .72);
+  -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   border-radius: var(--radius-sm);
+  color: #fff;
   font-size: 12px;
 }
 
@@ -289,9 +516,11 @@ textarea:focus-visible,
   left: 7px;
   top: 7px;
   padding: 2px 8px;
-  background: rgba(10, 12, 16, 0.72);
+  background: rgba(10, 12, 16, .72);
+  -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   border-radius: var(--radius-sm);
+  color: #fff;
   font-family: var(--mono);
   font-size: 10px;
   text-transform: uppercase;
@@ -337,11 +566,14 @@ textarea:focus-visible,
   backdrop-filter: blur(3px);
 }
 
+/* The ladder always sits on a dark chip over the picture, so its colours are
+   fixed rather than themed: the dark green that reads on white would vanish
+   here, and the point of the rungs is that you can count them at a glance. */
 .rung {
   width: 3px;
   border-radius: 1px;
-  background: var(--text-dim);
-  opacity: .3;
+  background: rgba(255, 255, 255, .92);
+  opacity: .32;
 }
 
 .rung:nth-child(1) { height: 4px; }
@@ -349,11 +581,11 @@ textarea:focus-visible,
 .rung:nth-child(3) { height: 8px; }
 .rung:nth-child(4) { height: 10px; }
 
-.rung.on { background: var(--ready); opacity: 1; }
+.rung.on { background: #4ade80; opacity: 1; }
 
 /* While the encoder is running, the rungs it has not reached yet pulse amber. */
 .ladder.working .rung:not(.on) {
-  background: var(--work);
+  background: #fbbf24;
   opacity: .75;
   animation: rung-work 1.4s ease-in-out infinite;
 }
@@ -540,7 +772,7 @@ textarea:focus-visible,
   color: #fff;
   font-weight: 600;
 }
-.btn-danger-solid:hover { background: #ff6b63; border-color: #ff6b63; }
+.btn-danger-solid:hover { filter: brightness(1.12); }
 
 .toast-host {
   position: fixed;
@@ -558,11 +790,15 @@ textarea:focus-visible,
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  background: rgb(var(--glass-rgb) / var(--glass-alpha));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   border-left: 3px solid var(--ok);
   border-radius: var(--radius-sm);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, .38);
+  box-shadow:
+    inset 0 0 0 .5px var(--glass-edge),
+    inset 0 .5px 0 0 var(--glass-specular),
+    var(--glass-shadow);
   cursor: pointer;
   animation: toast-in .18s ease-out;
 }
@@ -647,9 +883,9 @@ textarea.input { resize: vertical; min-height: 96px; }
 
 .panel {
   background: var(--bg-elevated);
-  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 22px;
+  box-shadow: 0 0 0 .5px var(--border-soft), 0 1px 2px rgba(9, 11, 16, .04);
 }
 
 code {
@@ -672,8 +908,10 @@ code {
   font-size: 14px;
 }
 
-.alert-error { background: rgba(255, 77, 109, .12); border: 1px solid rgba(255, 77, 109, .4); color: #ff9fb0; }
-.alert-ok { background: rgba(61, 220, 151, .12); border: 1px solid rgba(61, 220, 151, .4); color: var(--ok); }
+/* Both take their colour from the theme: a pale pink that reads on graphite
+   disappears entirely on white. */
+.alert-error { background: var(--tally-soft); border: 1px solid var(--tally); color: var(--tally); }
+.alert-ok { background: rgba(61, 220, 151, .12); border: 1px solid var(--ok); color: var(--ok); }
 
 .dropzone {
   border: 2px dashed var(--border);
@@ -841,13 +1079,19 @@ code {
   position: absolute;
   right: 12px;
   bottom: 56px;
-  min-width: 200px;
-  max-height: 260px;
+  min-width: 210px;
+  max-height: 280px;
   overflow-y: auto;
   padding: 10px;
-  background: rgba(18, 20, 26, .97);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  /* The player's own chrome is always dark, whatever the page around it is. */
+  background: rgba(18, 20, 26, .78);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+  box-shadow:
+    inset 0 0 0 .5px rgba(0, 0, 0, .6),
+    inset 0 .5px 0 0 rgba(255, 255, 255, .18),
+    0 12px 38px rgba(0, 0, 0, .5);
+  border-radius: 14px;
   z-index: 3;
 }
 
@@ -942,8 +1186,9 @@ body.theater .page { max-width: 100%; }
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(0, 0, 0, .62);
-  backdrop-filter: blur(3px);
+  background: var(--scrim);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 .modal {
@@ -951,9 +1196,14 @@ body.theater .page { max-width: 100%; }
   max-width: 460px;
   max-height: 86vh;
   overflow-y: auto;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  background: rgb(var(--glass-rgb) / var(--glass-alpha));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  box-shadow:
+    inset 0 0 0 .5px var(--glass-edge),
+    inset 0 .5px 0 0 var(--glass-specular),
+    var(--glass-shadow);
+  border-radius: 22px;
 }
 
 .modal-wide { max-width: 680px; }
@@ -966,8 +1216,9 @@ body.theater .page { max-width: 100%; }
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border);
+  /* Transparent: the sheet behind it is already glass, and a second tint on
+     top of the first reads as a smudge rather than a header. */
+  border-bottom: .5px solid var(--border);
 }
 
 .modal-body { padding: 16px; }
@@ -1044,7 +1295,20 @@ body.theater .page { max-width: 100%; }
 
 /* ------------------------------------------------------------------ shorts */
 
-.shorts-page { height: calc(100vh - var(--header-h)); }
+/*
+ * Shorts are always dark, whatever the theme is — the picture fills the screen
+ * and a white surround around a vertical video reads as a mistake. This is the
+ * one place the theme does not reach, and it says so rather than inheriting
+ * colours that would put white text on a white page.
+ */
+.shorts-page {
+  height: calc(100vh - var(--header-h));
+  background: #000;
+  color: #f2f3f6;
+}
+
+.shorts-page .empty,
+.shorts-page .hint { color: rgba(242, 243, 246, .72); }
 
 .shorts-feed {
   height: 100%;
@@ -1199,7 +1463,8 @@ body.theater .page { max-width: 100%; }
   gap: 2px;
   padding: 6px 10px;
   background: rgba(10, 12, 16, .95);
-  border: 1px solid var(--border);
+  color: #f2f3f6;                 /* the tooltip is dark in both themes */
+  border: 1px solid rgba(255, 255, 255, .16);
   border-radius: 8px;
   font-size: 12px;
   pointer-events: none;
@@ -1264,10 +1529,14 @@ body.theater .page { max-width: 100%; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 18px 44px rgba(0, 0, 0, .45);
+  background: rgb(var(--glass-rgb) / var(--glass-alpha));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 0 0 .5px var(--glass-edge),
+    inset 0 .5px 0 0 var(--glass-specular),
+    var(--glass-shadow);
 }
 
 .bell-head {
@@ -1309,3 +1578,184 @@ body.theater .page { max-width: 100%; }
   border-radius: 999px;
   box-shadow: 0 14px 36px rgba(0, 0, 0, .5);
 }
+
+/* ------------------------------------------------------- tab bar and rings */
+
+/*
+ * On a phone the navigation moves to the bottom, where a thumb is. Five
+ * destinations, the middle one being the thing you came to do — the same shape
+ * Instagram uses, and the same one iOS gives its own apps. It is glass, so the
+ * feed scrolling underneath stays visible through it.
+ */
+.tabbar {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  height: var(--tabbar-h);
+  display: none;
+  align-items: stretch;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.tabbar a {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: .01em;
+  transition: color var(--fast) linear, transform 120ms var(--spring);
+}
+
+.tabbar a:active { transform: scale(.92); }
+.tabbar a.active { color: var(--text); }
+.tabbar a.active .icon { stroke-width: 2.1; }
+
+/* The middle one is the verb, so it is filled rather than outlined. */
+.tabbar .tab-post {
+  flex: 0 0 auto;
+  width: 54px;
+}
+.tabbar .tab-post span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--text);
+  color: var(--bg-elevated);
+}
+
+@media (max-width: 700px) {
+  .tabbar { display: flex; }
+  /* Everything else is one tap away at the bottom, so the top of the screen
+     carries the name of the place, the search and the bell — nothing else. */
+  .header .hide-sm { display: none; }
+  .header .search { display: none; }
+  .header .logo span { display: inline; }
+  .page > h1 { font-size: 26px; letter-spacing: -.02em; }
+  .card-title { font-size: 15px; }
+}
+
+@media (min-width: 701px) {
+  /* On a desktop the field is right there; the button would be a second way in. */
+  #search-open { display: none; }
+}
+
+/*
+ * Channels that are live, in the row where a stories tray sits. The ring is
+ * the tally light: it appears only while someone is actually on air, so a
+ * quiet service shows no ring at all rather than a row of grey circles.
+ */
+.live-rail {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 2px 0 14px;
+  margin-bottom: 6px;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+.live-rail::-webkit-scrollbar { display: none; }
+
+.live-rail a {
+  flex: 0 0 auto;
+  width: 76px;
+  text-align: center;
+  scroll-snap-align: start;
+}
+
+.live-rail .ring {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  padding: 3px;
+  margin: 0 auto 6px;
+  background: conic-gradient(from 210deg, var(--tally), #ff9f0a, var(--tally));
+  transition: transform 200ms var(--spring);
+}
+.live-rail a:active .ring { transform: scale(.94); }
+
+.live-rail .ring .avatar {
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--bg);
+  font-size: 22px;
+}
+
+.live-rail .name {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ sheets */
+
+/*
+ * A dialog is a sheet on a phone: it comes up from the bottom edge, keeps the
+ * page visible behind it, and carries the grabber that says it can be pushed
+ * back down. On a desktop it stays a centred panel, because there is no bottom
+ * edge worth travelling from.
+ */
+.modal { position: relative; }
+
+@media (max-width: 700px) {
+  .modal-overlay { place-items: end center; padding: 0; }
+
+  .modal {
+    width: 100%;
+    max-width: none;
+    max-height: 88vh;
+    border-radius: 22px 22px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: sheet-up var(--sheet) var(--spring);
+  }
+
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--border);
+    transform: translateX(-50%);
+  }
+
+  .modal-head { padding-top: 18px; }
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal { animation: none; }
+  .btn:active, .tabbar a:active, .card > a:active .thumb, .live-rail a:active .ring { transform: none; }
+}
+
+/* ------------------------------------------------------------- appearance */
+
+.choice-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.choice-row button {
+  flex: 1 1 90px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  transition: border-color var(--fast) linear, background var(--fast) linear;
+}
+.choice-row button.active { border-color: var(--accent); background: var(--accent-soft); }
