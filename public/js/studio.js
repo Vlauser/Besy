@@ -186,12 +186,12 @@
           </div>
           <div class="field mt-16">
             <label>Сервер (RTMP)</label>
-            <input class="input stream-key" value="${escapeHtml(stream.ingestUrl)}" readonly onclick="this.select()">
+            <input class="input stream-key" value="${escapeHtml(stream.ingestUrl)}" readonly data-select-on-click>
           </div>
           <div class="field">
             <label>Ключ трансляции — не показывайте его в эфире</label>
             <input class="input stream-key" type="password" value="${escapeHtml(stream.streamKey)}" readonly
-                   onclick="this.type='text';this.select()">
+                   data-reveal-on-click>
           </div>
           <div class="row">
             <a class="btn" href="/watch/${stream.id}">Открыть страницу</a>

@@ -139,7 +139,8 @@ function renderHeader() {
       <button class="btn btn-ghost btn-icon" id="bell-btn" title="Уведомления">${icon('bell', 'Уведомления')}<span class="bell-dot" hidden></span></button>
       ${auth.user.isAdmin ? `<a class="btn btn-ghost btn-icon" href="/moderation" title="Модерация">${icon('shield', 'Модерация')}</a>` : ''}
       <a class="btn btn-ghost btn-icon" href="/settings" title="Аккаунт и безопасность">${icon('settings', 'Аккаунт и безопасность')}</a>
-      <a class="avatar" href="/@${escapeHtml(auth.user.username)}" title="${escapeHtml(auth.user.displayName)}">${avatarInner(auth.user)}</a>
+      <a class="avatar" href="/@${escapeHtml(auth.user.username)}" title="${escapeHtml(auth.user.displayName)}"
+         aria-label="Мой канал — ${escapeHtml(auth.user.displayName)}">${avatarInner(auth.user)}</a>
       <button class="btn btn-ghost" id="logout-btn">Выйти</button>`
     : `
       <a class="btn btn-ghost" href="/auth">Войти</a>
@@ -148,7 +149,7 @@ function renderHeader() {
   const header = document.createElement('header');
   header.className = 'header';
   header.innerHTML = `
-    <a class="logo" href="/"><span class="logo-mark">${icon('play')}</span><span>Besy</span></a>
+    <a class="logo" href="/" aria-label="Besy — на главную"><span class="logo-mark">${icon('play')}</span><span>Besy</span></a>
     <a class="btn btn-ghost hide-sm" href="/shorts">Shorts</a>
     <a class="btn btn-ghost hide-sm" href="/live">Эфиры</a>
     <form class="search" id="search-form">
@@ -893,8 +894,24 @@ function hydrateIcons(root = document) {
   });
 }
 
+/*
+ * A read-only field holding something you are meant to copy selects itself when
+ * clicked, and a masked one (a stream key) reveals itself first. These were
+ * inline onclick attributes, which this site's own CSP refuses to run — the
+ * controls looked normal and did nothing at all.
+ */
+function setupCopyFields() {
+  document.addEventListener('click', (event) => {
+    const field = event.target.closest('[data-select-on-click], [data-reveal-on-click]');
+    if (!field) return;
+    if (field.hasAttribute('data-reveal-on-click')) field.type = 'text';
+    field.select();
+  });
+}
+
 async function bootstrap() {
   await auth.load();
   renderHeader();
   hydrateIcons();
+  setupCopyFields();
 }

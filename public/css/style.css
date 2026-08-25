@@ -870,6 +870,31 @@ code {
 .player-menu-chip:hover, .player-menu-item:hover { background: var(--border); }
 .player-menu-chip.active, .player-menu-item.active { border-color: var(--accent); color: var(--accent-hover); }
 
+/* A row that is a setting rather than a choice, so it reads as on or off. */
+.player-menu-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.player-menu-switch .switch {
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  flex-shrink: 0;
+  transition: background .18s;
+}
+.player-menu-switch .switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform .18s;
+}
+.player-menu-switch.active .switch { background: var(--accent); }
+.player-menu-switch.active .switch::after { transform: translateX(14px); background: var(--accent-ink); }
+
 .player-toast {
   position: absolute;
   left: 50%;

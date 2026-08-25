@@ -76,6 +76,10 @@
       },
     });
     besyPlayer.showNextButton(Boolean(nextVideo));
+    besyPlayer.setAutoplay(autoplayEnabled(), (on) => {
+      try { localStorage.setItem('besy:autoplay', on ? 'on' : 'off'); } catch { /* private mode */ }
+    });
+    resumeWhereWeStopped();
     window.besyPlayer = besyPlayer; // handy handle for debugging and tests
     besyPlayer.load({
       hlsUrl: isLive ? `/media/live/${video.id}/index.m3u8` : video.hlsUrl,
@@ -89,7 +93,8 @@
 
     barEl.innerHTML = `
       <div class="channel-row">
-        <a class="avatar" href="/@${escapeHtml(video.author.username)}">${avatarInner(video.author)}</a>
+        <a class="avatar" href="/@${escapeHtml(video.author.username)}"
+           aria-label="Канал ${escapeHtml(video.author.displayName)}">${avatarInner(video.author)}</a>
         <div>
           <a href="/@${escapeHtml(video.author.username)}"><strong>${escapeHtml(video.author.displayName)}</strong></a>
           <div class="card-meta" id="subs-count">${fmt.count(channel.subscribers)} ${fmt.plural(channel.subscribers, 'подписчик', 'подписчика', 'подписчиков')}</div>
@@ -174,6 +179,32 @@
             </a>`).join('')}
         </div>
       </div>`;
+  }
+
+  /*
+   * Picks up where this viewer left off. The position has been recorded by the
+   * heartbeat since the first commit and drawn as a progress bar on the history
+   * page, but nothing ever gave it back to the player: every video started at
+   * zero, however far you had got.
+   *
+   * Restored only from the middle of a video, and the middle is measured both
+   * ways: fifteen seconds into a short clip is worth returning to, fifteen
+   * seconds into a two-hour film is not, and anything inside the last stretch
+   * means it was finished rather than abandoned.
+   */
+  function resumeWhereWeStopped() {
+    const at = Number(video.myPosition) || 0;
+    const duration = Number(video.duration) || 0;
+    const barelyStarted = at < 15 && at < duration * 0.05;
+    const asGoodAsFinished = duration > 0 && (at > duration - 10 || at > duration * 0.95);
+    if (isLive || at <= 0 || barelyStarted || asGoodAsFinished) return;
+
+    const seek = () => {
+      player.currentTime = at;
+      besyPlayer.toast(`Продолжаем с ${fmt.duration(at)}`);
+    };
+    if (player.readyState >= 1) seek();
+    else player.addEventListener('loadedmetadata', seek, { once: true });
   }
 
   function autoplayEnabled() {
@@ -627,7 +658,8 @@
     commentsEl.innerHTML = comments.length
       ? comments.map((c) => `
         <div class="comment" data-id="${c.id}">
-          <a class="avatar" href="/@${escapeHtml(c.author.username)}">${avatarInner(c.author)}</a>
+          <a class="avatar" href="/@${escapeHtml(c.author.username)}"
+             aria-label="Канал ${escapeHtml(c.author.displayName)}">${avatarInner(c.author)}</a>
           <div style="flex:1;min-width:0">
             <div class="comment-head">
               <a class="comment-author" href="/@${escapeHtml(c.author.username)}">${escapeHtml(c.author.displayName)}</a>

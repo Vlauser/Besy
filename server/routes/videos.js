@@ -162,6 +162,7 @@ function shapeVideo(row, viewer, req) {
     dislikes: row.dislikes ?? 0,
     comments: row.comment_count ?? 0,
     myReaction: row.my_reaction ?? 0,
+    myPosition: row.my_position ?? 0,
     isOwner,
     author: {
       id: row.user_id,
@@ -265,6 +266,13 @@ router.get('/:id', (req, res) => {
     const reaction = db.prepare('SELECT value FROM reactions WHERE video_id = ? AND user_id = ?')
       .get(row.id, req.user.id);
     row.my_reaction = reaction ? reaction.value : 0;
+
+    // Where this viewer stopped last time. The heartbeat has always written it
+    // and the history page has always drawn it as a progress bar, but nothing
+    // ever handed it back to the player, so every video restarted from zero.
+    const seen = db.prepare('SELECT position FROM watch_history WHERE user_id = ? AND video_id = ?')
+      .get(req.user.id, row.id);
+    row.my_position = seen ? seen.position : 0;
   }
 
   const related = db.prepare(`

@@ -164,7 +164,7 @@
                style="border-radius:10px;background:#fff;padding:6px">
           <div class="field mt-16">
             <label>Ключ</label>
-            <input class="input" value="${escapeHtml(secret)}" readonly onclick="this.select()">
+            <input class="input" value="${escapeHtml(secret)}" readonly data-select-on-click>
           </div>
           <form id="twofa-enable">
             <div class="field">

@@ -58,7 +58,8 @@
     document.getElementById('top').innerHTML = data.top.length
       ? `<div class="panel">${data.top.map((video) => `
           <div class="row" style="gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
-            <a href="/watch/${video.id}" style="width:96px;flex-shrink:0">
+            <a href="/watch/${video.id}" style="width:96px;flex-shrink:0"
+               aria-label="Смотреть «${escapeHtml(video.title)}»">
               <div class="thumb" style="margin:0">
                 ${video.thumbUrl ? `<img src="${video.thumbUrl}" alt="">` : `<div class="thumb-empty">${icon('play', '', 30)}</div>`}
               </div>
@@ -67,7 +68,8 @@
               <div class="card-title" style="margin:0">${escapeHtml(video.title)}</div>
               <div class="card-meta">${fmt.views(video.views)} · ${formatWatch(video.watchSeconds)}</div>
             </div>
-            <a class="btn" href="/analytics?video=${video.id}">Подробнее</a>
+            <a class="btn" href="/analytics?video=${video.id}"
+               aria-label="Подробная аналитика «${escapeHtml(video.title)}»">Подробнее</a>
           </div>`).join('')}</div>`
       : '<div class="hint">Пока нет данных</div>';
   }

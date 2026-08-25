@@ -424,7 +424,17 @@ class BesyPlayer {
                 data-caption="-1">Выключены</button>`
       : '';
 
+    const autoplay = this.onAutoplayChange
+      ? `
+        <div class="player-menu-title">Автовоспроизведение</div>
+        <button class="player-menu-item player-menu-switch${this.autoplay ? ' active' : ''}"
+                role="switch" aria-checked="${this.autoplay}" data-autoplay>
+          Следующее видео<span class="switch" aria-hidden="true"></span>
+        </button>`
+      : '';
+
     this.el['settings-menu'].innerHTML = `
+      ${autoplay}
       <div class="player-menu-title">Скорость</div>
       <div class="player-menu-row">
         ${speeds.map((speed) => `
@@ -433,6 +443,13 @@ class BesyPlayer {
       </div>
       ${quality}
       ${captions}`;
+
+    this.el['settings-menu'].querySelector('[data-autoplay]')?.addEventListener('click', () => {
+      this.autoplay = !this.autoplay;
+      this.onAutoplayChange?.(this.autoplay);
+      this.renderSettings();
+      this.toast(this.autoplay ? 'Автовоспроизведение включено' : 'Автовоспроизведение выключено');
+    });
 
     this.el['settings-menu'].querySelectorAll('[data-caption]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -458,6 +475,18 @@ class BesyPlayer {
         this.renderSettings();
       });
     });
+  }
+
+  /*
+   * Autoplay was a stored preference nobody could set: the player read
+   * besy:autoplay and no screen ever wrote it, so the next video always
+   * started and there was no way to say otherwise. The switch lives in the
+   * player's own menu, next to speed and quality.
+   */
+  setAutoplay(enabled, onChange) {
+    this.autoplay = Boolean(enabled);
+    this.onAutoplayChange = onChange;
+    if (this.settingsOpen) this.renderSettings();
   }
 
   showNextButton(show) {
