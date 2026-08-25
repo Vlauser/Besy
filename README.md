@@ -213,11 +213,47 @@ npm run admin -- <логин> --revoke   # снять
 которому сервис виден в локальной сети, так что открыть его с телефона можно
 сразу.
 
+### С нуля на чистом сервере
+
+Ubuntu 20.04/22.04, root. Node из системного репозитория слишком старый для
+`node:sqlite`, поэтому ставится рядом через nvm и ничего не заменяет:
+
+```bash
+apt update && apt install -y git ffmpeg curl
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+. ~/.nvm/nvm.sh && nvm install 22
+
+git clone https://github.com/Vlauser/Besy.git besy && cd besy
+npm ci
+npm run demo            # адрес печатается при запуске
+```
+
+Если включён ufw — `ufw allow 3000/tcp`. Демо печатает готовые логины и
+пароли и ходит по обычному HTTP: это витрина, а не то, что оставляют
+включённым. Для постоянной работы — раздел ниже.
+
 Для настоящего сервера с доменом:
 
 ```bash
 cp .env.example .env      # домен, BESY_SECRET, почта
 docker compose up -d --build
+```
+
+Если `docker compose` ругается на `-d` — в системе старый Docker без плагина
+compose. Ставится одной командой:
+
+```bash
+mkdir -p ~/.docker/cli-plugins
+curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+  -o ~/.docker/cli-plugins/docker-compose && chmod +x ~/.docker/cli-plugins/docker-compose
+```
+
+Домена ещё нет? Тогда без Caddy и без сертификата, прямо на 80-й порт:
+
+```bash
+docker build -t besy .
+docker run -d --name besy --restart unless-stopped -p 80:3000 \
+  -v besy-data:/data -e BESY_SECRET="$(openssl rand -hex 32)" besy
 ```
 
 Поднимаются два контейнера: сам Besy и Caddy перед ним. Сертификат Caddy
