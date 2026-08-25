@@ -131,15 +131,34 @@
   tabs.className = 'tabs';
   tabs.innerHTML = `
     <button class="tab active" data-view="videos">Видео</button>
+    <button class="tab" data-view="shorts">Shorts</button>
     <button class="tab" data-view="playlists">Плейлисты</button>
     <button class="tab" data-view="posts">Сообщество</button>`;
   headEl.appendChild(tabs);
 
+  const channelVideos = () =>
+    api.get(`/api/videos?channel=${encodeURIComponent(channel.username)}&limit=60`);
+
   async function showVideos() {
-    const { videos } = await api.get(`/api/videos?channel=${encodeURIComponent(channel.username)}&limit=60`);
-    gridEl.innerHTML = videos.length
-      ? videos.map((v) => videoCard(v, { showAuthor: false })).join('')
+    const { videos } = await channelVideos();
+    const horizontal = videos.filter((v) => !v.isShort);
+    gridEl.innerHTML = horizontal.length
+      ? horizontal.map((v) => videoCard(v, { showAuthor: false })).join('')
       : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('film', '', ICON_HERO)}</div>На этом канале пока нет видео</div>`;
+  }
+
+  /*
+   * Vertical clips get their own tab, and there the 3:4 tile is right, because
+   * every tile in that grid is vertical. Mixed in with landscape video it was
+   * not: one tall tile stretched the row it was in and left a hole beside it.
+   */
+  async function showShorts() {
+    const { videos } = await channelVideos();
+    const shorts = videos.filter((v) => v.isShort);
+    gridEl.classList.toggle('grid-tall', shorts.length > 0);
+    gridEl.innerHTML = shorts.length
+      ? shorts.map((v) => videoCard(v, { showAuthor: false, tall: true })).join('')
+      : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('film', '', ICON_HERO)}</div>Вертикальных роликов пока нет</div>`;
   }
 
   async function showPlaylists() {
@@ -222,13 +241,14 @@
     });
   }
 
-  const views = { videos: showVideos, playlists: showPlaylists, posts: showPosts };
+  const views = { videos: showVideos, shorts: showShorts, playlists: showPlaylists, posts: showPosts };
 
   tabs.addEventListener('click', (event) => {
     const tab = event.target.closest('.tab');
     if (!tab) return;
     tabs.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
     gridEl.innerHTML = '';
+    gridEl.classList.remove('grid-tall');
     gridEl.style.display = tab.dataset.view === 'posts' ? 'block' : '';
     views[tab.dataset.view]();
   });

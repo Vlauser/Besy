@@ -467,7 +467,13 @@ function renditionLadder(video) {
   return `<span class="ladder${working ? ' working' : ''}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${rungs}</span>`;
 }
 
-function videoCard(video, { showAuthor = true } = {}) {
+/*
+ * `tall` asks for the 3:4 tile, and only a grid where every tile is vertical
+ * should ask. Deciding it per card looked right in a mock and wrong on a real
+ * feed: one vertical clip among horizontal ones stretched its row, left a hole
+ * beside it and pushed its neighbours to the top of the gap.
+ */
+function videoCard(video, { showAuthor = true, tall = false } = {}) {
   const thumb = video.thumbUrl
     ? `<img src="${video.thumbUrl}" alt="" loading="lazy">`
     : `<div class="thumb-empty">${icon('play', '', 30)}</div>`;
@@ -480,13 +486,15 @@ function videoCard(video, { showAuthor = true } = {}) {
 
   // The channel link must live outside the card link: nested <a> is invalid HTML
   // and the parser would hoist everything after it out of the card.
-  // A vertical clip gets a vertical tile — the 3:4 Instagram moved its own grid
-  // to — while landscape video keeps 16:9, because cropping it would hide the
-  // picture rather than show more of it.
+  // A vertical clip's own thumbnail is vertical, and cropping it to fill a 16:9
+  // tile leaves a strip out of the middle. It is letterboxed instead, so the
+  // frame stays whole and the grid stays even.
+  const shape = `${tall ? ' thumb-tall' : ''}${video.isShort && !tall ? ' thumb-vertical' : ''}`;
+
   return `
     <div class="card">
       <a href="/watch/${video.id}">
-        <div class="thumb${video.isShort ? ' thumb-tall' : ''}">
+        <div class="thumb${shape}">
           ${thumb}${badge}
           ${renditionLadder(video)}
           ${video.duration ? `<span class="duration">${fmt.duration(video.duration)}</span>` : ''}

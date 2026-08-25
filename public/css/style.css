@@ -476,14 +476,21 @@ textarea:focus-visible,
 .card > a:active .thumb { transform: scale(.985); }
 
 /*
- * Where the content itself is vertical — Shorts, and the Shorts a channel has
- * posted — the tile is vertical too, at the 3:4 Instagram moved its own grid
- * to. Landscape video keeps 16:9: cropping it into a portrait tile would hide
- * the picture, which is the whole point of the tile.
+ * A grid of vertical clips — the Shorts tab on a channel — uses the 3:4 tile
+ * Instagram moved its own grid to, and narrower columns to match. Two shapes
+ * in one grid is what this replaced: a single tall tile stretched its row and
+ * left a hole beside it. Landscape video keeps 16:9 everywhere.
  */
 .thumb-tall { aspect-ratio: 3 / 4; }
+.grid-tall { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+
 
 .thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+/* A tall picture in a wide tile: show all of it on black rather than crop a
+   band out of its middle. Declared after the rule above, which has the same
+   specificity, so order is what decides. */
+.thumb-vertical img { object-fit: contain; background: #000; }
 
 .thumb-empty {
   width: 100%;
