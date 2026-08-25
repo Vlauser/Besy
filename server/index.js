@@ -16,7 +16,30 @@ const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 app.disable('x-powered-by');
-app.set('trust proxy', true);
+
+/*
+ * Whose X-Forwarded-For to believe.
+ *
+ * This used to be `true`, meaning anyone's: the address every rate limit, the
+ * brute-force lockout and the view counter key off is taken from a header the
+ * client writes, so a single machine could spend everyone's budget or none of
+ * its own. That is only safe when something in front is guaranteed to overwrite
+ * the header, which is a property of the deployment rather than of the code.
+ *
+ * So it is a setting, and it is off unless you say otherwise:
+ *   unset / off   — trust nobody; req.ip is the socket address
+ *   1, 2, …       — trust that many hops (1 behind a single reverse proxy)
+ *   a, b, c       — trust these addresses or CIDR ranges
+ */
+function trustProxySetting(raw) {
+  const value = String(raw ?? '').trim();
+  if (!value || value === 'false' || value === 'off' || value === '0') return false;
+  if (/^\d+$/.test(value)) return Number(value);
+  if (value === 'true' || value === 'on') return true;
+  return value.split(',').map((entry) => entry.trim()).filter(Boolean);
+}
+
+app.set('trust proxy', trustProxySetting(process.env.BESY_TRUST_PROXY));
 
 app.use(security.securityHeaders);
 app.use(express.json({ limit: '256kb' }));

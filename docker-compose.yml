@@ -1,0 +1,52 @@
+# Besy behind Caddy, which gets the certificate and renews it on its own.
+#
+#   cp .env.example .env    — fill in the domain and the secret
+#   docker compose up -d --build
+#
+# Everything that must survive a restart is in the besy-data volume: the
+# database, the media, the outbox. Back that up and you have backed up Besy.
+
+name: besy
+
+services:
+  besy:
+    build: .
+    image: besy:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      BESY_DATA_DIR: /data
+      # Caddy is the only thing in front, so exactly one hop is believed when
+      # it says where the request came from. Every rate limit reads that.
+      BESY_TRUST_PROXY: "1"
+    volumes:
+      - besy-data:/data
+    expose:
+      - "3000"
+    # RTMP ingest goes straight to the container: Caddy speaks HTTP, and a
+    # stream is not HTTP. Comment this out if you are not streaming.
+    ports:
+      - "1935:1935"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      besy:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      BESY_DOMAIN: ${BESY_DOMAIN:?set BESY_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  besy-data:
+  caddy-data:
+  caddy-config:

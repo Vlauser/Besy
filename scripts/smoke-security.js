@@ -110,6 +110,23 @@ let step = 'start';
   res = await client.get('/api/health');
   assert.ok(Number(res.headers.get('ratelimit-remaining')) < firstRemaining, 'budget must decrease');
 
+  /*
+   * A budget belongs to an address, and the address must not be one the caller
+   * gets to choose. The app used to trust X-Forwarded-For from anyone, which
+   * turned every limit into an honour system: a new value per request bought a
+   * fresh allowance. Behind a proxy you opt in with BESY_TRUST_PROXY.
+   */
+  step = 'a forged X-Forwarded-For does not buy a new budget';
+  let forged = Number(res.headers.get('ratelimit-remaining'));
+  for (let i = 0; i < 3; i += 1) {
+    const raw = await client.fetchRaw('/api/health', {
+      headers: { 'x-forwarded-for': `203.0.113.${i + 7}` },
+    });
+    const now = Number(raw.headers.get('ratelimit-remaining'));
+    assert.ok(now < forged, `budget must keep draining, got ${now} after ${forged}`);
+    forged = now;
+  }
+
   // Lockout is keyed by login+IP, so use a throwaway login: locking the real
   // account here would (correctly) block the rest of this run.
   step = 'brute-force lockout';
