@@ -35,6 +35,10 @@ class S3Storage {
   }
 
   objectKey(key) {
+    // Mirrors the local driver's guard: a blank key must never turn into a
+    // request scoped to the bucket prefix itself (e.g. deleting everything
+    // under it, or listing the whole prefix as if it were one object).
+    if (!key) throw new Error('Пустой ключ хранилища');
     return this.prefix + key;
   }
 

@@ -495,7 +495,8 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
 
   try {
     db.prepare('DELETE FROM videos WHERE id = ?').run(row.id);
-    await storage.delete(row.file_key);
+    // Live streams carry no uploaded file — their playback is HLS segments only.
+    if (row.file_key) await storage.delete(row.file_key);
     if (row.thumb_key) await storage.delete(row.thumb_key);
     await storage.deletePrefix(keys.hlsDir(row.id));
     res.json({ ok: true });

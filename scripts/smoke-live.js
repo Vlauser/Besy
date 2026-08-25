@@ -246,7 +246,14 @@ async function waitFor(check, timeoutMs, label) {
     res = await client.get('/api/live');
     assert.ok(res.data.streams.length === 0 || !res.data.streams.some((s) => s.liveStatus === 'live' && s.id !== stream.id));
 
-    await client.del(`/api/videos/${stream.id}`);
+    // Regression: a live stream's file_key is '' (no uploaded file), and that
+    // used to resolve straight to the storage root — deleting it threw EISDIR
+    // instead of removing the video.
+    step = 'deleting a live stream succeeds';
+    res = await client.del(`/api/videos/${stream.id}`);
+    assert.equal(res.status, 200, JSON.stringify(res.data));
+    res = await client.get(`/api/videos/${stream.id}`);
+    assert.equal(res.status, 404);
   }
 
   step = 'cleanup';

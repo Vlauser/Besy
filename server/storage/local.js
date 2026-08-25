@@ -16,6 +16,10 @@ class LocalStorage {
   }
 
   resolve(key) {
+    // An empty key resolves to the storage root itself via path.resolve, which
+    // would let a blank file_key (live streams have no uploaded file) put every
+    // read/write/delete on the whole media tree instead of failing loudly.
+    if (!key) throw new Error('Пустой ключ хранилища');
     const target = path.resolve(this.root, key);
     const root = path.resolve(this.root);
     if (target !== root && !target.startsWith(root + path.sep)) {
