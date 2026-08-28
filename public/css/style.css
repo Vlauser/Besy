@@ -1,0 +1,1896 @@
+/*
+ * Besy — a video host you run yourself.
+ *
+ * The surface language is iOS 27's refined Liquid Glass, and it is refined in
+ * specific ways this sheet implements rather than gestures at: a darkened edge
+ * around every glass element, a brighter specular highlight along its top, a
+ * hard blur with a hairline border at a scroll edge instead of iOS 26's soft
+ * gradient, and a bar that turns uniform once content passes under it. The
+ * transparency itself is a setting, as it is on the phone, and it collapses to
+ * solid under Reduce Transparency or Increase Contrast.
+ *
+ * The structure follows Instagram's August 2026 shape: a bottom tab bar on a
+ * phone, a ring of channels that are live where the stories row sits, vertical
+ * 3:4 tiles wherever the content itself is vertical, and sheets that rise from
+ * the bottom edge. Video stays 16:9 — cropping a landscape frame into a
+ * portrait tile hides the picture, which is the one thing this site is for.
+ *
+ * Colour still carries state, and red still carries exactly one thing: on air.
+ * That is the tally light on a studio camera, so --tally appears only on live
+ * surfaces. Everything else is neutral until it can be touched.
+ *
+ * There are no webfonts. The CSP allows font-src 'self' and the app vendors
+ * hls.js rather than pulling a CDN, so the type is the system's own — SF Pro
+ * on Apple hardware, which is what an iOS-shaped interface should be set in —
+ * and character comes from treatment: every number that is a measurement is
+ * set in mono with tabular figures so columns line up.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* ground → panel → raised panel */
+  --bg: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-hover: #efefef;
+  --border: rgba(0, 0, 0, .11);
+  --border-soft: rgba(0, 0, 0, .06);
+
+  --text: #0a0a0a;
+  --text-dim: #6b6b6b;
+
+  /* interactive */
+  /* Two blues, because one cannot do both jobs: --accent is read as text on
+     the page, --accent-fill is the ground white text sits on. */
+  --accent: #0a6ed1;
+  --accent-fill: #0a6ed1;
+  --accent-hover: #0b63b8;
+  --accent-soft: rgba(10, 110, 209, .10);
+  --accent-ink: #ffffff;
+
+  /* state — each means one thing and nothing else */
+  --tally: #d70015;
+  --tally-soft: rgba(215, 0, 21, .10);
+  --ready: #17803d;
+  --work: #9a5b00;
+  --ok: #17803d;
+
+  /* glass: the tint, how much of it, and the two edges that give it depth */
+  --glass-rgb: 255 255 255;
+  --glass-alpha: .72;
+  --glass-blur: 22px;
+  --glass-edge: rgba(9, 11, 16, .16);
+  --glass-specular: rgba(255, 255, 255, .9);
+  --glass-shadow: 0 10px 34px rgba(9, 11, 16, .12);
+  --scrim: rgba(9, 11, 16, .34);
+
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
+  --header-h: 56px;
+  --tabbar-h: 56px;
+  --max-w: 1400px;
+
+  /* iOS-ish spring: fast out, settles rather than stops */
+  --spring: cubic-bezier(.32, .72, 0, 1);
+  --fast: 160ms;
+  --sheet: 380ms;
+
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text",
+          "Segoe UI", Inter, Roboto, system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/*
+ * Dark is a real design rather than an inversion: the ground goes near-black so
+ * glass has something to lift off, the edge darkens further, and the specular
+ * highlight drops to a hairline because a bright line on dark reads as a seam.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000;
+    --bg-elevated: #0d0d0f;
+    --bg-hover: #1c1c1e;
+    --border: rgba(255, 255, 255, .13);
+    --border-soft: rgba(255, 255, 255, .07);
+
+    --text: #f5f5f7;
+    --text-dim: #a1a1a6;
+
+    --accent: #4aa8ff;
+    --accent-fill: #0a6ed1;
+    --accent-hover: #7cc2ff;
+    --accent-soft: rgba(74, 168, 255, .14);
+    --accent-ink: #ffffff;
+
+    --tally: #ff453a;
+    --tally-soft: rgba(255, 69, 58, .16);
+    --ready: #4ade80;
+    --work: #fbbf24;
+    --ok: #4ade80;
+
+    --glass-rgb: 22 22 24;
+    --glass-edge: rgba(0, 0, 0, .7);
+    --glass-specular: rgba(255, 255, 255, .16);
+    --glass-shadow: 0 12px 38px rgba(0, 0, 0, .6);
+    --scrim: rgba(0, 0, 0, .62);
+  }
+}
+
+/* The same values again, for when the choice is explicit rather than the OS's. */
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --bg-elevated: #0d0d0f;
+  --bg-hover: #1c1c1e;
+  --border: rgba(255, 255, 255, .13);
+  --border-soft: rgba(255, 255, 255, .07);
+
+  --text: #f5f5f7;
+  --text-dim: #a1a1a6;
+
+  --accent: #4aa8ff;
+  --accent-fill: #0a6ed1;
+  --accent-hover: #7cc2ff;
+  --accent-soft: rgba(74, 168, 255, .14);
+  --accent-ink: #ffffff;
+
+  --tally: #ff453a;
+  --tally-soft: rgba(255, 69, 58, .16);
+  --ready: #4ade80;
+  --work: #fbbf24;
+  --ok: #4ade80;
+
+  --glass-rgb: 22 22 24;
+  --glass-edge: rgba(0, 0, 0, .7);
+  --glass-specular: rgba(255, 255, 255, .16);
+  --glass-shadow: 0 12px 38px rgba(0, 0, 0, .6);
+  --scrim: rgba(0, 0, 0, .62);
+}
+
+/*
+ * A screen that is dark whatever the theme says — Shorts, where the picture
+ * fills the display. The tokens are repeated rather than shared because a
+ * custom property cannot be aliased without losing the fallback chain, and
+ * three copies that are obviously the same beat one clever one.
+ */
+body.on-dark {
+  --bg: #000000;
+  --bg-elevated: #0d0d0f;
+  --bg-hover: #1c1c1e;
+  --border: rgba(255, 255, 255, .13);
+  --border-soft: rgba(255, 255, 255, .07);
+
+  --text: #f5f5f7;
+  --text-dim: #a1a1a6;
+
+  --accent: #4aa8ff;
+  --accent-fill: #0a6ed1;
+  --accent-hover: #7cc2ff;
+  --accent-soft: rgba(74, 168, 255, .14);
+  --accent-ink: #ffffff;
+
+  --tally: #ff453a;
+  --tally-soft: rgba(255, 69, 58, .16);
+  --ready: #4ade80;
+  --work: #fbbf24;
+  --ok: #4ade80;
+
+  --glass-rgb: 22 22 24;
+  --glass-edge: rgba(0, 0, 0, .7);
+  --glass-specular: rgba(255, 255, 255, .16);
+  --glass-shadow: 0 12px 38px rgba(0, 0, 0, .6);
+  --scrim: rgba(0, 0, 0, .62);
+
+  background: #000;
+  color: var(--text);
+}
+
+/*
+ * Transparency is a setting on iOS 27 — a slider from ultra clear to fully
+ * tinted — so it is a setting here, stored per browser and applied to the one
+ * variable every glass surface reads.
+ */
+:root[data-glass="clear"] { --glass-alpha: .5; --glass-blur: 28px; }
+:root[data-glass="solid"] { --glass-alpha: 1; --glass-blur: 0px; }
+
+/* And it gives way entirely to the two accessibility settings that outrank it. */
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass-alpha: 1; --glass-blur: 0px; }
+}
+@media (prefers-contrast: more) {
+  /* Only the glass gives way here. The borders and the dim text belong to the
+     theme, and forcing a colour would get one of the two themes wrong. */
+  :root { --glass-alpha: 1; --glass-blur: 0px; }
+}
+
+/*
+ * One glass primitive. Everything that floats over content uses it, so the
+ * edge, the highlight and the blur stay the same thickness everywhere.
+ */
+.glass {
+  background: rgb(var(--glass-rgb) / var(--glass-alpha));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  box-shadow:
+    inset 0 0 0 .5px var(--glass-edge),
+    inset 0 .5px 0 0 var(--glass-specular),
+    var(--glass-shadow);
+}
+
+/* Where the browser cannot blur, the tint alone would be a smear. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--bg-elevated); }
+}
+
+/* Measurements: durations, resolutions, counts, keys. Tabular so they align. */
+.timecode { white-space: nowrap; }   /* 0:00 / 0:00 never breaks in half */
+
+.mono, .duration, .timecode, .stat-value, .rung-label {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Small uppercase label above a group. Says what the group is, nothing more. */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+* { box-sizing: border-box; }
+
+/* Class-level `display` outranks the UA rule for [hidden], so restore it. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+img, video { display: block; max-width: 100%; }
+button, input, textarea, select { font: inherit; color: inherit; }
+
+/* ------------------------------------------------------------------ header */
+
+/*
+ * The bar floats over the page rather than sitting above it, and it changes
+ * state at the scroll edge the way iOS 27 does: clear while the page is at the
+ * top, then uniform — fully tinted, hard blur, one hairline underneath — as
+ * soon as content passes beneath it. iOS 26's soft gradient is what this
+ * replaces; a gradient over moving video never settled.
+ */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  background: rgb(var(--glass-rgb) / calc(var(--glass-alpha) * .72));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border-bottom: .5px solid transparent;
+  transition: background var(--fast) linear, border-color var(--fast) linear;
+}
+
+body.scrolled .header {
+  background: rgb(var(--glass-rgb) / var(--glass-alpha));
+  border-bottom-color: var(--border);
+  box-shadow: inset 0 .5px 0 0 var(--glass-specular);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .header, body.scrolled .header { background: var(--bg-elevated); }
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.4px;
+  flex-shrink: 0;
+}
+
+/* The mark is the one solid shape in the chrome; everything else is a glyph. */
+.logo-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--accent-fill);
+  display: grid;
+  place-items: center;
+  color: var(--accent-ink);
+}
+.logo-mark .icon { width: 15px; height: 15px; stroke-width: 2.1; }
+
+.search {
+  flex: 1;
+  max-width: 560px;
+  display: flex;
+  gap: 0;
+  margin: 0 auto;
+}
+
+/* One filled field with the magnifier inside it. */
+.search input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 14px;
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  border-right: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  color: var(--text);
+  outline: none;
+}
+.search input::placeholder { color: var(--text-dim); }
+
+.search button {
+  height: 38px;
+  padding: 0 14px;
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  border-left: none;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.search button:hover { color: var(--text); }
+
+.search:focus-within input,
+.search:focus-within button { border-color: var(--accent); }
+
+
+.header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+/* ------------------------------------------------------------------ layout */
+
+.page {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+}
+
+@media (max-width: 700px) {
+  /* Room for the tab bar, plus whatever the phone's own gesture area needs. */
+  .page { padding-bottom: calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom, 0px)); }
+}
+
+.page-narrow { max-width: 640px; }
+
+h1 { font-size: 24px; margin: 0 0 18px; letter-spacing: -0.4px; }
+h2 { font-size: 18px; margin: 0 0 14px; }
+
+/* A filter strip scrolls sideways rather than growing a second line. */
+.tabs {
+  display: flex;
+  gap: 22px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tabs .tab { flex: 0 0 auto; }
+
+/*
+ * Tabs are text with a rule under the active one, not a row of pills. Pills
+ * made four equal-weight buttons out of what is one choice, and the choice is
+ * what the underline shows.
+ */
+.tab {
+  padding: 10px 2px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  transition: color var(--fast) linear, border-color var(--fast) linear;
+}
+
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--text); }
+
+/* ------------------------------------------------------------------ button */
+
+/*
+ * Three kinds of button and no fourth: a filled one for the action a screen
+ * exists for, a quiet filled one for everything else, and a plain one that is
+ * only its label. None of them is outlined — an outline on every control is
+ * what made this look like a form toolbar rather than an app, and it is the
+ * one thing neither iOS nor Instagram does.
+ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 14px;
+  background: var(--bg-hover);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  transition: background var(--fast) linear, opacity var(--fast) linear,
+              transform 120ms var(--spring);
+}
+
+/* A press should feel like a press: the control gives, then springs back. */
+.btn:active { transform: scale(.96); }
+.btn:hover { background: color-mix(in srgb, var(--bg-hover) 82%, var(--text)); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.btn-primary { background: var(--accent-fill); color: var(--accent-ink); }
+.btn-primary:hover { filter: brightness(1.1); }
+
+/* Plain: a label with a hit area. The fill appears only under the pointer. */
+.btn-ghost { background: transparent; font-weight: 500; }
+.btn-ghost:hover { background: var(--bg-hover); }
+
+/* Icon-only controls are round, because that is the shape of a thumb. */
+.btn-icon {
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+}
+.btn-icon:hover { background: var(--bg-hover); }
+
+/* Destructive actions borrow the tally red only on hover, at the moment of
+   commitment — never as a resting state, where it would compete with on-air. */
+.btn-danger:hover { background: var(--tally-soft); color: var(--tally); }
+.btn-block { width: 100%; }
+.btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hover); }
+
+/* Icons sit on the text baseline and take the button's colour, including the
+   dark ink a primary button switches to. */
+.icon { flex-shrink: 0; }
+.btn .icon { margin-right: -1px; }
+
+.btn-icon .icon { margin: 0; }
+
+/* Keyboard focus has to be visible on every control, not just the ones that
+   happen to be buttons. */
+.btn:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------- cards */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 22px 18px;
+}
+
+.card { display: block; }
+.card > a { display: block; cursor: pointer; }
+
+.thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-hover);
+  margin-bottom: 10px;
+  transition: transform 220ms var(--spring);
+}
+
+.card > a:active .thumb { transform: scale(.985); }
+
+/*
+ * A grid of vertical clips — the Shorts tab on a channel — uses the 3:4 tile
+ * Instagram moved its own grid to, and narrower columns to match. Two shapes
+ * in one grid is what this replaced: a single tall tile stretched its row and
+ * left a hole beside it. Landscape video keeps 16:9 everywhere.
+ */
+.thumb-tall { aspect-ratio: 3 / 4; }
+.grid-tall { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+
+
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+/* A tall picture in a wide tile: show all of it on black rather than crop a
+   band out of its middle. Declared after the rule above, which has the same
+   specificity, so order is what decides. */
+.thumb-vertical img { object-fit: contain; background: #000; }
+
+.thumb-empty {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  opacity: .28;
+}
+
+/* No hover zoom: the picture is the content, and content does not twitch. */
+
+/* Chips that sit on a picture are dark in both themes, so they say so rather
+   than inheriting a text colour that is black on black half the time. */
+.duration {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  padding: 2px 6px;
+  background: rgba(10, 12, 16, .72);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 12px;
+}
+
+.badge {
+  position: absolute;
+  left: 7px;
+  top: 7px;
+  padding: 2px 8px;
+  background: rgba(10, 12, 16, .72);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+  margin-bottom: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-meta { color: var(--text-dim); font-size: 13px; }
+.card-meta a:hover { color: var(--text); }
+
+/* ------------------------------------------------------------------ ladder */
+
+/*
+ * The rendition ladder. Four rungs — 360, 480, 720, 1080 — filled for the
+ * qualities this file actually has. It is real data, not decoration: the
+ * transcoder only builds rungs at or below the source height, so a short rung
+ * stack means a small source, and a stack that fills in while you watch means
+ * the encoder is still working. A consumer platform hides this; a host you run
+ * yourself has no reason to.
+ */
+.ladder {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+  padding: 3px 5px;
+  border-radius: var(--radius-sm);
+  background: rgba(10, 12, 16, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+/* The ladder always sits on a dark chip over the picture, so its colours are
+   fixed rather than themed: the dark green that reads on white would vanish
+   here, and the point of the rungs is that you can count them at a glance. */
+.rung {
+  width: 3px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, .92);
+  opacity: .32;
+}
+
+.rung:nth-child(1) { height: 4px; }
+.rung:nth-child(2) { height: 6px; }
+.rung:nth-child(3) { height: 8px; }
+.rung:nth-child(4) { height: 10px; }
+
+.rung.on { background: #4ade80; opacity: 1; }
+
+/* While the encoder is running, the rungs it has not reached yet pulse amber. */
+.ladder.working .rung:not(.on) {
+  background: #fbbf24;
+  opacity: .75;
+  animation: rung-work 1.4s ease-in-out infinite;
+}
+.ladder.working .rung:nth-child(2):not(.on) { animation-delay: .12s; }
+.ladder.working .rung:nth-child(3):not(.on) { animation-delay: .24s; }
+.ladder.working .rung:nth-child(4):not(.on) { animation-delay: .36s; }
+
+@keyframes rung-work {
+  0%, 100% { opacity: .75; }
+  50%      { opacity: .25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ladder.working .rung:not(.on) { animation: none; }
+}
+
+/* ------------------------------------------------------------------- watch */
+
+.watch-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 28px;
+  align-items: start;
+}
+
+.player-shell {
+  background: #000;
+  border-radius: var(--radius);
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+}
+
+.player-shell video { width: 100%; height: 100%; background: #000; }
+
+.watch-title { font-size: 20px; font-weight: 700; margin: 16px 0 12px; letter-spacing: -0.3px; }
+
+.watch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.channel-row { display: flex; align-items: center; gap: 12px; }
+
+/*
+ * Without a picture an avatar is a letter on a neutral disc. It used to be a
+ * cyan gradient, which made every channel that had not uploaded anything the
+ * loudest thing on the page.
+ */
+.avatar {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  font-weight: 600;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.avatar-lg { width: 88px; height: 88px; font-size: 32px; }
+
+/* The owner gets a pencil over their own avatar, not a separate button. */
+.avatar-edit {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 12, 16, .62);
+  color: #fff;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.avatar-editable:hover .avatar-edit,
+.avatar-edit:focus-within { opacity: 1; }
+
+/* ------------------------------------------------------------ channel art */
+
+.channel-banner {
+  position: relative;
+  /* No min-height: with an aspect-ratio it transfers into a min-width, and on
+     a phone that quietly made the banner — and the page under it — 720px wide.
+     The ratio alone gives a thin strip on narrow screens, which is what a 6:1
+     banner is supposed to look like there. */
+  aspect-ratio: 6 / 1;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: linear-gradient(120deg, var(--bg-elevated), var(--bg-hover));
+  border: 1px solid var(--border-soft);
+}
+
+.channel-banner img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Without a banner the strip stays, quieter, so the page does not jump when
+   one is added. */
+.channel-banner.is-empty {
+  aspect-ratio: auto;
+  min-height: 104px;
+  background: linear-gradient(120deg, var(--bg-hover), color-mix(in srgb, var(--bg-hover) 55%, var(--bg)));
+}
+
+/* Top-right, not bottom-right: the channel's own actions sit under the banner
+   on that side, and the two rows would collide. */
+.artwork-actions {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+/*
+ * These sit over a picture that can be anything, so they are glass rather than
+ * a colour: a black pill was chosen for a dark banner and turned into a blot
+ * on an empty light one.
+ */
+.artwork-actions .btn {
+  background: rgb(var(--glass-rgb) / .82);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  backdrop-filter: blur(14px) saturate(180%);
+  box-shadow: inset 0 0 0 .5px var(--glass-edge);
+  color: var(--text);
+}
+.artwork-actions .btn:hover { background: rgb(var(--glass-rgb) / .95); }
+
+/* Only the avatar climbs onto the banner. Pulling the whole block up put the
+   channel name over the picture, where it was unreadable on anything light. */
+/* Only the avatar climbs onto the banner. */
+.channel-head { position: relative; z-index: 1; margin-top: 16px; gap: 24px; }
+.channel-head .avatar-lg {
+  width: 104px;
+  height: 104px;
+  font-size: 38px;
+  margin-top: -54px;
+  border: 4px solid var(--bg);
+}
+.channel-head h1 { font-size: 24px; letter-spacing: -.02em; margin: 2px 0 4px; }
+
+.description {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: var(--bg-hover);
+  border-radius: var(--radius);
+}
+
+.description-text { white-space: pre-wrap; word-break: break-word; }
+
+.tag-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+
+.tag {
+  padding: 3px 10px;
+  background: var(--bg-hover);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.tag:hover { color: var(--text); }
+
+.related { display: flex; flex-direction: column; gap: 12px; }
+
+.related-item { display: grid; grid-template-columns: 168px 1fr; gap: 10px; }
+.related-item .thumb { margin-bottom: 0; }
+.related-item .card-title { font-size: 14px; }
+
+/* ---------------------------------------------------------------- comments */
+
+.comment { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.comment .avatar { width: 34px; height: 34px; font-size: 14px; }
+.comment-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+.comment-author { font-weight: 600; font-size: 14px; }
+.comment-time { color: var(--text-dim); font-size: 12px; }
+.comment-body { white-space: pre-wrap; word-break: break-word; }
+.comment-del { margin-left: auto; opacity: 0; background: none; border: none; cursor: pointer; color: var(--text-dim); }
+.comment:hover .comment-del { opacity: 1; }
+.comment-del:hover { color: var(--accent); }
+
+/* -------------------------------------------------------- dialogs, toasts */
+
+.dialog-text { margin: 0 0 20px; white-space: pre-wrap; }
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* A destructive confirmation is the one place red sits at rest outside live:
+   this button is the moment the damage happens, and it should look like it. */
+.btn-danger-solid {
+  background: var(--tally);
+  border-color: var(--tally);
+  color: #fff;
+  font-weight: 600;
+}
+.btn-danger-solid:hover { filter: brightness(1.12); }
+
+.toast-host {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(420px, calc(100vw - 40px));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgb(var(--glass-rgb) / var(--glass-alpha));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border-left: 3px solid var(--ok);
+  border-radius: var(--radius-sm);
+  box-shadow:
+    inset 0 0 0 .5px var(--glass-edge),
+    inset 0 .5px 0 0 var(--glass-specular),
+    var(--glass-shadow);
+  cursor: pointer;
+  animation: toast-in .18s ease-out;
+}
+
+.toast-error { border-left-color: var(--tally); }
+.toast-error .icon { color: var(--tally); }
+.toast-info .icon { color: var(--ok); }
+.toast.leaving { opacity: 0; transition: opacity .2s; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
+
+/* --------------------------------------------------------------- blocking */
+
+.block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.block-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+
+.block-row + .block-row { margin-top: -1px; }
+.block-row a { font-weight: 500; }
+.block-row a:hover { color: var(--accent-hover); }
+
+/* ------------------------------------------------------------------- forms */
+
+.field { margin-bottom: 16px; }
+.field label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--text-dim); }
+.field-label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--text-dim); }
+
+/* Cover candidates: whichever tile is pressed is the one that gets uploaded. */
+.thumb-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.thumb-option {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  color: var(--text-dim);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+}
+.thumb-option img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+/* A vertical clip's covers are vertical: show them whole rather than cropped. */
+.thumb-options.covers-tall .thumb-option img { object-fit: contain; background: #000; }
+.thumb-option span { display: block; padding: 6px 8px; font-size: 12px; }
+.thumb-option:hover { border-color: var(--border); }
+.thumb-option.is-active { border-color: var(--accent); color: var(--text); }
+
+/* A field is a filled shape, not a box drawn around empty space. */
+.input, textarea.input, select.input {
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  outline: none;
+  transition: border-color var(--fast) linear, background var(--fast) linear;
+}
+
+.input::placeholder { color: var(--text-dim); }
+.input:focus { border-color: var(--accent); background: var(--bg-elevated); }
+textarea.input { resize: vertical; min-height: 96px; }
+
+/* A panel is a group, and a hairline is enough to say so. */
+.panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: .9em;
+  padding: 1px 5px;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  border-radius: 3px;
+}
+
+.hint { color: var(--text-dim); font-size: 13px; }
+/* A warning inside a hint still has to read as a warning. */
+.hint strong { color: var(--text); font-weight: 600; }
+
+.alert {
+  padding: 11px 14px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+/* Both take their colour from the theme: a pale pink that reads on graphite
+   disappears entirely on white. */
+/* A tint carries the meaning; an outline around it only adds a second edge. */
+.alert-error { background: var(--tally-soft); color: var(--tally); }
+.alert-ok { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
+
+.dropzone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 44px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+
+.dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: var(--accent-soft); }
+
+.progress {
+  height: 8px;
+  background: var(--bg-hover);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 14px;
+}
+
+.progress-bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), #ff9a5b); transition: width .2s; }
+
+.empty { text-align: center; padding: 60px 20px; color: var(--text-dim); }
+.empty-icon { margin-bottom: 14px; opacity: .38; line-height: 0; }
+.empty-icon .icon { stroke-width: 1.3; }
+
+/* Counts under a card: the icon says what is being counted, the number is
+   tabular so a column of cards lines up. */
+.stat-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.stat { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+.stat .icon { width: 15px; height: 15px; opacity: .8; }
+
+/* State on a card line. Each colour means one thing, as everywhere else. */
+.state-ok, .state-warn, .state-bad { display: flex; align-items: center; gap: 7px; }
+.state-ok   { color: var(--ready); }
+.state-warn { color: var(--work); }
+.state-bad  { color: var(--tally); }
+
+.upload-mark { color: var(--accent); margin-bottom: 10px; line-height: 0; }
+.upload-mark .icon { width: 34px; height: 34px; stroke-width: 1.4; }
+
+.channel-head { display: flex; gap: 20px; align-items: flex-start; margin-bottom: 26px; flex-wrap: wrap; }
+.channel-stats { color: var(--text-dim); font-size: 14px; }
+
+.skeleton { background: var(--bg-elevated); border-radius: var(--radius); animation: pulse 1.3s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.mt-8 { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+
+/* -------------------------------------------------------------- responsive */
+
+@media (max-width: 1024px) {
+  .watch-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .header { gap: 8px; padding: 0 12px; }
+  .logo span { display: none; }
+  /* A text input refuses to shrink below the width of its own placeholder
+     unless told to, and that is what pushed the whole header — and with it
+     the page — wider than the phone it was being read on. */
+  .search, .search input { min-width: 0; }
+  .page { padding: 16px 12px 60px; }
+  .grid { grid-template-columns: 1fr; }
+  .related-item { grid-template-columns: 140px 1fr; }
+  .hide-sm { display: none; }
+}
+
+/* ------------------------------------------------------------------ player */
+
+.player-shell { position: relative; }
+.player-shell:fullscreen { border-radius: 0; }
+.player-shell video { cursor: pointer; }
+
+.player-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 10px 8px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, .75) 55%);
+  opacity: 0;
+  transition: opacity .18s;
+  z-index: 2;
+}
+
+.player-shell:hover .player-bar,
+.player-shell:focus-within .player-bar,
+.player-shell:not(.playing) .player-bar { opacity: 1; }
+
+.player-seek { position: relative; padding: 8px 0; cursor: pointer; }
+
+.player-seek-track {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .28);
+  transition: height .12s;
+}
+
+.player-seek:hover .player-seek-track { height: 6px; }
+
+.player-seek-buffer,
+.player-seek-progress {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
+}
+
+.player-seek-buffer { background: rgba(255, 255, 255, .35); width: 0; }
+.player-seek-progress { background: var(--accent); width: 0; }
+.player-seek-chapters { position: absolute; inset: 0; pointer-events: none; }
+
+.player-chapter-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(0, 0, 0, .65);
+}
+
+.player-tooltip {
+  position: absolute;
+  bottom: 22px;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, .88);
+  border-radius: 5px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.player-controls { display: flex; align-items: center; gap: 6px; color: #fff; }
+
+.player-btn {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.player-btn { display: inline-grid; place-items: center; }
+.player-btn:hover { background: rgba(255, 255, 255, .15); }
+.player-btn.on { color: var(--accent); }
+
+.player-volume { display: flex; align-items: center; }
+.player-volume input { width: 0; opacity: 0; transition: width .15s, opacity .15s; accent-color: var(--accent); }
+.player-volume:hover input, .player-volume input:focus { width: 74px; opacity: 1; margin-left: 4px; }
+
+.player-time { font-size: 13px; font-variant-numeric: tabular-nums; padding: 0 6px; }
+.player-chapter { font-size: 13px; color: rgba(255, 255, 255, .75); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-spacer { flex: 1; }
+
+.player-settings {
+  position: absolute;
+  right: 12px;
+  bottom: 56px;
+  min-width: 210px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 10px;
+  /* The player's own chrome is always dark, whatever the page around it is. */
+  background: rgba(18, 20, 26, .78);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+  box-shadow:
+    inset 0 0 0 .5px rgba(0, 0, 0, .6),
+    inset 0 .5px 0 0 rgba(255, 255, 255, .18),
+    0 12px 38px rgba(0, 0, 0, .5);
+  border-radius: 14px;
+  z-index: 3;
+}
+
+.player-menu-title { font-size: 12px; color: var(--text-dim); margin: 6px 0 4px; text-transform: uppercase; letter-spacing: .5px; }
+.player-menu-note { font-size: 13px; color: var(--text-dim); padding: 4px 0; }
+.player-menu-row { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.player-menu-chip,
+.player-menu-item {
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.player-menu-chip { padding: 4px 8px; }
+.player-menu-item { display: block; width: 100%; text-align: left; padding: 6px 9px; margin-top: 3px; }
+.player-menu-chip:hover, .player-menu-item:hover { background: var(--border); }
+.player-menu-chip.active, .player-menu-item.active { border-color: var(--accent); color: var(--accent-hover); }
+
+/* A row that is a setting rather than a choice, so it reads as on or off. */
+.player-menu-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.player-menu-switch .switch {
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  flex-shrink: 0;
+  transition: background .18s;
+}
+.player-menu-switch .switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform .18s;
+}
+.player-menu-switch.active .switch { background: var(--accent); }
+.player-menu-switch.active .switch::after { transform: translateX(14px); background: var(--accent-ink); }
+
+.player-toast {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, .78);
+  border-radius: 10px;
+  font-size: 16px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  margin-top: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* Theater mode widens the player column and drops the sidebar below it. */
+body.theater .watch-layout { grid-template-columns: minmax(0, 1fr); }
+body.theater .page { max-width: 100%; }
+
+/* ------------------------------------------------------------------- modal */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--scrim);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: 86vh;
+  overflow-y: auto;
+  background: rgb(var(--glass-rgb) / var(--glass-alpha));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  box-shadow:
+    inset 0 0 0 .5px var(--glass-edge),
+    inset 0 .5px 0 0 var(--glass-specular),
+    var(--glass-shadow);
+  border-radius: 22px;
+}
+
+.modal-wide { max-width: 680px; }
+
+.modal-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  /* Transparent: the sheet behind it is already glass, and a second tint on
+     top of the first reads as a smudge rather than a header. */
+  border-bottom: .5px solid var(--border);
+}
+
+.modal-body { padding: 16px; }
+
+/* ----------------------------------------------------------------- cropper */
+
+.cropper-stage {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+  background: repeating-conic-gradient(var(--bg-hover) 0% 25%, var(--bg-elevated) 0% 50%) 0 0 / 18px 18px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.cropper-stage.is-dragging { cursor: grabbing; }
+.cropper-stage:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.cropper-stage canvas { display: block; }
+
+/* The circle is painted over the picture instead of clipping it, so what is
+   about to be cut away stays visible while the frame is being chosen. */
+.cropper-mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16);
+  border-radius: inherit;
+}
+.cropper-stage.is-round .cropper-mask {
+  background: radial-gradient(circle closest-side, transparent 99%, rgba(10, 12, 16, .68) 100%);
+}
+
+.cropper-zoom { display: flex; align-items: center; gap: 10px; margin: 12px 0 6px; }
+.cropper-zoom input[type="range"] { flex: 1; accent-color: var(--accent); min-width: 0; }
+.cropper .hint { margin-bottom: 4px; }
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  margin-bottom: 7px;
+  cursor: pointer;
+}
+
+.choice:hover { background: var(--bg-hover); }
+.choice input { accent-color: var(--accent); }
+
+.queue {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+
+.queue-head { padding: 12px 14px; background: var(--bg-elevated); border-bottom: 1px solid var(--border); }
+.queue-list { max-height: 380px; overflow-y: auto; }
+
+.queue-item {
+  display: grid;
+  grid-template-columns: 26px 100px 1fr;
+  gap: 9px;
+  align-items: center;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.queue-item:hover { background: var(--bg-hover); }
+.queue-item.current { background: var(--accent-soft); }
+.queue-item .thumb { margin: 0; border-radius: 7px; }
+
+/* ------------------------------------------------------------------ shorts */
+
+/*
+ * Shorts are always dark, whatever the theme is — the picture fills the screen
+ * and a white surround around a vertical video reads as a mistake. This is the
+ * one place the theme does not reach, and it says so rather than inheriting
+ * colours that would put white text on a white page.
+ */
+.shorts-page {
+  height: calc(100vh - var(--header-h));
+  background: #000;
+  color: #f2f3f6;
+}
+
+.shorts-page .empty,
+.shorts-page .hint { color: rgba(242, 243, 246, .72); }
+
+.shorts-feed {
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+}
+
+.shorts-feed::-webkit-scrollbar { display: none; }
+
+.short {
+  height: 100%;
+  scroll-snap-align: start;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+.short-stage {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+  background: #000;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.short-stage video { width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
+
+.short-overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, .8));
+}
+
+.short-meta { flex: 1; min-width: 0; }
+.short-title { font-weight: 600; margin: 7px 0 3px; }
+.short-actions { display: flex; flex-direction: column; gap: 10px; }
+
+.short-btn {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  background: rgba(255, 255, 255, .14);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.short-btn:hover { background: rgba(255, 255, 255, .26); }
+.short-btn.active { background: var(--accent); }
+.short-btn span { font-size: 11px; }
+
+/* -------------------------------------------------------------- live badge */
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px 2px 7px;
+  margin-right: 8px;
+  background: var(--tally-soft);
+  border: 1px solid var(--tally);
+  border-radius: var(--radius-sm);
+  color: var(--tally);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+/* The tally lamp itself. It breathes only while something is actually on air. */
+.live-badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tally);
+  box-shadow: 0 0 6px var(--tally);
+  animation: tally 2s ease-in-out infinite;
+}
+
+@keyframes tally {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .45; }
+}
+
+.live-badge.off {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+.live-badge.off::before {
+  background: var(--text-dim);
+  box-shadow: none;
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-badge::before { animation: none; }
+}
+
+.chat-log {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-top: 12px;
+}
+
+.chat-line { padding: 4px 0; font-size: 14px; word-break: break-word; }
+.chat-author { font-weight: 600; color: var(--accent-hover); margin-right: 6px; }
+
+.stream-key {
+  font-family: var(--mono);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+/* ------------------------------------------------------------------ charts */
+
+.chart {
+  position: relative;
+  margin: 0 0 22px;
+  padding: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.chart-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart-hit { cursor: crosshair; }
+
+.chart-tooltip {
+  position: absolute;
+  top: 34px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  background: rgba(10, 12, 16, .95);
+  color: #f2f3f6;                 /* the tooltip is dark in both themes */
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 8px;
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.chart-tooltip span { color: var(--text-dim); }
+
+.bars { display: flex; flex-direction: column; gap: 8px; }
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 74px;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.bar-label { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { height: 12px; background: var(--bg-hover); border-radius: 4px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; border-radius: 4px; min-width: 3px; }
+.bar-value { text-align: right; font-variant-numeric: tabular-nums; }
+
+.stat-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+
+.stat-tile {
+  flex: 1;
+  min-width: 150px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.stat-value { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+.stat-label { color: var(--text-dim); font-size: 13px; margin-top: 2px; }
+
+/* ----------------------------------------------------------- bell / panel */
+
+#bell-btn { position: relative; }
+
+.bell-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--accent-fill);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.bell-panel {
+  position: fixed;
+  z-index: 90;
+  width: min(380px, calc(100vw - 24px));
+  max-height: 70vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: rgb(var(--glass-rgb) / var(--glass-alpha));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 0 0 .5px var(--glass-edge),
+    inset 0 .5px 0 0 var(--glass-specular),
+    var(--glass-shadow);
+}
+
+.bell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.bell-head .btn { font-size: 12px; padding: 5px 9px; }
+.bell-list { overflow-y: auto; }
+
+.bell-item {
+  display: block;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.bell-item:hover { background: var(--bg-hover); }
+.bell-item.unread { border-left: 3px solid var(--accent); }
+
+/* --------------------------------------------------------------- bulk bar */
+
+.bulk-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .5);
+}
+
+/* ------------------------------------------------------- tab bar and rings */
+
+/*
+ * On a phone the navigation moves to the bottom, where a thumb is. Five
+ * destinations, the middle one being the thing you came to do — the same shape
+ * Instagram uses, and the same one iOS gives its own apps. It is glass, so the
+ * feed scrolling underneath stays visible through it.
+ */
+.tabbar {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  height: var(--tabbar-h);
+  display: none;
+  align-items: stretch;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.tabbar a {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: .01em;
+  transition: color var(--fast) linear, transform 120ms var(--spring);
+}
+
+.tabbar a:active { transform: scale(.92); }
+.tabbar a.active { color: var(--text); }
+.tabbar a.active .icon { stroke-width: 2.1; }
+
+/*
+ * The middle one is the verb. It used to be a filled black block, which is the
+ * heaviest thing on a light screen and the one shape a tab bar should not
+ * have — a bar of glyphs with one solid brick in it. It is a glyph like the
+ * others now, drawn a little larger.
+ */
+.tabbar .tab-post {
+  flex: 0 0 auto;
+  width: 56px;
+  color: var(--text);
+}
+.tabbar .tab-post span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+@media (max-width: 700px) {
+  .tabbar { display: flex; }
+  /* Everything else is one tap away at the bottom, so the top of the screen
+     carries the name of the place, the search and the bell — nothing else. */
+  .header .hide-sm { display: none; }
+  .header .search { display: none; }
+  .header .logo span { display: inline; }
+  .page > h1 { font-size: 24px; letter-spacing: -.02em; }
+  .card-title { font-size: 15px; }
+  .tabs { gap: 18px; }
+}
+
+@media (min-width: 701px) {
+  /* On a desktop the field is right there; the button would be a second way in. */
+  #search-open { display: none; }
+}
+
+/*
+ * Channels that are live, in the row where a stories tray sits. The ring is
+ * the tally light: it appears only while someone is actually on air, so a
+ * quiet service shows no ring at all rather than a row of grey circles.
+ */
+.live-rail {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 2px 0 14px;
+  margin-bottom: 6px;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+.live-rail::-webkit-scrollbar { display: none; }
+
+.live-rail a {
+  flex: 0 0 auto;
+  width: 76px;
+  text-align: center;
+  scroll-snap-align: start;
+}
+
+.live-rail .ring {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  padding: 3px;
+  margin: 0 auto 6px;
+  background: conic-gradient(from 210deg, var(--tally), #ff9f0a, var(--tally));
+  transition: transform 200ms var(--spring);
+}
+.live-rail a:active .ring { transform: scale(.94); }
+
+.live-rail .ring .avatar {
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--bg);
+  font-size: 22px;
+}
+
+.live-rail .name {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ sheets */
+
+/*
+ * A dialog is a sheet on a phone: it comes up from the bottom edge, keeps the
+ * page visible behind it, and carries the grabber that says it can be pushed
+ * back down. On a desktop it stays a centred panel, because there is no bottom
+ * edge worth travelling from.
+ */
+.modal { position: relative; }
+
+@media (max-width: 700px) {
+  .modal-overlay { place-items: end center; padding: 0; }
+
+  .modal {
+    width: 100%;
+    max-width: none;
+    max-height: 88vh;
+    border-radius: 22px 22px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: sheet-up var(--sheet) var(--spring);
+  }
+
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--border);
+    transform: translateX(-50%);
+  }
+
+  .modal-head { padding-top: 18px; }
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal { animation: none; }
+  .btn:active, .tabbar a:active, .card > a:active .thumb, .live-rail a:active .ring { transform: none; }
+}
+
+/* ------------------------------------------------------------- appearance */
+
+.choice-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* A segmented control: one filled strip, the chosen segment tinted. */
+.choice-row button {
+  flex: 1 1 90px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background var(--fast) linear, color var(--fast) linear;
+}
+.choice-row button:hover { color: var(--text); }
+.choice-row button.active { background: var(--accent-soft); color: var(--accent); }
+
+/* ------------------------------------------------------------------- полка */
+
+/*
+ * A shelf is a row of one format inside a page of another — Shorts among
+ * videos. It spans the whole grid, scrolls sideways, and never lets its tiles
+ * into the grid itself, which is what keeps every row of cards even.
+ */
+.shelf {
+  grid-column: 1 / -1;
+  padding: 4px 0 8px;
+}
+
+.shelf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.shelf-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -.01em;
+}
+
+.shelf-nav { display: flex; gap: 4px; }
+.shelf-nav .btn:disabled { opacity: .3; }
+/* The arrows point along the row, not up and down the page. */
+.shelf-nav [data-shelf="back"] .icon { transform: rotate(-90deg); }
+.shelf-nav [data-shelf="forward"] .icon { transform: rotate(-90deg); }
+
+.shelf-row {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+.shelf-row::-webkit-scrollbar { display: none; }
+
+.shelf-item {
+  flex: 0 0 172px;
+  scroll-snap-align: start;
+}
+.shelf-item .thumb { margin-bottom: 8px; }
+.shelf-item .card-title { font-size: 14px; }
+
+@media (max-width: 700px) {
+  .shelf-item { flex-basis: 44vw; }
+  .shelf-nav { display: none; }
+}

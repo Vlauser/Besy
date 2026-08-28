@@ -1,0 +1,10 @@
+node_modules/
+data/
+# Any scratch data directory, not just the default one: BESY_DATA_DIR is often
+# pointed somewhere else while testing, and those databases and media files
+# have no business in the repository.
+data*/
+*.log
+*.pid
+.DS_Store
+.env

@@ -1,0 +1,19 @@
+# One site, one upstream. Caddy obtains and renews the certificate itself, so
+# there is nothing to schedule and nothing to remember in ninety days.
+
+{$BESY_DOMAIN} {
+	encode zstd gzip
+
+	# An upload is one request, and Besy's own limit is BESY_MAX_UPLOAD_MB.
+	# Keep this at or above it, or the proxy refuses what the app would accept.
+	request_body {
+		max_size 2GB
+	}
+
+	reverse_proxy besy:3000
+
+	log {
+		output stdout
+		format console
+	}
+}

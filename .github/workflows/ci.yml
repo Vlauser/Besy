@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    name: Сквозные тесты
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Установить ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
+
+      - name: Установить зависимости
+        run: npm ci
+
+      - name: Проверить синтаксис
+        run: |
+          find server scripts public/js -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      # npm test starts a server per suite, so the run no longer needs the
+      # limiters widened to survive its own neighbours: every suite meets the
+      # budgets a real visitor meets.
+      - name: Все наборы
+        env:
+          BESY_LIVE: 'on'
+          BESY_RTMP_PORT: '1935'
+          BESY_LIVE_STALE_MS: '8000'
+        run: npm test

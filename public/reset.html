@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Новый пароль — Besy</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27><rect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%234fd1ff%27/><path d=%27M13 10l10 6-10 6z%27 fill=%27%2306212b%27/></svg>">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main class="page page-narrow">
+    <h1>Новый пароль</h1>
+    <div id="alert"></div>
+    <form class="panel" id="reset-form">
+      <div class="field">
+        <label for="password">Новый пароль</label>
+        <input class="input" id="password" name="password" type="password" minlength="8" required autocomplete="new-password">
+        <div class="hint">Минимум 8 символов, не совпадающих с логином</div>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Сохранить пароль</button>
+    </form>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/reset.js"></script>
+</body>
+</html>

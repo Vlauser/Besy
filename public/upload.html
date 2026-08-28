@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Загрузка видео — Besy</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234fd1ff'/><path d='M13 10l10 6-10 6z' fill='%23fff'/></svg>">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main class="page page-narrow">
+    <h1>Загрузить видео</h1>
+    <div id="alert"></div>
+
+    <form class="panel" id="upload-form">
+      <div class="dropzone" id="dropzone">
+        <div class="upload-mark" data-icon="upload"></div>
+        <div><strong>Перетащите файл сюда</strong> или нажмите, чтобы выбрать</div>
+        <div class="hint mt-16">MP4, WebM, OGV, MOV, MKV — до <span id="limit">2048</span> МБ</div>
+        <input type="file" id="file-input" accept="video/*" hidden>
+      </div>
+
+      <div id="preview" hidden>
+        <div class="row mt-16">
+          <video id="preview-video" style="width:260px;border-radius:10px" muted playsinline controls preload="metadata"></video>
+          <div>
+            <div id="file-name" style="font-weight:600"></div>
+            <div class="hint" id="file-info"></div>
+            <button type="button" class="btn btn-ghost mt-16" id="reset-btn">Выбрать другой файл</button>
+          </div>
+        </div>
+        <canvas id="thumb-canvas" hidden></canvas>
+
+        <div id="thumb-picker" class="mt-24" hidden>
+          <div class="field-label">Обложка</div>
+          <p class="hint">Выберите кадр или поставьте свою картинку. Перемотайте превью и нажмите «Взять текущий кадр», если нужен точный момент.</p>
+          <div class="thumb-options" id="thumb-options"></div>
+          <div class="row mt-16">
+            <button type="button" class="btn btn-ghost" id="thumb-current">Взять текущий кадр</button>
+            <label class="btn btn-ghost">
+              Загрузить свою
+              <input type="file" id="thumb-file" accept="image/*" hidden>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-24">
+        <div class="field">
+          <label for="title">Название *</label>
+          <input class="input" id="title" name="title" maxlength="140" required placeholder="О чём это видео?">
+        </div>
+        <div class="field">
+          <label for="description">Описание</label>
+          <textarea class="input" id="description" name="description" maxlength="5000" placeholder="Расскажите о видео…"></textarea>
+        </div>
+        <div class="field">
+          <label for="tags">Теги (через запятую)</label>
+          <input class="input" id="tags" name="tags" placeholder="музыка, гитара, кавер">
+        </div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+            <input type="checkbox" id="age-restricted">
+            Видео с возрастным ограничением (18+)
+          </label>
+        </div>
+        <div class="field">
+          <label for="publish-at">Отложенная публикация (необязательно)</label>
+          <input class="input" id="publish-at" type="datetime-local">
+          <div class="hint">Видео появится в каталоге автоматически в указанное время</div>
+        </div>
+        <div class="field">
+          <label for="visibility">Доступ</label>
+          <select class="input" id="visibility" name="visibility">
+            <option value="public">Публичное — видно всем</option>
+            <option value="unlisted">По ссылке — не в общем каталоге</option>
+            <option value="private">Приватное — только мне</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="progress" id="progress" hidden><div class="progress-bar" id="progress-bar"></div></div>
+      <div class="hint" id="progress-text" hidden></div>
+
+      <button class="btn btn-primary btn-block mt-24" id="submit-btn" type="submit" disabled>Опубликовать</button>
+    </form>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/upload.js"></script>
+</body>
+</html>

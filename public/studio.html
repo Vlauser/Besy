@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Мои видео — Besy</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234fd1ff'/><path d='M13 10l10 6-10 6z' fill='%23fff'/></svg>">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main class="page">
+    <div class="row" style="margin-bottom:18px">
+      <h1 style="margin:0">Мои видео</h1>
+      <span class="spacer"></span>
+      <a class="btn" href="/analytics" data-icon="chart">Аналитика</a>
+      <a class="btn btn-primary" href="/upload" data-icon="upload">Загрузить</a>
+    </div>
+
+    <div class="panel" style="margin-bottom:24px" id="rights-panel" hidden>
+      <h2>Защита контента</h2>
+      <div id="rights-content"></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:24px" id="live-panel" hidden>
+      <h2>Прямые эфиры</h2>
+      <div id="live-content"></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:24px">
+      <h2>Настройки канала</h2>
+      <div id="profile-alert"></div>
+      <form id="profile-form">
+        <div class="field">
+          <label for="displayName">Имя канала</label>
+          <input class="input" id="displayName" name="displayName" maxlength="48" required>
+        </div>
+        <div class="field">
+          <label for="about">Описание канала</label>
+          <textarea class="input" id="about" name="about" maxlength="1000" rows="3"></textarea>
+        </div>
+        <button class="btn" type="submit">Сохранить</button>
+      </form>
+    </div>
+
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/studio.js"></script>
+</body>
+</html>

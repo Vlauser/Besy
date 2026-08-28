@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Вход — Besy</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%234fd1ff'/><path d='M13 10l10 6-10 6z' fill='%23fff'/></svg>">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main class="page page-narrow">
+    <div class="tabs" id="mode-tabs">
+      <button class="tab active" data-mode="login">Вход</button>
+      <button class="tab" data-mode="register">Регистрация</button>
+    </div>
+
+    <div id="alert"></div>
+
+    <form class="panel" id="login-form">
+      <div class="field">
+        <label for="login">Логин или e-mail</label>
+        <input class="input" id="login" name="login" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="login-password">Пароль</label>
+        <input class="input" id="login-password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="field" id="code-field" hidden>
+        <label for="login-code">Код двухфакторной защиты</label>
+        <input class="input" id="login-code" name="code" inputmode="numeric" autocomplete="one-time-code"
+               placeholder="123456 или резервный код">
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Войти</button>
+      <div class="hint mt-16" style="text-align:center">
+        <a href="/forgot" style="color:var(--accent)">Забыли пароль?</a>
+      </div>
+    </form>
+
+    <form class="panel" id="register-form" hidden>
+      <div class="field">
+        <label for="username">Логин *</label>
+        <input class="input" id="username" name="username" pattern="[a-zA-Z0-9_]{3,24}" required autocomplete="username">
+        <div class="hint">3–24 символа: латиница, цифры, «_». Адрес канала будет /@логин</div>
+      </div>
+      <div class="field">
+        <label for="displayName">Имя канала</label>
+        <input class="input" id="displayName" name="displayName" maxlength="48" placeholder="Как вас показывать зрителям">
+      </div>
+      <div class="field">
+        <label for="email">E-mail *</label>
+        <input class="input" id="email" name="email" type="email" required autocomplete="email">
+      </div>
+      <div class="field">
+        <label for="password">Пароль *</label>
+        <input class="input" id="password" name="password" type="password" minlength="8" required autocomplete="new-password">
+        <div class="hint">Минимум 8 символов</div>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Создать аккаунт</button>
+    </form>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/auth-page.js"></script>
+</body>
+</html>

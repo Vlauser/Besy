@@ -1,0 +1,156 @@
+(async function main() {
+  await bootstrap();
+
+  const grid = document.getElementById('grid');
+  const moreBtn = document.getElementById('more-btn');
+  const title = document.getElementById('page-title');
+  const query = new URLSearchParams(location.search).get('q') || '';
+
+  const state = { sort: 'new', offset: 0, limit: 24, total: 0 };
+
+  if (auth.user) {
+    document.getElementById('tab-subs').hidden = false;
+    document.getElementById('tab-foryou').hidden = false;
+  }
+  if (query) title.textContent = `Результаты: «${query}»`;
+
+  /*
+   * Channels on air, in the row a stories tray occupies. It is the only place
+   * red appears on this page, and it appears only while someone is actually
+   * live — no ring means nobody is, rather than a row of grey circles.
+   */
+  async function renderLiveRail() {
+    let streams = [];
+    try { ({ streams } = await api.get('/api/live')); } catch { return; }
+    if (!streams.length) return;
+
+    const rail = document.createElement('div');
+    rail.className = 'live-rail';
+    rail.setAttribute('aria-label', 'Каналы в эфире');
+    rail.innerHTML = streams.map((stream) => `
+      <a href="/watch/${stream.id}" aria-label="Эфир ${escapeHtml(stream.author.displayName)}">
+        <div class="ring">${`<div class="avatar">${avatarInner(stream.author)}</div>`}</div>
+        <span class="name">${escapeHtml(stream.author.displayName)}</span>
+      </a>`).join('');
+    document.getElementById('tabs').after(rail);
+  }
+
+  function skeletons(n) {
+    return Array.from({ length: n }, () => `
+      <div>
+        <div class="thumb skeleton"></div>
+        <div class="skeleton" style="height:14px;width:80%;margin-bottom:6px"></div>
+        <div class="skeleton" style="height:12px;width:50%"></div>
+      </div>`).join('');
+  }
+
+  async function load({ reset = false } = {}) {
+    if (reset) {
+      state.offset = 0;
+      grid.innerHTML = skeletons(8);
+    }
+    moreBtn.hidden = true;
+
+    if (state.sort === 'foryou') {
+      const { videos } = await api.get('/api/me/recommended');
+      grid.innerHTML = videos.length
+        ? videos.map((v) => videoCard(v)).join('')
+        : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('compass', '', ICON_HERO)}</div>Посмотрите несколько роликов — и здесь появятся рекомендации</div>`;
+      insertShortsShelf();
+      return;
+    }
+
+    if (state.sort === 'subs') {
+      const { videos } = await api.get('/api/channels/me/feed');
+      grid.innerHTML = videos.length
+        ? videos.map((v) => videoCard(v)).join('')
+        : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('inbox', '', ICON_HERO)}</div>Пока нет видео от каналов, на которые вы подписаны</div>`;
+      insertShortsShelf();
+      return;
+    }
+
+    /*
+     * Landscape only. A vertical clip belongs to Shorts — its own screen, where
+     * the whole page is built for it — and mixing the two in one grid means
+     * one shape has to be wrong. Search is the exception: what you typed has to
+     * be findable, so matching Shorts get their own strip under the results.
+     */
+    const params = new URLSearchParams({
+      sort: state.sort,
+      limit: state.limit,
+      offset: state.offset,
+      kind: 'video',
+    });
+    if (query) params.set('q', query);
+
+    const data = await api.get(`/api/videos?${params}`);
+    state.total = data.total;
+
+    const html = data.videos.map((v) => videoCard(v)).join('');
+    if (reset) {
+      grid.innerHTML = html || `
+        <div class="empty" style="grid-column:1/-1">
+          <div class="empty-icon">${icon('film', '', ICON_HERO)}</div>
+          ${query ? 'Ничего не найдено' : 'Пока нет ни одного видео — станьте первым!'}
+        </div>`;
+    } else {
+      grid.insertAdjacentHTML('beforeend', html);
+    }
+
+    state.offset += data.videos.length;
+    moreBtn.hidden = state.offset >= state.total;
+
+    if (reset) insertShortsShelf();
+  }
+
+  /*
+   * The Shorts shelf: one horizontal row inside the results, after the first
+   * few cards, the way every video service places it. Shorts still never enter
+   * the grid — the row is a section of its own, with its own tile shape — but
+   * they turn up where you are already looking rather than under everything.
+   */
+  async function insertShortsShelf() {
+    grid.querySelector('.shelf')?.remove();
+
+    let videos = [];
+    try {
+      const params = new URLSearchParams({ kind: 'short', limit: '12', sort: 'new' });
+      if (query) params.set('q', query);
+      ({ videos } = await api.get(`/api/videos?${params}`));
+    } catch { return; }
+    if (!videos.length) return;
+
+    const holder = document.createElement('div');
+    holder.innerHTML = shortsShelf(videos);
+    const shelf = holder.firstElementChild;
+
+    // After the first row of cards, or first when there is no first row.
+    const cards = grid.querySelectorAll('.card');
+    if (cards.length > 4) cards[4].before(shelf);
+    else grid.append(shelf);
+
+    // The empty state and a shelf in the same grid read as a contradiction.
+    if (!cards.length) grid.querySelector('.empty')?.remove();
+
+    wireShelves(grid);
+  }
+
+  document.getElementById('tabs').addEventListener('click', (event) => {
+    const tab = event.target.closest('.tab');
+    if (!tab) return;
+    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
+    state.sort = tab.dataset.sort;
+    title.textContent = query
+      ? `Результаты: «${query}»`
+      : { new: 'Новые видео', popular: 'Популярное', subs: 'Подписки', foryou: 'Для вас' }[state.sort];
+    load({ reset: true }).catch((err) => { grid.innerHTML = `<div class="alert alert-error">${escapeHtml(err.message)}</div>`; });
+  });
+
+  moreBtn.addEventListener('click', () => load());
+
+  load({ reset: true }).catch((err) => {
+    grid.innerHTML = `<div class="alert alert-error">${escapeHtml(err.message)}</div>`;
+  });
+
+  renderLiveRail();
+})();

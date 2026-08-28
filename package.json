@@ -1,0 +1,41 @@
+{
+  "name": "besy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Besy - self-hosted video hosting platform",
+  "type": "commonjs",
+  "main": "server/index.js",
+  "scripts": {
+    "prestart": "node scripts/check-node.js",
+    "start": "node --experimental-sqlite server/index.js",
+    "predev": "node scripts/check-node.js",
+    "dev": "node --experimental-sqlite --watch server/index.js",
+    "smoke": "node scripts/smoke.js",
+    "smoke:security": "node scripts/smoke-security.js",
+    "smoke:social": "node scripts/smoke-social.js",
+    "pretest": "node scripts/check-node.js",
+    "test": "node scripts/test.js",
+    "preadmin": "node scripts/check-node.js",
+    "admin": "node --experimental-sqlite scripts/make-admin.js",
+    "smoke:live": "node scripts/smoke-live.js",
+    "smoke:growth": "node scripts/smoke-growth.js",
+    "smoke:matching": "node scripts/smoke-matching.js",
+    "smoke:safety": "node scripts/smoke-safety.js",
+    "demo": "node scripts/demo.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "hls.js": "^1.7.1",
+    "multer": "^2.2.0",
+    "qrcode": "^1.5.4"
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-s3": "^3.1116.0",
+    "node-media-server": "^4.2.8",
+    "nodemailer": "^9.0.5"
+  }
+}
