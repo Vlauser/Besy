@@ -275,12 +275,19 @@ router.get('/:id', (req, res) => {
     row.my_position = seen ? seen.position : 0;
   }
 
+  /*
+   * Related stays within the same format. A vertical clip after a landscape
+   * one is a different way of watching, not the next thing to watch — and it
+   * is what autoplay would jump to, since the first related video is the one
+   * that plays next.
+   */
   const related = db.prepare(`
     ${LIST_SELECT}
     WHERE v.visibility = 'public' AND v.blocked_at IS NULL AND v.id != ?
+      AND v.is_short = ?
     ORDER BY (v.user_id = ?) DESC, v.views DESC, v.created_at DESC
     LIMIT 12
-  `).all(row.id, row.user_id);
+  `).all(row.id, row.is_short ? 1 : 0, row.user_id);
 
   const captions = db.prepare('SELECT * FROM captions WHERE video_id = ? ORDER BY is_default DESC, label')
     .all(row.id)

@@ -72,7 +72,7 @@ router.get('/me/feed', requireAuth, (req, res) => {
     FROM videos v
     JOIN users u ON u.id = v.user_id
     JOIN subscriptions s ON s.channel_id = v.user_id
-    WHERE s.subscriber_id = ? AND v.visibility = 'public'
+    WHERE s.subscriber_id = ? AND v.visibility = 'public' AND v.is_short = 0
     ORDER BY v.created_at DESC
     LIMIT 48
   `).all(req.user.id);

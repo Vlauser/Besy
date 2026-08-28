@@ -146,6 +146,33 @@ async function waitFor(check, timeoutMs, label) {
     step = 'the regular feed excludes Shorts';
     res = await client.get('/api/videos?kind=video&limit=50');
     assert.ok(!res.data.videos.some((v) => v.id === shortId));
+
+    /*
+     * A Short lives on the Shorts screen and nowhere else. Every surface that
+     * browses video has to keep them apart, because one grid can only have one
+     * tile shape — and because what plays next after a landscape video should
+     * not be a vertical one.
+     */
+    step = 'a Short is not offered next to a regular video';
+    const anyVideo = (await client.get('/api/videos?kind=video&limit=1')).data.videos[0];
+    res = await client.get(`/api/videos/${anyVideo.id}`);
+    assert.ok(res.data.related.every((v) => !v.isShort), 'related must stay landscape');
+
+    step = 'and a Short is offered only other Shorts';
+    res = await client.get(`/api/videos/${shortId}`);
+    assert.ok(res.data.related.every((v) => v.isShort), 'related to a Short must stay vertical');
+
+    step = 'the subscriptions feed carries no Shorts';
+    const follower = createClient();
+    await follower.get('/api/health');
+    await createVerifiedUser(follower, 'shortfan');
+    await follower.post(`/api/channels/${user.username}/subscribe`);
+    res = await follower.get('/api/channels/me/feed');
+    assert.ok(!res.data.videos.some((v) => v.id === shortId), 'a Short reached the subscriptions feed');
+
+    step = 'but search still finds one';
+    res = await client.get('/api/videos?kind=short&limit=20&q=Вертикальный');
+    assert.ok(res.data.videos.some((v) => v.id === shortId), 'search must reach Shorts');
   }
 
   /* -------------------------------------------------------------- live */

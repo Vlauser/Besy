@@ -67,10 +67,17 @@
       return;
     }
 
+    /*
+     * Landscape only. A vertical clip belongs to Shorts — its own screen, where
+     * the whole page is built for it — and mixing the two in one grid means
+     * one shape has to be wrong. Search is the exception: what you typed has to
+     * be findable, so matching Shorts get their own strip under the results.
+     */
     const params = new URLSearchParams({
       sort: state.sort,
       limit: state.limit,
       offset: state.offset,
+      kind: 'video',
     });
     if (query) params.set('q', query);
 
@@ -90,6 +97,36 @@
 
     state.offset += data.videos.length;
     moreBtn.hidden = state.offset >= state.total;
+
+    if (query && reset) renderShortsHits({ noVideos: data.videos.length === 0 });
+  }
+
+  /**
+   * Matching Shorts, as a strip of their own under the search results — the one
+   * place a Short appears outside its own screen, because otherwise what you
+   * typed would simply not be findable.
+   */
+  async function renderShortsHits({ noVideos } = {}) {
+    document.getElementById('shorts-hits')?.remove();
+    let videos = [];
+    try {
+      ({ videos } = await api.get(`/api/videos?kind=short&limit=12&q=${encodeURIComponent(query)}`));
+    } catch { return; }
+    if (!videos.length) return;
+
+    // "Nothing found" is wrong when something was found — just not up there.
+    if (noVideos) {
+      const empty = grid.querySelector('.empty');
+      if (empty) empty.lastChild.textContent = 'Среди обычных видео совпадений нет';
+    }
+
+    const strip = document.createElement('section');
+    strip.id = 'shorts-hits';
+    strip.className = 'mt-24';
+    strip.innerHTML = `
+      <h2 style="font-size:18px;margin:0 0 12px">Shorts по запросу</h2>
+      <div class="grid grid-tall">${videos.map((v) => videoCard(v, { tall: true })).join('')}</div>`;
+    grid.after(strip);
   }
 
   document.getElementById('tabs').addEventListener('click', (event) => {
