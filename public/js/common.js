@@ -549,6 +549,66 @@ async function openReportDialog({ title = 'Пожаловаться', extra = ''
   return modal;
 }
 
+/*
+ * A shelf of Shorts, the way a video service does it: a horizontal row that
+ * sits inside the results rather than a section pushed under them. Shorts stay
+ * out of the grid itself — the row is their own place, with their own shape —
+ * but they turn up where you are already looking.
+ */
+function shortsShelf(videos, { title = 'Shorts' } = {}) {
+  if (!videos.length) return '';
+  return `
+    <section class="shelf" aria-label="${escapeHtml(title)}">
+      <div class="shelf-head">
+        <h2>${icon('film', '', 20)}${escapeHtml(title)}</h2>
+        <div class="shelf-nav">
+          <button class="btn btn-icon" data-shelf="back" aria-label="Назад">${icon('up', 'Назад')}</button>
+          <button class="btn btn-icon" data-shelf="forward" aria-label="Вперёд">${icon('down', 'Вперёд')}</button>
+        </div>
+      </div>
+      <div class="shelf-row" tabindex="0">
+        ${videos.map((video) => `
+          <a class="shelf-item" href="/watch/${video.id}">
+            <div class="thumb thumb-tall">
+              ${video.thumbUrl
+                ? `<img src="${video.thumbUrl}" alt="" loading="lazy">`
+                : `<div class="thumb-empty">${icon('play', '', 30)}</div>`}
+              ${video.duration ? `<span class="duration">${fmt.duration(video.duration)}</span>` : ''}
+            </div>
+            <div class="card-title">${escapeHtml(video.title)}</div>
+            <div class="card-meta">${fmt.views(video.views)}</div>
+          </a>`).join('')}
+      </div>
+    </section>`;
+}
+
+/** Wires the two arrows of every shelf inside `root` to scroll it by a page. */
+function wireShelves(root = document) {
+  root.querySelectorAll('.shelf').forEach((shelf) => {
+    const row = shelf.querySelector('.shelf-row');
+    shelf.querySelectorAll('[data-shelf]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const step = Math.max(200, row.clientWidth - 80);
+        row.scrollBy({ left: button.dataset.shelf === 'back' ? -step : step, behavior: 'smooth' });
+      });
+    });
+
+    /*
+     * The arrows mean something only while there is somewhere to go — and how
+     * much room there is changes with the window, not only with scrolling, so
+     * the row is watched rather than measured once.
+     */
+    const sync = () => {
+      const max = row.scrollWidth - row.clientWidth - 1;
+      shelf.querySelector('[data-shelf="back"]').disabled = row.scrollLeft <= 0;
+      shelf.querySelector('[data-shelf="forward"]').disabled = row.scrollLeft >= max;
+    };
+    row.addEventListener('scroll', sync, { passive: true });
+    new ResizeObserver(sync).observe(row);
+    sync();
+  });
+}
+
 /**
  * Minimal modal used by the report, copyright and playlist dialogs.
  *

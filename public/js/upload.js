@@ -57,25 +57,35 @@
     });
   }
 
-  /** The frame currently on screen, as a 16:9 JPEG letterboxed the way the feed shows it. */
+  /*
+   * The frame currently on screen, as a JPEG shaped like the video itself.
+   *
+   * It used to be letterboxed into 16:9 whatever the source was, which put
+   * black bars down both sides of every Short's cover — and a Short is shown
+   * in a vertical tile, where those bars are the only thing that does not fit.
+   * A landscape clip keeps 16:9; a vertical one keeps its own shape, and the
+   * one place it meets a wide tile letterboxes it there instead.
+   */
   function grabFrame() {
-    const width = 1280;
-    const height = Math.round(width * 9 / 16);
+    const ratio = (meta.width && meta.height) ? meta.width / meta.height : 16 / 9;
+    const portrait = ratio < 1;
+    const width = portrait ? 720 : 1280;
+    const height = Math.round(width / ratio);
+
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, width, height);
-    // Fit inside 16:9 rather than crop: a vertical clip keeps its whole frame.
-    const ratio = (meta.width && meta.height) ? meta.width / meta.height : 16 / 9;
-    const drawWidth = ratio > 16 / 9 ? width : Math.round(height * ratio);
-    const drawHeight = ratio > 16 / 9 ? Math.round(width / ratio) : height;
-    ctx.drawImage(previewVideo, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+    ctx.drawImage(previewVideo, 0, 0, width, height);
     return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
   }
 
   /** Shows the candidates and marks the chosen one; clicking a tile is the whole gesture. */
   function renderCovers() {
+    // A vertical cover shown in a wide preview would be cropped, and then the
+    // frame you chose is not the frame you get.
+    options.classList.toggle('covers-tall', (meta.height || 0) > (meta.width || 0));
     options.innerHTML = covers.map((cover, index) => `
       <button type="button" class="thumb-option${cover.blob === thumbBlob ? ' is-active' : ''}"
               data-cover="${index}" aria-pressed="${cover.blob === thumbBlob}">

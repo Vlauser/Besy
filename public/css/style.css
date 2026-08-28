@@ -926,6 +926,8 @@ textarea:focus-visible,
   text-align: left;
 }
 .thumb-option img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+/* A vertical clip's covers are vertical: show them whole rather than cropped. */
+.thumb-options.covers-tall .thumb-option img { object-fit: contain; background: #000; }
 .thumb-option span { display: block; padding: 6px 8px; font-size: 12px; }
 .thumb-option:hover { border-color: var(--border); }
 .thumb-option.is-active { border-color: var(--accent); color: var(--text); }
@@ -1835,3 +1837,60 @@ body.theater .page { max-width: 100%; }
 }
 .choice-row button:hover { color: var(--text); }
 .choice-row button.active { background: var(--accent-soft); color: var(--accent); }
+
+/* ------------------------------------------------------------------- полка */
+
+/*
+ * A shelf is a row of one format inside a page of another — Shorts among
+ * videos. It spans the whole grid, scrolls sideways, and never lets its tiles
+ * into the grid itself, which is what keeps every row of cards even.
+ */
+.shelf {
+  grid-column: 1 / -1;
+  padding: 4px 0 8px;
+}
+
+.shelf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.shelf-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -.01em;
+}
+
+.shelf-nav { display: flex; gap: 4px; }
+.shelf-nav .btn:disabled { opacity: .3; }
+/* The arrows point along the row, not up and down the page. */
+.shelf-nav [data-shelf="back"] .icon { transform: rotate(-90deg); }
+.shelf-nav [data-shelf="forward"] .icon { transform: rotate(-90deg); }
+
+.shelf-row {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+.shelf-row::-webkit-scrollbar { display: none; }
+
+.shelf-item {
+  flex: 0 0 172px;
+  scroll-snap-align: start;
+}
+.shelf-item .thumb { margin-bottom: 8px; }
+.shelf-item .card-title { font-size: 14px; }
+
+@media (max-width: 700px) {
+  .shelf-item { flex-basis: 44vw; }
+  .shelf-nav { display: none; }
+}

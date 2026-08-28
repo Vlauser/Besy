@@ -56,6 +56,7 @@
       grid.innerHTML = videos.length
         ? videos.map((v) => videoCard(v)).join('')
         : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('compass', '', ICON_HERO)}</div>Посмотрите несколько роликов — и здесь появятся рекомендации</div>`;
+      insertShortsShelf();
       return;
     }
 
@@ -64,6 +65,7 @@
       grid.innerHTML = videos.length
         ? videos.map((v) => videoCard(v)).join('')
         : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">${icon('inbox', '', ICON_HERO)}</div>Пока нет видео от каналов, на которые вы подписаны</div>`;
+      insertShortsShelf();
       return;
     }
 
@@ -98,35 +100,39 @@
     state.offset += data.videos.length;
     moreBtn.hidden = state.offset >= state.total;
 
-    if (query && reset) renderShortsHits({ noVideos: data.videos.length === 0 });
+    if (reset) insertShortsShelf();
   }
 
-  /**
-   * Matching Shorts, as a strip of their own under the search results — the one
-   * place a Short appears outside its own screen, because otherwise what you
-   * typed would simply not be findable.
+  /*
+   * The Shorts shelf: one horizontal row inside the results, after the first
+   * few cards, the way every video service places it. Shorts still never enter
+   * the grid — the row is a section of its own, with its own tile shape — but
+   * they turn up where you are already looking rather than under everything.
    */
-  async function renderShortsHits({ noVideos } = {}) {
-    document.getElementById('shorts-hits')?.remove();
+  async function insertShortsShelf() {
+    grid.querySelector('.shelf')?.remove();
+
     let videos = [];
     try {
-      ({ videos } = await api.get(`/api/videos?kind=short&limit=12&q=${encodeURIComponent(query)}`));
+      const params = new URLSearchParams({ kind: 'short', limit: '12', sort: 'new' });
+      if (query) params.set('q', query);
+      ({ videos } = await api.get(`/api/videos?${params}`));
     } catch { return; }
     if (!videos.length) return;
 
-    // "Nothing found" is wrong when something was found — just not up there.
-    if (noVideos) {
-      const empty = grid.querySelector('.empty');
-      if (empty) empty.lastChild.textContent = 'Среди обычных видео совпадений нет';
-    }
+    const holder = document.createElement('div');
+    holder.innerHTML = shortsShelf(videos);
+    const shelf = holder.firstElementChild;
 
-    const strip = document.createElement('section');
-    strip.id = 'shorts-hits';
-    strip.className = 'mt-24';
-    strip.innerHTML = `
-      <h2 style="font-size:18px;margin:0 0 12px">Shorts по запросу</h2>
-      <div class="grid grid-tall">${videos.map((v) => videoCard(v, { tall: true })).join('')}</div>`;
-    grid.after(strip);
+    // After the first row of cards, or first when there is no first row.
+    const cards = grid.querySelectorAll('.card');
+    if (cards.length > 4) cards[4].before(shelf);
+    else grid.append(shelf);
+
+    // The empty state and a shelf in the same grid read as a contradiction.
+    if (!cards.length) grid.querySelector('.empty')?.remove();
+
+    wireShelves(grid);
   }
 
   document.getElementById('tabs').addEventListener('click', (event) => {
