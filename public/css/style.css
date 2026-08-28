@@ -30,19 +30,22 @@
   color-scheme: light dark;
 
   /* ground → panel → raised panel */
-  --bg: #f5f5f7;
+  --bg: #ffffff;
   --bg-elevated: #ffffff;
-  --bg-hover: #ebebf0;
-  --border: rgba(9, 11, 16, .13);
-  --border-soft: rgba(9, 11, 16, .07);
+  --bg-hover: #efefef;
+  --border: rgba(0, 0, 0, .11);
+  --border-soft: rgba(0, 0, 0, .06);
 
-  --text: #0b0d12;
-  --text-dim: #646a79;
+  --text: #0a0a0a;
+  --text-dim: #6b6b6b;
 
   /* interactive */
-  --accent: #0a7ea4;
-  --accent-hover: #086a8a;
-  --accent-soft: rgba(10, 126, 164, .12);
+  /* Two blues, because one cannot do both jobs: --accent is read as text on
+     the page, --accent-fill is the ground white text sits on. */
+  --accent: #0a6ed1;
+  --accent-fill: #0a6ed1;
+  --accent-hover: #0b63b8;
+  --accent-soft: rgba(10, 110, 209, .10);
   --accent-ink: #ffffff;
 
   /* state — each means one thing and nothing else */
@@ -85,19 +88,20 @@
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0a0b0e;
-    --bg-elevated: #16181d;
-    --bg-hover: #21242b;
-    --border: rgba(255, 255, 255, .14);
+    --bg: #000000;
+    --bg-elevated: #0d0d0f;
+    --bg-hover: #1c1c1e;
+    --border: rgba(255, 255, 255, .13);
     --border-soft: rgba(255, 255, 255, .07);
 
-    --text: #f2f3f6;
-    --text-dim: #9aa1b1;
+    --text: #f5f5f7;
+    --text-dim: #a1a1a6;
 
-    --accent: #4fd1ff;
-    --accent-hover: #7cdcff;
-    --accent-soft: rgba(79, 209, 255, .16);
-    --accent-ink: #06212b;
+    --accent: #4aa8ff;
+    --accent-fill: #0a6ed1;
+    --accent-hover: #7cc2ff;
+    --accent-soft: rgba(74, 168, 255, .14);
+    --accent-ink: #ffffff;
 
     --tally: #ff453a;
     --tally-soft: rgba(255, 69, 58, .16);
@@ -105,29 +109,30 @@
     --work: #fbbf24;
     --ok: #4ade80;
 
-    --glass-rgb: 20 22 27;
-    --glass-edge: rgba(0, 0, 0, .6);
-    --glass-specular: rgba(255, 255, 255, .18);
-    --glass-shadow: 0 12px 38px rgba(0, 0, 0, .5);
-    --scrim: rgba(0, 0, 0, .6);
+    --glass-rgb: 22 22 24;
+    --glass-edge: rgba(0, 0, 0, .7);
+    --glass-specular: rgba(255, 255, 255, .16);
+    --glass-shadow: 0 12px 38px rgba(0, 0, 0, .6);
+    --scrim: rgba(0, 0, 0, .62);
   }
 }
 
 /* The same values again, for when the choice is explicit rather than the OS's. */
 :root[data-theme="dark"] {
-  --bg: #0a0b0e;
-  --bg-elevated: #16181d;
-  --bg-hover: #21242b;
-  --border: rgba(255, 255, 255, .14);
+  --bg: #000000;
+  --bg-elevated: #0d0d0f;
+  --bg-hover: #1c1c1e;
+  --border: rgba(255, 255, 255, .13);
   --border-soft: rgba(255, 255, 255, .07);
 
-  --text: #f2f3f6;
-  --text-dim: #9aa1b1;
+  --text: #f5f5f7;
+  --text-dim: #a1a1a6;
 
-  --accent: #4fd1ff;
-  --accent-hover: #7cdcff;
-  --accent-soft: rgba(79, 209, 255, .16);
-  --accent-ink: #06212b;
+  --accent: #4aa8ff;
+  --accent-fill: #0a6ed1;
+  --accent-hover: #7cc2ff;
+  --accent-soft: rgba(74, 168, 255, .14);
+  --accent-ink: #ffffff;
 
   --tally: #ff453a;
   --tally-soft: rgba(255, 69, 58, .16);
@@ -135,11 +140,11 @@
   --work: #fbbf24;
   --ok: #4ade80;
 
-  --glass-rgb: 20 22 27;
-  --glass-edge: rgba(0, 0, 0, .6);
-  --glass-specular: rgba(255, 255, 255, .18);
-  --glass-shadow: 0 12px 38px rgba(0, 0, 0, .5);
-  --scrim: rgba(0, 0, 0, .6);
+  --glass-rgb: 22 22 24;
+  --glass-edge: rgba(0, 0, 0, .7);
+  --glass-specular: rgba(255, 255, 255, .16);
+  --glass-shadow: 0 12px 38px rgba(0, 0, 0, .6);
+  --scrim: rgba(0, 0, 0, .62);
 }
 
 /*
@@ -150,18 +155,19 @@
  */
 body.on-dark {
   --bg: #000000;
-  --bg-elevated: #16181d;
-  --bg-hover: #21242b;
-  --border: rgba(255, 255, 255, .14);
+  --bg-elevated: #0d0d0f;
+  --bg-hover: #1c1c1e;
+  --border: rgba(255, 255, 255, .13);
   --border-soft: rgba(255, 255, 255, .07);
 
-  --text: #f2f3f6;
-  --text-dim: #9aa1b1;
+  --text: #f5f5f7;
+  --text-dim: #a1a1a6;
 
-  --accent: #4fd1ff;
-  --accent-hover: #7cdcff;
-  --accent-soft: rgba(79, 209, 255, .16);
-  --accent-ink: #06212b;
+  --accent: #4aa8ff;
+  --accent-fill: #0a6ed1;
+  --accent-hover: #7cc2ff;
+  --accent-soft: rgba(74, 168, 255, .14);
+  --accent-ink: #ffffff;
 
   --tally: #ff453a;
   --tally-soft: rgba(255, 69, 58, .16);
@@ -169,11 +175,11 @@ body.on-dark {
   --work: #fbbf24;
   --ok: #4ade80;
 
-  --glass-rgb: 20 22 27;
-  --glass-edge: rgba(0, 0, 0, .6);
-  --glass-specular: rgba(255, 255, 255, .18);
-  --glass-shadow: 0 12px 38px rgba(0, 0, 0, .5);
-  --scrim: rgba(0, 0, 0, .6);
+  --glass-rgb: 22 22 24;
+  --glass-edge: rgba(0, 0, 0, .7);
+  --glass-specular: rgba(255, 255, 255, .16);
+  --glass-shadow: 0 12px 38px rgba(0, 0, 0, .6);
+  --scrim: rgba(0, 0, 0, .62);
 
   background: #000;
   color: var(--text);
@@ -299,11 +305,12 @@ body.scrolled .header {
   flex-shrink: 0;
 }
 
+/* The mark is the one solid shape in the chrome; everything else is a glyph. */
 .logo-mark {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--accent), #2aa6d6);
+  border-radius: 9px;
+  background: var(--accent-fill);
   display: grid;
   place-items: center;
   color: var(--accent-ink);
@@ -318,34 +325,36 @@ body.scrolled .header {
   margin: 0 auto;
 }
 
-/* One filled pill, not two boxes welded together. */
+/* One filled field with the magnifier inside it. */
 .search input {
   flex: 1;
   min-width: 0;
   height: 38px;
-  padding: 0 16px;
+  padding: 0 14px;
   background: var(--bg-hover);
   border: 1px solid transparent;
   border-right: none;
-  border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  color: var(--text);
   outline: none;
 }
+.search input::placeholder { color: var(--text-dim); }
 
 .search button {
   height: 38px;
-  padding: 0 16px;
+  padding: 0 14px;
   background: var(--bg-hover);
   border: 1px solid transparent;
   border-left: none;
-  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   color: var(--text-dim);
   cursor: pointer;
 }
+.search button:hover { color: var(--text); }
 
 .search:focus-within input,
 .search:focus-within button { border-color: var(--accent); }
 
-.search button:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
 .header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
@@ -370,8 +379,9 @@ h2 { font-size: 18px; margin: 0 0 14px; }
 /* A filter strip scrolls sideways rather than growing a second line. */
 .tabs {
   display: flex;
-  gap: 8px;
+  gap: 22px;
   margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
   overflow-x: auto;
   scrollbar-width: none;
   padding-bottom: 2px;
@@ -379,55 +389,83 @@ h2 { font-size: 18px; margin: 0 0 14px; }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs .tab { flex: 0 0 auto; }
 
+/*
+ * Tabs are text with a rule under the active one, not a row of pills. Pills
+ * made four equal-weight buttons out of what is one choice, and the choice is
+ * what the underline shows.
+ */
 .tab {
-  padding: 7px 15px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  padding: 10px 2px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-dim);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  transition: color var(--fast) linear, border-color var(--fast) linear;
 }
 
-.tab:hover { background: var(--bg-hover); }
-.tab.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent-hover);
-  font-weight: 600;
-}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--text); }
 
 /* ------------------------------------------------------------------ button */
 
+/*
+ * Three kinds of button and no fourth: a filled one for the action a screen
+ * exists for, a quiet filled one for everything else, and a plain one that is
+ * only its label. None of them is outlined — an outline on every control is
+ * what made this look like a form toolbar rather than an app, and it is the
+ * one thing neither iOS nor Instagram does.
+ */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 9px 17px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 14px;
+  background: var(--bg-hover);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text);
   cursor: pointer;
   font-size: 14px;
-  font-weight: 500;
-  transition: background var(--fast) var(--spring), border-color var(--fast) linear,
+  font-weight: 600;
+  line-height: 1.2;
+  transition: background var(--fast) linear, opacity var(--fast) linear,
               transform 120ms var(--spring);
 }
 
 /* A press should feel like a press: the control gives, then springs back. */
 .btn:active { transform: scale(.96); }
+.btn:hover { background: color-mix(in srgb, var(--bg-hover) 82%, var(--text)); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
 
-.btn:hover { background: var(--bg-hover); }
-.btn:active { transform: scale(.97); }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
-/* Dark ink on the trace cyan: white on this hue fails contrast at 14px. */
-.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-.btn-ghost { background: transparent; }
+.btn-primary { background: var(--accent-fill); color: var(--accent-ink); }
+.btn-primary:hover { filter: brightness(1.1); }
+
+/* Plain: a label with a hit area. The fill appears only under the pointer. */
+.btn-ghost { background: transparent; font-weight: 500; }
+.btn-ghost:hover { background: var(--bg-hover); }
+
+/* Icon-only controls are round, because that is the shape of a thumb. */
+.btn-icon {
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+}
+.btn-icon:hover { background: var(--bg-hover); }
 
 /* Destructive actions borrow the tally red only on hover, at the moment of
    commitment — never as a resting state, where it would compete with on-air. */
-.btn-danger:hover { background: var(--tally-soft); border-color: var(--tally); color: var(--tally); }
+.btn-danger:hover { background: var(--tally-soft); color: var(--tally); }
 .btn-block { width: 100%; }
 .btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hover); }
 
@@ -436,8 +474,6 @@ h2 { font-size: 18px; margin: 0 0 14px; }
 .icon { flex-shrink: 0; }
 .btn .icon { margin-right: -1px; }
 
-/* A button that is only an icon stays square instead of stretching to pill. */
-.btn-icon { padding: 9px; }
 .btn-icon .icon { margin: 0; }
 
 /* Keyboard focus has to be visible on every control, not just the ones that
@@ -500,8 +536,7 @@ textarea:focus-visible,
   opacity: .28;
 }
 
-.card:hover .thumb img { transform: scale(1.03); }
-.thumb img { transition: transform .25s; }
+/* No hover zoom: the picture is the content, and content does not twitch. */
 
 /* Chips that sit on a picture are dark in both themes, so they say so rather
    than inheriting a text colour that is black on black half the time. */
@@ -536,10 +571,10 @@ textarea:focus-visible,
 
 .card-title {
   font-weight: 600;
-  font-size: 15px;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-  margin-bottom: 5px;
+  font-size: 14px;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+  margin-bottom: 4px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -641,6 +676,11 @@ textarea:focus-visible,
 
 .channel-row { display: flex; align-items: center; gap: 12px; }
 
+/*
+ * Without a picture an avatar is a letter on a neutral disc. It used to be a
+ * cyan gradient, which made every channel that had not uploaded anything the
+ * loudest thing on the page.
+ */
 .avatar {
   position: relative;
   width: 40px;
@@ -648,9 +688,9 @@ textarea:focus-visible,
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--accent), #2aa6d6);
-  color: var(--accent-ink);
-  font-weight: 700;
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  font-weight: 600;
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -692,7 +732,11 @@ textarea:focus-visible,
 
 /* Without a banner the strip stays, quieter, so the page does not jump when
    one is added. */
-.channel-banner.is-empty { aspect-ratio: auto; min-height: 96px; }
+.channel-banner.is-empty {
+  aspect-ratio: auto;
+  min-height: 104px;
+  background: linear-gradient(120deg, var(--bg-hover), color-mix(in srgb, var(--bg-hover) 55%, var(--bg)));
+}
 
 /* Top-right, not bottom-right: the channel's own actions sit under the banner
    on that side, and the two rows would collide. */
@@ -704,27 +748,37 @@ textarea:focus-visible,
   gap: 8px;
 }
 
+/*
+ * These sit over a picture that can be anything, so they are glass rather than
+ * a colour: a black pill was chosen for a dark banner and turned into a blot
+ * on an empty light one.
+ */
 .artwork-actions .btn {
-  background: rgba(10, 12, 16, .72);
-  backdrop-filter: blur(4px);
-  border-color: rgba(255, 255, 255, .16);
-  cursor: pointer;
+  background: rgb(var(--glass-rgb) / .82);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  backdrop-filter: blur(14px) saturate(180%);
+  box-shadow: inset 0 0 0 .5px var(--glass-edge);
+  color: var(--text);
 }
+.artwork-actions .btn:hover { background: rgb(var(--glass-rgb) / .95); }
 
 /* Only the avatar climbs onto the banner. Pulling the whole block up put the
    channel name over the picture, where it was unreadable on anything light. */
-.channel-head { position: relative; z-index: 1; margin-top: 14px; }
+/* Only the avatar climbs onto the banner. */
+.channel-head { position: relative; z-index: 1; margin-top: 16px; gap: 24px; }
 .channel-head .avatar-lg {
-  margin-top: -52px;
-  border: 3px solid var(--bg);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+  width: 104px;
+  height: 104px;
+  font-size: 38px;
+  margin-top: -54px;
+  border: 4px solid var(--bg);
 }
+.channel-head h1 { font-size: 24px; letter-spacing: -.02em; margin: 2px 0 4px; }
 
 .description {
   margin-top: 16px;
   padding: 14px 16px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  background: var(--bg-hover);
   border-radius: var(--radius);
 }
 
@@ -876,23 +930,28 @@ textarea:focus-visible,
 .thumb-option:hover { border-color: var(--border); }
 .thumb-option.is-active { border-color: var(--accent); color: var(--text); }
 
+/* A field is a filled shape, not a box drawn around empty space. */
 .input, textarea.input, select.input {
   width: 100%;
-  padding: 10px 13px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  padding: 11px 14px;
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text);
   outline: none;
+  transition: border-color var(--fast) linear, background var(--fast) linear;
 }
 
-.input:focus { border-color: var(--accent); }
+.input::placeholder { color: var(--text-dim); }
+.input:focus { border-color: var(--accent); background: var(--bg-elevated); }
 textarea.input { resize: vertical; min-height: 96px; }
 
+/* A panel is a group, and a hairline is enough to say so. */
 .panel {
   background: var(--bg-elevated);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 22px;
-  box-shadow: 0 0 0 .5px var(--border-soft), 0 1px 2px rgba(9, 11, 16, .04);
+  padding: 20px;
 }
 
 code {
@@ -917,8 +976,9 @@ code {
 
 /* Both take their colour from the theme: a pale pink that reads on graphite
    disappears entirely on white. */
-.alert-error { background: var(--tally-soft); border: 1px solid var(--tally); color: var(--tally); }
-.alert-ok { background: rgba(61, 220, 151, .12); border: 1px solid var(--ok); color: var(--ok); }
+/* A tint carries the meaning; an outline around it only adds a second edge. */
+.alert-error { background: var(--tally-soft); color: var(--tally); }
+.alert-ok { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
 
 .dropzone {
   border: 2px dashed var(--border);
@@ -1267,9 +1327,9 @@ body.theater .page { max-width: 100%; }
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 11px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
   margin-bottom: 7px;
   cursor: pointer;
 }
@@ -1520,7 +1580,7 @@ body.theater .page { max-width: 100%; }
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  background: var(--accent);
+  background: var(--accent-fill);
   border-radius: 999px;
   color: #fff;
   font-size: 10px;
@@ -1622,19 +1682,24 @@ body.theater .page { max-width: 100%; }
 .tabbar a.active { color: var(--text); }
 .tabbar a.active .icon { stroke-width: 2.1; }
 
-/* The middle one is the verb, so it is filled rather than outlined. */
+/*
+ * The middle one is the verb. It used to be a filled black block, which is the
+ * heaviest thing on a light screen and the one shape a tab bar should not
+ * have — a bar of glyphs with one solid brick in it. It is a glyph like the
+ * others now, drawn a little larger.
+ */
 .tabbar .tab-post {
   flex: 0 0 auto;
-  width: 54px;
+  width: 56px;
+  color: var(--text);
 }
 .tabbar .tab-post span {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 30px;
-  border-radius: 10px;
-  background: var(--text);
-  color: var(--bg-elevated);
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  box-shadow: inset 0 0 0 1.5px currentColor;
 }
 
 @media (max-width: 700px) {
@@ -1644,8 +1709,9 @@ body.theater .page { max-width: 100%; }
   .header .hide-sm { display: none; }
   .header .search { display: none; }
   .header .logo span { display: inline; }
-  .page > h1 { font-size: 26px; letter-spacing: -.02em; }
+  .page > h1 { font-size: 24px; letter-spacing: -.02em; }
   .card-title { font-size: 15px; }
+  .tabs { gap: 18px; }
 }
 
 @media (min-width: 701px) {
@@ -1754,15 +1820,18 @@ body.theater .page { max-width: 100%; }
 
 .choice-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* A segmented control: one filled strip, the chosen segment tinted. */
 .choice-row button {
   flex: 1 1 90px;
-  padding: 9px 12px;
+  padding: 10px 12px;
+  border: none;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text);
+  background: var(--bg-hover);
+  color: var(--text-dim);
   cursor: pointer;
   font-size: 14px;
-  transition: border-color var(--fast) linear, background var(--fast) linear;
+  font-weight: 600;
+  transition: background var(--fast) linear, color var(--fast) linear;
 }
-.choice-row button.active { border-color: var(--accent); background: var(--accent-soft); }
+.choice-row button:hover { color: var(--text); }
+.choice-row button.active { background: var(--accent-soft); color: var(--accent); }
