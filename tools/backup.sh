@@ -50,16 +50,24 @@ echo "Готово: $(du -h "$FULL_ARC" | cut -f1)  $FULL_ARC"
 TOKEN=$(php -r "require '$SITE_ROOT/inc/config.php'; require '$SITE_ROOT/inc/store.php'; echo trim((string)c('integrations.telegram_token'));" 2>/dev/null)
 CHAT=$(php -r "require '$SITE_ROOT/inc/config.php'; require '$SITE_ROOT/inc/store.php'; echo trim((string)c('integrations.telegram_chat_id'));" 2>/dev/null)
 
-if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
+# Получателей в настройках может быть несколько через запятую —
+# телеграму такую строку целиком отдавать нельзя, он её не поймёт.
+CHATS=$(echo "$CHAT" | tr ',;' '  ')
+
+if [ -n "$TOKEN" ] && [ -n "$CHATS" ]; then
     SIZE=$(stat -c%s "$DATA_ARC")
     if [ "$SIZE" -lt 47000000 ]; then
-        curl -s -o /dev/null --max-time 60 \
-             -F "chat_id=$CHAT" \
-             -F "caption=Копия сайта $(date '+%d.%m.%Y %H:%M')" \
-             -F "document=@$DATA_ARC" \
-             "https://api.telegram.org/bot$TOKEN/sendDocument" \
-          && echo "Копия отправлена в Telegram" \
-          || echo "Отправить в Telegram не удалось"
+        SENT=0
+        for ID in $CHATS; do
+            curl -s -o /dev/null --max-time 60 \
+                 -F "chat_id=$ID" \
+                 -F "caption=Копия сайта $(date '+%d.%m.%Y %H:%M')" \
+                 -F "document=@$DATA_ARC" \
+                 "https://api.telegram.org/bot$TOKEN/sendDocument" \
+              && SENT=$((SENT+1)) \
+              || echo "Не удалось отправить копию адресату $ID"
+        done
+        [ "$SENT" -gt 0 ] && echo "Копия отправлена в Telegram, адресатов: $SENT"
     else
         echo "Архив крупнее 47 МБ — в Telegram не отправляю"
     fi
