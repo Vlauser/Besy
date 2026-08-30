@@ -1,0 +1,109 @@
+# AXIOMANTIC — конфигурация Apache
+# Нужен mod_rewrite и AllowOverride All. Для nginx — nginx.conf.example.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Сайт в подпапке? Раскомментируйте и укажите её
+    # RewriteBase /
+
+    # ---------- Один сайт — один адрес ----------
+    # Если открывается и www.axiomantic.ru, и axiomantic.ru, поисковик
+    # видит два разных сайта и делит между ними вес ссылок.
+    # Раскомментируйте после того, как домен и сертификат заработают.
+
+    # RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+    # RewriteRule ^ https://%1%{REQUEST_URI} [R=301,L]
+
+    # RewriteCond %{HTTPS} !=on
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+    # Существующие файлы и папки отдаём как есть.
+    # Адреса страниц приводит к единому виду сам роутер, в inc/seo.php
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Всё остальное — на роутер
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# ---------- Служебные папки наружу не отдаём ----------
+# Дублирует .htaccess внутри самих папок — на случай, если сайт в подпапке
+<IfModule mod_alias.c>
+    RedirectMatch 404 (^|/)(data|inc|tools)/
+</IfModule>
+
+# ---------- Точечные файлы ----------
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ---------- Локальная настройка путей ----------
+# Файл исполняется движком, но по прямой ссылке отдаваться не должен
+<Files "config.local.php">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</Files>
+
+# ---------- Документация и примеры конфигов ----------
+# Лежат в корне для владельца сайта, посетителю их отдавать незачем
+<FilesMatch "\.(md|example|bak|json)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ---------- Заголовки безопасности ----------
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    # Включите после того, как HTTPS отработает без нареканий пару недель.
+    # Откатить нельзя: браузеры запомнят срок и откажутся ходить по http.
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+    # Ссылки на статику идут с ?v=<время правки>, поэтому кэшировать
+    # можно надолго: после правки меняется адрес, и браузер скачает заново
+    <FilesMatch "\.(css|js|jpg|jpeg|png|gif|webp|svg|ico|woff2)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</IfModule>
+
+# ---------- Кэш статики ----------
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/plain application/javascript application/json application/xml image/svg+xml
+</IfModule>
+
+# ---------- WebP ----------
+# Некоторые сборки Apache не знают этот тип и отдают WebP как бинарный файл
+<IfModule mod_mime.c>
+    AddType image/webp .webp
+</IfModule>

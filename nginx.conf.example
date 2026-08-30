@@ -1,0 +1,125 @@
+# AXIOMANTIC — пример конфига nginx для axiomantic.ru
+# /etc/nginx/sites-available/axiomantic.ru
+# ln -s /etc/nginx/sites-available/axiomantic.ru /etc/nginx/sites-enabled/
+# nginx -t && systemctl reload nginx
+#
+# ВАЖНО: порядок location с регулярными выражениями имеет значение —
+# nginx берёт первое совпадение. Запреты идут ДО обработки PHP.
+
+# ---------- www → без www ----------
+# Один сайт должен отвечать по одному адресу. Если открывается и
+# www.axiomantic.ru, и axiomantic.ru, поисковик видит два разных сайта
+# и делит между ними вес ссылок.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name www.axiomantic.ru;
+    return 301 http://axiomantic.ru$request_uri;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name axiomantic.ru;
+
+    # Certbot сам добавит редирект на HTTPS после выпуска сертификата
+    root /var/www/axiomantic;
+    index index.php;
+
+    client_max_body_size 12M;   # запас под картинки (лимит в config.php — 8 МБ)
+
+    # Локальная настройка путей — исполняется, но наружу не отдаётся
+    location = /config.local.php { deny all; return 404; }
+
+    # ---------- 1. Запреты. Строго перед блоком PHP ----------
+    location ~ ^/(data|inc|tools)/ {
+        deny all;
+        return 404;
+    }
+
+    location ~ /\. {
+        deny all;
+        return 404;
+    }
+
+    # Документация и примеры конфигов — для владельца, не для посетителей
+    location ~* \.(md|example|bak|json)$ {
+        deny all;
+        return 404;
+    }
+
+    # В загрузках ничего не исполняется
+    location ^~ /uploads/ {
+        location ~ \.(php|phps|phtml|phar|php[0-9])$ {
+            deny all;
+            return 404;
+        }
+        autoindex off;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    # ---------- 2. Роутинг ----------
+    # $uri/ нужен для настоящих папок — прежде всего для /admin/.
+    # Адресов страниц он не касается: /services/ папкой не является
+    # и уходит в роутер, а тот уже 301-м уводит на /services
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # ---------- 3. PHP ----------
+    location ~ \.php$ {
+        # try_files здесь НЕ нужен — он уже есть внутри fastcgi-php.conf.
+        # Если добавить, nginx упадёт с ошибкой "try_files directive is duplicate".
+        include snippets/fastcgi-php.conf;
+        # Путь к сокету зависит от версии PHP — проверьте: ls /run/php/
+        # Имя сокета зависит от версии PHP — сверьтесь с ls /run/php/
+        # Если PHP работает в контейнере (docker/Dockerfile), вместо
+        # сокета указывается порт:  fastcgi_pass 127.0.0.1:9000;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param HTTPS $https if_not_empty;
+    }
+
+    # ---------- 4. Статика ----------
+    # Ссылки на стили, скрипты и картинки идут с ?v=<время правки>,
+    # поэтому кэшировать можно надолго: после правки меняется адрес,
+    # и браузер сам скачает новую версию
+    location ~* \.(css|js|jpg|jpeg|png|gif|webp|svg|ico)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    location ~* \.woff2$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # Карту сайта и robots собирает PHP — их кэшировать не нужно
+    location ~* ^/(robots\.txt|sitemap\.xml)$ {
+        try_files $uri /index.php?$query_string;
+        expires -1;
+    }
+
+    # ---------- Заголовки безопасности ----------
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+    # Включите после того, как HTTPS отработает без нареканий пару недель.
+    # Откатить нельзя: браузеры запомнят срок и откажутся ходить по http.
+    # add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml application/xml text/plain;
+    gzip_min_length 1024;
+
+    # Brotli жмёт текст ещё на 15–20% плотнее gzip. Раскомментируйте,
+    # если модуль собран: nginx -V 2>&1 | grep -o brotli
+    # brotli on;
+    # brotli_types text/css application/javascript application/json image/svg+xml application/xml text/plain;
+
+    access_log /var/log/nginx/axiomantic.access.log;
+    error_log  /var/log/nginx/axiomantic.error.log;
+}
