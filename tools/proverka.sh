@@ -9,9 +9,20 @@
 SITE="${1:-https://axiomantic.ru}"
 ROOT=/var/www/axiomantic
 PHP="${PHP:-php}"
+
+# Сервер не всегда достукивается до собственного внешнего адреса: на
+# машинах с VPN и своей маршрутизацией часть таких соединений отваливается
+# по таймауту. Снаружи сайт при этом работает, а проверка показывает 000
+# в случайных строках. LOCAL=1 отправляет запросы прямо в свой nginx —
+# проверяется тот же сайт, минуя путь наружу и обратно.
+#
+#   LOCAL=1 bash tools/proverka.sh
+HOST=${SITE#*://}; HOST=${HOST%%/*}; HOST=${HOST%%:*}
+RES=""
+[ -n "${LOCAL:-}" ] && RES="--resolve $HOST:443:127.0.0.1 --resolve $HOST:80:127.0.0.1"
 ok=0; bad=0
 say(){ if [ "$1" = y ]; then printf '  \033[32mOK\033[0m   %s\n' "$2"; ok=$((ok+1)); else printf '  \033[31mНЕТ\033[0m  %s\n' "$2"; bad=$((bad+1)); fi; }
-code(){ curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$1"; }
+code(){ curl -s -o /dev/null -w '%{http_code}' --max-time 15 $RES "$1"; }
 
 echo; echo "== Страницы =="
 for p in "" projects services about blog contacts privacy consent landing landing-price \
@@ -34,7 +45,7 @@ for p in data/content.json data/users.json data/leads.json inc/config.php tools/
 done
 
 echo; echo "== HTTPS =="
-loc=$(curl -s -o /dev/null -w '%{redirect_url}' --max-time 15 "http://${SITE#https://}/")
+loc=$(curl -s -o /dev/null -w '%{redirect_url}' --max-time 15 $RES "http://${SITE#https://}/")
 case "$loc" in https://*) say y "http уводит на $loc";; *) say n "нет редиректа на https (получили «$loc»)";; esac
 
 echo; echo "== Файлы на сервере =="

@@ -14,7 +14,19 @@ declare(strict_types=1);
  * никто не ссылается.
  *
  * Ничего не меняет. Запускать можно сколько угодно.
+ *
+ * Если сервер не достукивается до собственного внешнего адреса — так
+ * бывает на машинах с VPN и своей маршрутизацией, — укажите, куда
+ * направлять запросы вместо DNS:
+ *
+ *   RESOLVE_IP=127.0.0.1 php tools/seo-proverka.php https://axiomantic.ru
+ *
+ * Из контейнера сюда идёт адрес шлюза docker (обычно 172.17.0.1):
+ * внутри контейнера 127.0.0.1 — это он сам, а не сервер.
  */
+
+// Куда направлять запросы вместо результата DNS, если задано.
+$RESOLVE_IP = trim((string)getenv('RESOLVE_IP'));
 
 const T_MIN = 20;   // короче — поисковик подставит своё
 const T_MAX = 65;   // длиннее — обрежет в выдаче
@@ -42,10 +54,21 @@ if ($base === '') {
 $ok = 0;
 $problems = [];
 
+/** Правило подмены адреса для curl: имя:порт:адрес. */
+function resolve_map(string $url, string $ip): array
+{
+    $host = (string)parse_url($url, PHP_URL_HOST);
+    if ($host === '') return [];
+
+    return ["$host:443:$ip", "$host:80:$ip"];
+}
+
 /** Загрузить страницу. Возвращает [код, тело]. */
 function fetch(string $url): array
 {
+    global $RESOLVE_IP;
     $ch = curl_init($url);
+    if ($RESOLVE_IP !== '') curl_setopt($ch, CURLOPT_RESOLVE, resolve_map($url, $RESOLVE_IP));
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
@@ -62,7 +85,9 @@ function fetch(string $url): array
 /** Только код ответа — для проверки ссылок. */
 function head_code(string $url): int
 {
+    global $RESOLVE_IP;
     $ch = curl_init($url);
+    if ($RESOLVE_IP !== '') curl_setopt($ch, CURLOPT_RESOLVE, resolve_map($url, $RESOLVE_IP));
     curl_setopt_array($ch, [
         CURLOPT_NOBODY         => true,
         CURLOPT_RETURNTRANSFER => true,
