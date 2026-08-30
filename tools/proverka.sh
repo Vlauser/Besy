@@ -1,7 +1,14 @@
 #!/bin/bash
 # Проверка сайта после установки. Запускать на сервере под root.
+#
+# Если сайт работает на PHP из контейнера, а системный php другой версии,
+# укажите, чем его вызывать, — иначе проверка расширений соврёт,
+# посмотрев не на тот PHP:
+#
+#   PHP="docker exec axiomantic-php php" bash tools/proverka.sh
 SITE="${1:-https://axiomantic.ru}"
 ROOT=/var/www/axiomantic
+PHP="${PHP:-php}"
 ok=0; bad=0
 say(){ if [ "$1" = y ]; then printf '  \033[32mOK\033[0m   %s\n' "$2"; ok=$((ok+1)); else printf '  \033[31mНЕТ\033[0m  %s\n' "$2"; bad=$((bad+1)); fi; }
 code(){ curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$1"; }
@@ -33,13 +40,15 @@ case "$loc" in https://*) say y "http уводит на $loc";; *) say n "нет
 echo; echo "== Файлы на сервере =="
 [ -f "$ROOT/install.php" ] && say n "install.php НЕ УДАЛЁН — удалите!" || say y "install.php удалён"
 [ -f "$ROOT/config.local.php" ] && say y "config.local.php есть" || say n "config.local.php отсутствует"
-d=$(php -r "require '$ROOT/inc/config.php'; echo DATA_DIR;" 2>/dev/null)
+d=$($PHP -r "require '$ROOT/inc/config.php'; echo DATA_DIR;" 2>/dev/null)
 say y "данные лежат в $d"
 case "$d" in "$ROOT"/*) say n "данные ВНУТРИ корня сайта";; *) say y "данные за корнем сайта";; esac
 [ -w "$d" ] && say y "папка данных доступна на запись" || say n "в папку данных нельзя писать"
 [ -w "$ROOT/uploads" ] && say y "uploads доступна на запись" || say n "в uploads нельзя писать — картинки не загрузятся"
-php -m | grep -q '^gd$' && say y "расширение gd" || say n "нет gd — картинки не сожмутся"
-php -m | grep -q '^mbstring$' && say y "расширение mbstring" || say n "нет mbstring"
+$PHP -m | grep -q '^gd$' && say y "расширение gd" || say n "нет gd — картинки не сожмутся"
+$PHP -m | grep -q '^mbstring$' && say y "расширение mbstring" || say n "нет mbstring"
+v=$($PHP -r 'echo PHP_VERSION;' 2>/dev/null)
+case "$v" in 8.*) say y "PHP $v" ;; *) say n "PHP $v — движку нужен 8.1 или новее" ;; esac
 
 echo; echo "== Итог: успешно $ok, проблем $bad =="
 [ "$bad" = 0 ] && echo "Всё в порядке." || echo "Разберите строки с пометкой НЕТ."
