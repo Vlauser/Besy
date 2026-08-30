@@ -73,6 +73,9 @@ server {
         # Если добавить, nginx упадёт с ошибкой "try_files directive is duplicate".
         include snippets/fastcgi-php.conf;
         # Путь к сокету зависит от версии PHP — проверьте: ls /run/php/
+        # Имя сокета зависит от версии PHP — сверьтесь с ls /run/php/
+        # Если PHP работает в контейнере (docker/Dockerfile), вместо
+        # сокета указывается порт:  fastcgi_pass 127.0.0.1:9000;
         fastcgi_pass unix:/run/php/php8.3-fpm.sock;
         fastcgi_param HTTPS $https if_not_empty;
     }
