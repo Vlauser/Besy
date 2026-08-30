@@ -28,6 +28,8 @@ declare(strict_types=1);
 // Куда направлять запросы вместо результата DNS, если задано.
 $RESOLVE_IP = trim((string)getenv('RESOLVE_IP'));
 
+const TRIES = 3;    // столько раз пробуем, если соединение оборвалось
+
 const T_MIN = 20;   // короче — поисковик подставит своё
 const T_MAX = 65;   // длиннее — обрежет в выдаче
 const D_MIN = 70;
@@ -63,43 +65,61 @@ function resolve_map(string $url, string $ip): array
     return ["$host:443:$ip", "$host:80:$ip"];
 }
 
-/** Загрузить страницу. Возвращает [код, тело]. */
+/**
+ * Загрузить страницу. Возвращает [код, тело].
+ *
+ * Обрыв соединения повторяем: на нагруженном сервере отдельные запросы
+ * иногда не доходят, и без повтора живая страница попадает в отчёт как
+ * сломанная. Настоящую поломку три попытки подряд не вылечат.
+ */
 function fetch(string $url): array
 {
     global $RESOLVE_IP;
-    $ch = curl_init($url);
-    if ($RESOLVE_IP !== '') curl_setopt($ch, CURLOPT_RESOLVE, resolve_map($url, $RESOLVE_IP));
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT        => 20,
-        CURLOPT_USERAGENT      => 'seo-proverka/1.0',
-    ]);
-    $body = curl_exec($ch);
-    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
 
-    return [$code, is_string($body) ? $body : ''];
+    for ($try = 1; $try <= TRIES; $try++) {
+        $ch = curl_init($url);
+        if ($RESOLVE_IP !== '') curl_setopt($ch, CURLOPT_RESOLVE, resolve_map($url, $RESOLVE_IP));
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_USERAGENT      => 'seo-proverka/1.0',
+        ]);
+        $body = curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($code !== 0) return [$code, is_string($body) ? $body : ''];
+        if ($try < TRIES) usleep(400000);
+    }
+
+    return [0, ''];
 }
 
-/** Только код ответа — для проверки ссылок. */
+/** Только код ответа — для проверки ссылок. Обрыв так же повторяем. */
 function head_code(string $url): int
 {
     global $RESOLVE_IP;
-    $ch = curl_init($url);
-    if ($RESOLVE_IP !== '') curl_setopt($ch, CURLOPT_RESOLVE, resolve_map($url, $RESOLVE_IP));
-    curl_setopt_array($ch, [
-        CURLOPT_NOBODY         => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT        => 15,
-        CURLOPT_USERAGENT      => 'seo-proverka/1.0',
-    ]);
-    curl_exec($ch);
-    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
 
-    return $code;
+    for ($try = 1; $try <= TRIES; $try++) {
+        $ch = curl_init($url);
+        if ($RESOLVE_IP !== '') curl_setopt($ch, CURLOPT_RESOLVE, resolve_map($url, $RESOLVE_IP));
+        curl_setopt_array($ch, [
+            CURLOPT_NOBODY         => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_USERAGENT      => 'seo-proverka/1.0',
+        ]);
+        curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($code !== 0) return $code;
+        if ($try < TRIES) usleep(400000);
+    }
+
+    return 0;
 }
 
 function say_ok(string $text): void
