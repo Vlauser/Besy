@@ -1,0 +1,22 @@
+# Скрипты в папке загрузок не отдаём и не исполняем.
+# Запрет доступа работает при любом способе подключения PHP,
+# в отличие от php_flag, который есть только у mod_php.
+<FilesMatch "\.(php|phps|phtml|phar|php[0-9]|cgi|pl|py|sh|htaccess)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Дополнительно снимаем обработчики, если сервер настроен через AddHandler
+<IfModule mod_mime.c>
+    RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
+    RemoveType .php .phtml .phar
+</IfModule>
+
+# Список файлов в папке не показываем.
+# Если сервер ответит 500 — уберите эту строку (нужен AllowOverride Options или All)
+Options -Indexes
